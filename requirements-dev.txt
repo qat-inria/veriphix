@@ -1,0 +1,13 @@
+# Style
+ruff
+
+# Tests
+pytest
+pytest-cov
+pytest-mock
+tox
+
+# Optional dependencies
+qiskit>=1.0
+qiskit-aer
+rustworkx
