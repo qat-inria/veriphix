@@ -1,11 +1,8 @@
 from __future__ import annotations
 
-import typing
-from copy import deepcopy
+import random
 from dataclasses import dataclass
-
-import networkx as nx
-import numpy as np
+from typing import TYPE_CHECKING
 
 import graphix.command
 import graphix.ops
@@ -14,14 +11,15 @@ import graphix.pauli
 import graphix.sim.base_backend
 import graphix.sim.statevec
 import graphix.simulator
-from graphix.clifford import CLIFFORD, CLIFFORD_CONJ, CLIFFORD_MUL
-from graphix.command import CommandKind, BaseM
+import networkx as nx
+import numpy as np
+from graphix.command import BaseM, CommandKind
 from graphix.pattern import Pattern
-from graphix.pauli import Plane
-from graphix.sim.base_backend import Backend
-from graphix.sim.base_backend import State as BackendState
 from graphix.simulator import MeasureMethod, PatternSimulator
-from graphix.states import BasicStates, PlanarState, State
+from graphix.states import BasicStates, State
+
+if TYPE_CHECKING:
+    from graphix.sim.base_backend import Backend
 
 """
 Usage:
@@ -93,10 +91,6 @@ class SecretDatas:
                 a_N[i] = a_N_value
 
         return SecretDatas(r, Secret_a(a, a_N), theta)
-
-
-## TODO : extract somewhere else
-import random
 
 
 class Stabilizer:
@@ -259,6 +253,19 @@ def remove_flow(pattern):
     return clean_pattern
 
 
+def prepared_nodes_as_input_nodes(pattern: Pattern) -> Pattern:
+    input_nodes = pattern.input_nodes
+    seq = []
+    for cmd in pattern:
+        if cmd.kind == CommandKind.N:
+            input_nodes.append(cmd.node)
+        else:
+            seq.append(cmd)
+    result = Pattern(input_nodes=input_nodes)
+    result.extend(seq)
+    return result
+
+
 class Client:
     def __init__(self, pattern, input_state=None, measure_method_cls=None, secrets=None):
         self.initial_pattern = pattern
@@ -282,13 +289,17 @@ class Client:
         self.secrets = SecretDatas.from_secrets(secrets, self.graph, self.input_nodes, self.output_nodes)
 
         pattern_without_flow = remove_flow(pattern)
-        self.clean_pattern = pattern_without_flow.prepared_nodes_as_input_nodes()
+        self.clean_pattern = prepared_nodes_as_input_nodes(pattern_without_flow)
 
-        self.input_state = input_state if input_state != None else [BasicStates.PLUS for _ in self.input_nodes]
+        self.input_state = input_state if input_state is not None else [BasicStates.PLUS for _ in self.input_nodes]
 
     def blind_qubits(self, backend: Backend) -> None:
-        z_rotation = lambda theta: np.array([[1, 0], [0, np.exp(1j * theta * np.pi / 4)]])
-        x_blind = lambda a: graphix.pauli.X if (a == 1) else graphix.pauli.I
+        def z_rotation(theta):
+            return np.array([[1, 0], [0, np.exp(1j * theta * np.pi / 4)]])
+
+        def x_blind(a):
+            return graphix.pauli.X if (a == 1) else graphix.pauli.I
+
         for node in self.nodes_list:
             theta = self.secrets.theta.get(node, 0)
             a = self.secrets.a.a.get(node, 0)
@@ -300,10 +311,8 @@ class Client:
         backend.add_nodes(nodes=self.input_nodes, data=self.input_state)
 
         # Then iterate over auxiliaries required to blind
-        aux_nodes = []
-        for node in self.nodes_list:
-            if node not in self.input_nodes and node not in self.output_nodes:
-                aux_nodes.append(node)
+        outer_nodes = set(self.input_nodes + self.output_nodes)
+        aux_nodes = [node for node in self.nodes_list if node not in outer_nodes]
         aux_data = [BasicStates.PLUS for _ in aux_nodes]
         backend.add_nodes(nodes=aux_nodes, data=aux_data)
 
@@ -405,7 +414,7 @@ class ClientMeasureMethod(MeasureMethod):
         s_signal = sum(self.__client.results[j] for j in parameters.s_domain)
         t_signal = sum(self.__client.results[j] for j in parameters.t_domain)
         measure_update = graphix.pauli.MeasureUpdate.compute(
-            parameters.plane, s_signal % 2 == 1, t_signal % 2 == 1, graphix.clifford.TABLE[parameters.vop]
+            parameters.plane, s_signal % 2 == 1, t_signal % 2 == 1, graphix.clifford.I
         )
         angle = parameters.angle * np.pi
         angle = angle * measure_update.coeff + measure_update.add_term

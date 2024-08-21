@@ -1,16 +1,12 @@
 import unittest
-from copy import deepcopy
-from random import randint, random
 
 import numpy as np
+from graphix.random_objects import rand_circuit
+from graphix.sim.statevec import StatevectorBackend
+from graphix.states import BasicStates
 from numpy.random import Generator
 
-import graphix
-import graphix.pauli
-import tests.random_circuit as rc
-from graphix.client import Client, ClientMeasureMethod, Secrets
-from graphix.sim.statevec import Statevec, StatevectorBackend
-from graphix.states import BasicStates, PlanarState
+from veriphix.client import Client, ClientMeasureMethod, Secrets
 
 
 class TestClient:
@@ -18,7 +14,7 @@ class TestClient:
         # Generate random pattern
         nqubits = 2
         depth = 1
-        circuit = rc.get_rand_circuit(nqubits, depth, fx_rng)
+        circuit = rand_circuit(nqubits, depth, fx_rng)
         pattern = circuit.transpile().pattern
         pattern.standardize(method="global")
 
@@ -28,7 +24,7 @@ class TestClient:
         states = [BasicStates.PLUS for node in pattern.input_nodes]
 
         # Create the client with the input state
-        client = Client(pattern=pattern, input_state=states, secrets=secrets)
+        _client = Client(pattern=pattern, input_state=states, secrets=secrets)
 
         # Assert something...
         # Todo ?
@@ -37,8 +33,8 @@ class TestClient:
         # Generate and standardize pattern
         nqubits = 2
         depth = 1
-        for i in range(10):
-            circuit = rc.get_rand_circuit(nqubits, depth, fx_rng)
+        for _i in range(10):
+            circuit = rand_circuit(nqubits, depth, fx_rng)
             pattern = circuit.transpile().pattern
             pattern.standardize(method="global")
 
@@ -57,8 +53,8 @@ class TestClient:
         # Generate random pattern
         nqubits = 2
         depth = 1
-        for i in range(10):
-            circuit = rc.get_rand_circuit(nqubits, depth, fx_rng)
+        for _i in range(10):
+            circuit = rand_circuit(nqubits, depth, fx_rng)
             pattern = circuit.transpile().pattern
             pattern.standardize(method="global")
 
@@ -86,7 +82,7 @@ class TestClient:
         nqubits = 2
         depth = 1
         for _ in range(10):
-            circuit = rc.get_rand_circuit(nqubits, depth, fx_rng)
+            circuit = rand_circuit(nqubits, depth, fx_rng)
             pattern = circuit.transpile().pattern
             pattern.standardize(method="global")
 
@@ -112,7 +108,7 @@ class TestClient:
         # Generate and standardize pattern
         nqubits = 2
         depth = 1
-        circuit = rc.get_rand_circuit(nqubits, depth, fx_rng)
+        circuit = rand_circuit(nqubits, depth, fx_rng)
         pattern = circuit.transpile().pattern
         pattern.standardize(method="global")
         server_results = dict()
@@ -140,7 +136,7 @@ class TestClient:
     def test_qubits_preparation(self, fx_rng: Generator):
         nqubits = 2
         depth = 1
-        circuit = rc.get_rand_circuit(nqubits, depth, fx_rng)
+        circuit = rand_circuit(nqubits, depth, fx_rng)
         pattern = circuit.transpile().pattern
         nodes = pattern.get_graph()[0]
         pattern.standardize(method="global")
@@ -164,8 +160,8 @@ class TestClient:
         nqubits = 2
         # TODO : work on optimization of the quantum communication
         depth = 1
-        for i in range(10):
-            circuit = rc.get_rand_circuit(nqubits, depth, fx_rng)
+        for _i in range(10):
+            circuit = rand_circuit(nqubits, depth, fx_rng)
             pattern = circuit.transpile().pattern
             pattern.standardize(method="global")
 
