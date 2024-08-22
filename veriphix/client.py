@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import random
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -16,7 +15,10 @@ import numpy as np
 from graphix.command import BaseM, CommandKind
 from graphix.pattern import Pattern
 from graphix.simulator import MeasureMethod, PatternSimulator
-from graphix.states import BasicStates, State
+from graphix.states import BasicStates
+
+from veriphix.trappifiedCanvas import TrappifiedCanvas
+from veriphix.trappifiedCanvas import Trap
 
 if TYPE_CHECKING:
     from graphix.sim.base_backend import Backend
@@ -91,131 +93,6 @@ class SecretDatas:
                 a_N[i] = a_N_value
 
         return SecretDatas(r, Secret_a(a, a_N), theta)
-
-
-class Stabilizer:
-    def __init__(self, graph: nx.Graph, nodes: list[int]) -> None:
-        """
-        Builds a multi-qubit Pauli operator from a list of nodes, computing the product of canonical stabilizer generators of the desired nodes
-
-        graph : Instance of networkx.Graph, the underlying graph
-        nodes : list of nodes, to take the product of their associated canonical stabilizers
-        """
-        self.graph = graph
-        self.nodes = nodes
-        self.chain: list[graphix.pauli.Pauli] = [graphix.pauli.I for _ in self.graph.nodes]
-        self.init_chain(nodes)
-
-    @property
-    def size(self) -> int:
-        return len(self.graph.nodes)
-
-    @property
-    def span(self) -> set[int]:
-        """
-        Return the nodes involved in the stabilizer product, and their neighbors, in the same set
-        Equivalent to return the node indices where the Pauli isn't the identity
-        """
-        span = set(self.nodes)
-        for node in self.nodes:
-            for neighbor in self.graph.neighbors(node):
-                span.add(neighbor)
-        return span
-
-    def init_chain(self, nodes):
-        for node in nodes:
-            self.compute_product(node)
-
-    def compute_product(self, node):
-        """
-        Computes the product of the current stabilizer with the canonical generator of a given node
-        A canonical generator for a node is : X on the node, Z on the neighbors
-        The underlying graph structure helps to match the node indices
-        """
-        self.chain[node] @= graphix.pauli.X
-        for neighbor in self.graph.neighbors(node):
-            self.chain[neighbor] @= graphix.pauli.Z
-
-    def __repr__(self) -> str:
-        string = f"""
-        Product stabilizer of nodes in {self.nodes}\n
-        For graph with edges {self.graph.edges}\n
-        """
-        for node in sorted(self.graph.nodes):
-            string += f"{node} {self.chain[node]}\n"
-
-        return string
-
-
-class TrappifiedCanvas:
-    def __init__(self, graph: nx.Graph, traps_list: list[list[int]]) -> None:
-        self.graph = graph
-        self.traps_list = traps_list
-        stabilizers = [Stabilizer(graph, trap_nodes) for trap_nodes in traps_list]
-        self.stabilizer = self.merge_stabilizers(stabilizers)
-        print(self.stabilizer)
-        dummies_coins = self.generate_coins_dummies()
-        self.coins = self.generate_coins_trap_qubits(coins=dummies_coins)
-        self.spans = dict(zip(self.trap_qubits, [stabilizer.span for stabilizer in stabilizers]))
-        self.states = self.generate_eigenstate()
-
-    @property
-    def trap_qubits(self):
-        return [node for trap in self.traps_list for node in trap]
-
-    @property
-    def dummy_qubits(self):
-        return [neighbor for trap in self.traps_list for node in trap for neighbor in list(self.graph.neighbors(node))]
-
-    def merge_stabilizers(self, stabilizers: list[Stabilizer]):
-        common_stabilizer = Stabilizer(self.graph, [])
-        for stabilizer in stabilizers:
-            for node in stabilizer.span:
-                # If the Pauli was identity, just replace it by the upcoming Pauli
-                if common_stabilizer.chain[node] == graphix.pauli.I:
-                    common_stabilizer.chain[node] = stabilizer.chain[node]
-                else:
-                    # If the Pauli wasn't identity, the incoming Pauli must coincide with the previous one
-                    # otherwise it's dramatic
-                    if common_stabilizer.chain[node] != stabilizer.chain[node]:
-                        print("Huge error")
-                        return
-                    else:
-                        # (nothing to do as they already coincide)
-                        pass
-            common_stabilizer.nodes += stabilizer.nodes
-        return common_stabilizer
-
-    def generate_eigenstate(self) -> list[State]:
-        states = []
-        for node in sorted(self.stabilizer.graph.nodes):
-            operator = self.stabilizer.chain[node]
-            states.append(operator.get_eigenstate(eigenvalue=self.coins[node]))
-        return states
-
-    def generate_coins_dummies(self):
-        coins = dict()
-        for node in self.stabilizer.graph.nodes:
-            if node not in self.trap_qubits:
-                coins[node] = random.randint(0, 1)
-            else:
-                coins[node] = 0
-        return coins
-
-    def generate_coins_trap_qubits(self, coins):
-        for node in self.trap_qubits:
-            neighbors_coins = sum(coins[n] for n in self.stabilizer.graph.neighbors(node)) % 2
-            coins[node] = neighbors_coins
-        return coins
-
-    def __repr__(self) -> str:
-        text = ""
-        for node in sorted(self.stabilizer.graph.nodes):
-            trap_span = ""
-            if node in self.trap_qubits:
-                trap_span += f"{self.spans[node]}"
-            text += f"{node} {self.stabilizer.chain[node]} ^ {self.coins[node]} {trap_span} -> {self.states[node]}\n"
-        return text
 
 
 @dataclass
@@ -324,7 +201,17 @@ class Client:
             output_data.append(BasicStates.PLUS if r_value ^ a_N_value == 0 else BasicStates.MINUS)
         backend.add_nodes(nodes=self.output_nodes, data=output_data)
 
-    def create_test_runs(self) -> tuple[list[TrappifiedCanvas], dict[int, int]]:
+    def create_test_runs(self) -> list[TrappifiedCanvas]:
+        """
+        Creates test runs according to FK12 protocol of 
+        Fitzsimons, J. F., & Kashefi, E. (2017). Unconditionally verifiable blind quantum computation. Physical Review A, 96(1), 012303.
+        https://arxiv.org/abs/1203.5217
+
+        The graph is partitioned in `k` colors.
+        Each color is associated to a test run, or a Trappified Canvas.
+
+        For a color, single-qubit traps are created for each node of that color.
+        """
         graph = nx.Graph()
         nodes, edges = self.graph
         graph.add_edges_from(edges)
@@ -341,13 +228,17 @@ class Client:
         # Create the test runs : one per color
         runs: list[TrappifiedCanvas] = []
         for color in colors:
-            # 1 color = 1 test run = 1 set of traps = 1 stabilizer
-            trap_qubits = nodes_by_color[color]
-            isolated_traps = [[node] for node in trap_qubits]
-            trappified_canvas = TrappifiedCanvas(graph, traps_list=isolated_traps)
+            # 1 color = 1 test run = 1 set of traps
+            traps_list = []
+            for colored_node in nodes_by_color[color]:
+                trap_qubits = [colored_node]# single-qubit trap
+                trap:Trap = set(trap_qubits) 
+                traps_list.append(trap)
+            
+            trappified_canvas = TrappifiedCanvas(graph, traps_list=traps_list)
 
             runs.append(trappified_canvas)
-        return runs, coloring
+        return runs
 
     def delegate_test_run(self, backend: Backend, run: TrappifiedCanvas) -> list[int]:
         # The state is entirely prepared and blinded by the client before being sent to the server
