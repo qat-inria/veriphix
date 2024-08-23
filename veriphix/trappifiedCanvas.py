@@ -54,38 +54,30 @@ class TrappifiedCanvas:
         match_Z = set(stabilizer_1.pauli_indices("Z")).issubset(
             set(stabilizer_2.pauli_indices("Z")).union(set(stabilizer_2.pauli_indices("I")))
         )
-        return match_X * match_Y * match_Z
+        return match_X and match_Y and match_Z
 
     def merge(self, stabilizer_1: stim.PauliString, stabilizer_2: stim.PauliString) -> stim.PauliString:
-        result = stabilizer_1.sign * stabilizer_2.sign * stim.PauliString(len(self.graph.nodes))
-        for node in stabilizer_1.pauli_indices("X"):
-            result[node] = "X"
-        for node in stabilizer_1.pauli_indices("Y"):
-            result[node] = "Y"
-        for node in stabilizer_1.pauli_indices("Z"):
-            result[node] = "Z"
-
+        result = stabilizer_2.sign * stabilizer_1
         # We can iterate through the support of stab2 as they are supposed to have equal support
-        for node in stabilizer_2.pauli_indices("X"):
-            result[node] = "X"
-        for node in stabilizer_2.pauli_indices("Y"):
-            result[node] = "Y"
-        for node in stabilizer_2.pauli_indices("Z"):
-            result[node] = "Z"
+        for node in stabilizer_2.pauli_indices("XYZ"):
+            result[node] = stabilizer_2[node]
         return result
 
-    def get_canonical_stabilizer(self, node) -> stim.PauliString:
-        chain = stim.PauliString(len(self.graph.nodes))
-
+    def fill_canonical_stabilizer(self, chain: stim.PauliString, node: int) -> None:
         chain[node] = "X"
         for n in self.graph.neighbors(node):
             chain[n] = "Z"
+
+    # become unused?
+    def get_canonical_stabilizer(self, node: int) -> stim.PauliString:
+        chain = stim.PauliString(len(self.graph.nodes))
+        self.fill_canonical_stabilizer(chain, node)
         return chain
 
     def compute_trap_stabilizer(self, trap: set[int]) -> stim.PauliString:
         trap_stabilizer = stim.PauliString(len(self.graph.nodes))
         for node in trap:
-            trap_stabilizer *= self.get_canonical_stabilizer(node)
+            self.fill_canonical_stabilizer(trap_stabilizer, node)
         return trap_stabilizer
 
     def merge_pauli_list(self, pauli_list) -> stim.PauliString:
@@ -152,11 +144,9 @@ class TrappifiedCanvas:
 
     def generate_coins_trap_qubits(self, coins):
         for node in self.trap_qubits:
-            neighbors_coins = sum(coins[n] for n in self.graph.neighbors(node)) % 2
-            coins[node] = neighbors_coins
+            coins[node] = sum(coins[n] for n in self.graph.neighbors(node)) % 2
         return coins
 
     def __str__(self) -> str:
-        text = "List of traps : " + str(self.traps_list) + "\n"
-        text += "Stabilizer : " + str(self.stabilizer)
+        return f"List of traps: {self.traps_list}\nStabilizer: {self.stabilizer}"
         return text
