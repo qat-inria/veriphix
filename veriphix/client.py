@@ -17,10 +17,12 @@ from graphix.pattern import Pattern
 from graphix.simulator import MeasureMethod, PatternSimulator
 from graphix.states import BasicStates
 
-from veriphix.trappifiedCanvas import Trap, TrappifiedCanvas
+from veriphix.trappifiedCanvas import TrappifiedCanvas
 
 if TYPE_CHECKING:
     from graphix.sim.base_backend import Backend
+
+    from veriphix.trappifiedCanvas import Trap
 
 """
 Usage:
