@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import random
+from typing import TYPE_CHECKING
 
 import graphix.command
 import graphix.ops
@@ -9,11 +10,13 @@ import graphix.pauli
 import graphix.sim.base_backend
 import graphix.sim.statevec
 import graphix.simulator
-import networkx as nx
 import stim
-from graphix.states import State
 
-Trap = set[int]
+if TYPE_CHECKING:
+    import networkx as nx
+    from graphix.states import State
+
+    Trap = set[int]
 
 
 class TrappifiedCanvas:
@@ -149,4 +152,3 @@ class TrappifiedCanvas:
 
     def __str__(self) -> str:
         return f"List of traps: {self.traps_list}\nStabilizer: {self.stabilizer}"
-        return text

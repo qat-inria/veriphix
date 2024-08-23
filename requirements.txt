@@ -1,1 +1,2 @@
 graphix @ git+https://github.com/thierry-martinez/graphix@vbqc
+stim>=1.13,<2

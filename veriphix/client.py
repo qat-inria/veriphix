@@ -17,8 +17,7 @@ from graphix.pattern import Pattern
 from graphix.simulator import MeasureMethod, PatternSimulator
 from graphix.states import BasicStates
 
-from veriphix.trappifiedCanvas import TrappifiedCanvas
-from veriphix.trappifiedCanvas import Trap
+from veriphix.trappifiedCanvas import Trap, TrappifiedCanvas
 
 if TYPE_CHECKING:
     from graphix.sim.base_backend import Backend
@@ -203,7 +202,7 @@ class Client:
 
     def create_test_runs(self) -> list[TrappifiedCanvas]:
         """
-        Creates test runs according to FK12 protocol of 
+        Creates test runs according to FK12 protocol of
         Fitzsimons, J. F., & Kashefi, E. (2017). Unconditionally verifiable blind quantum computation. Physical Review A, 96(1), 012303.
         https://arxiv.org/abs/1203.5217
 
@@ -231,10 +230,10 @@ class Client:
             # 1 color = 1 test run = 1 set of traps
             traps_list = []
             for colored_node in nodes_by_color[color]:
-                trap_qubits = [colored_node]# single-qubit trap
-                trap:Trap = set(trap_qubits) 
+                trap_qubits = [colored_node]  # single-qubit trap
+                trap: Trap = set(trap_qubits)
                 traps_list.append(trap)
-            
+
             trappified_canvas = TrappifiedCanvas(graph, traps_list=traps_list)
 
             runs.append(trappified_canvas)
