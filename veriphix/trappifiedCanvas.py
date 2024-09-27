@@ -48,16 +48,10 @@ class TrappifiedCanvas:
         """
         Returns `True` if the two stabilizers have a common eigenstate
         """
-        match_X = set(stabilizer_1.pauli_indices("X")).issubset(
-            set(stabilizer_2.pauli_indices("X")).union(set(stabilizer_2.pauli_indices("I")))
-        )
-        match_Y = set(stabilizer_1.pauli_indices("Y")).issubset(
-            set(stabilizer_2.pauli_indices("Y")).union(set(stabilizer_2.pauli_indices("I")))
-        )
-        match_Z = set(stabilizer_1.pauli_indices("Z")).issubset(
-            set(stabilizer_2.pauli_indices("Z")).union(set(stabilizer_2.pauli_indices("I")))
-        )
-        return match_X and match_Y and match_Z
+        for axis in ["X", "Y", "Z"]:
+            if not set(stabilizer_1.pauli_indices(axis)).issubset(set(stabilizer_2.pauli_indices("I" + axis))):
+                return False
+        return True
 
     def merge(self, stabilizer_1: stim.PauliString, stabilizer_2: stim.PauliString) -> stim.PauliString:
         result = stabilizer_2.sign * stabilizer_1
