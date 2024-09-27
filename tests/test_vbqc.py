@@ -1,9 +1,3 @@
-import random
-
-import graphix.gflow
-import graphix.pauli
-import graphix.visualization
-import networkx as nx
 import numpy as np
 from graphix.random_objects import rand_circuit
 from graphix.sim.statevec import StatevectorBackend
