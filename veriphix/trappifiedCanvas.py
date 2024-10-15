@@ -60,21 +60,18 @@ class TrappifiedCanvas:
             result[node] = stabilizer_2[node]
         return result
 
-    def fill_canonical_stabilizer(self, chain: stim.PauliString, node: int) -> None:
+    def get_canonical_stabilizer(self, node) -> stim.PauliString:
+        chain = stim.PauliString(len(self.graph.nodes))
+
         chain[node] = "X"
         for n in self.graph.neighbors(node):
             chain[n] = "Z"
-
-    # become unused?
-    def get_canonical_stabilizer(self, node: int) -> stim.PauliString:
-        chain = stim.PauliString(len(self.graph.nodes))
-        self.fill_canonical_stabilizer(chain, node)
         return chain
 
     def compute_trap_stabilizer(self, trap: set[int]) -> stim.PauliString:
         trap_stabilizer = stim.PauliString(len(self.graph.nodes))
         for node in trap:
-            self.fill_canonical_stabilizer(trap_stabilizer, node)
+            trap_stabilizer *= self.get_canonical_stabilizer(node)
         return trap_stabilizer
 
     def merge_pauli_list(self, pauli_list) -> stim.PauliString:
