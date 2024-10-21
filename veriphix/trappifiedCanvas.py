@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import random
+from typing import TYPE_CHECKING
 
 import graphix.command
 import graphix.ops
@@ -9,11 +10,13 @@ import graphix.pauli
 import graphix.sim.base_backend
 import graphix.sim.statevec
 import graphix.simulator
-import networkx as nx
 import stim
-from graphix.states import State
 
-Trap = set[int]
+if TYPE_CHECKING:
+    import networkx as nx
+    from graphix.states import State
+
+    Trap = set[int]
 
 
 class TrappifiedCanvas:
@@ -45,33 +48,16 @@ class TrappifiedCanvas:
         """
         Returns `True` if the two stabilizers have a common eigenstate
         """
-        match_X = set(stabilizer_1.pauli_indices("X")).issubset(
-            set(stabilizer_2.pauli_indices("X")).union(set(stabilizer_2.pauli_indices("I")))
-        )
-        match_Y = set(stabilizer_1.pauli_indices("Y")).issubset(
-            set(stabilizer_2.pauli_indices("Y")).union(set(stabilizer_2.pauli_indices("I")))
-        )
-        match_Z = set(stabilizer_1.pauli_indices("Z")).issubset(
-            set(stabilizer_2.pauli_indices("Z")).union(set(stabilizer_2.pauli_indices("I")))
-        )
-        return match_X * match_Y * match_Z
+        for axis in ["X", "Y", "Z"]:
+            if not set(stabilizer_1.pauli_indices(axis)).issubset(set(stabilizer_2.pauli_indices("I" + axis))):
+                return False
+        return True
 
     def merge(self, stabilizer_1: stim.PauliString, stabilizer_2: stim.PauliString) -> stim.PauliString:
-        result = stabilizer_1.sign * stabilizer_2.sign * stim.PauliString(len(self.graph.nodes))
-        for node in stabilizer_1.pauli_indices("X"):
-            result[node] = "X"
-        for node in stabilizer_1.pauli_indices("Y"):
-            result[node] = "Y"
-        for node in stabilizer_1.pauli_indices("Z"):
-            result[node] = "Z"
-
+        result = stabilizer_2.sign * stabilizer_1
         # We can iterate through the support of stab2 as they are supposed to have equal support
-        for node in stabilizer_2.pauli_indices("X"):
-            result[node] = "X"
-        for node in stabilizer_2.pauli_indices("Y"):
-            result[node] = "Y"
-        for node in stabilizer_2.pauli_indices("Z"):
-            result[node] = "Z"
+        for node in stabilizer_2.pauli_indices("XYZ"):
+            result[node] = stabilizer_2[node]
         return result
 
     def get_canonical_stabilizer(self, node) -> stim.PauliString:
@@ -152,11 +138,8 @@ class TrappifiedCanvas:
 
     def generate_coins_trap_qubits(self, coins):
         for node in self.trap_qubits:
-            neighbors_coins = sum(coins[n] for n in self.graph.neighbors(node)) % 2
-            coins[node] = neighbors_coins
+            coins[node] = sum(coins[n] for n in self.graph.neighbors(node)) % 2
         return coins
 
     def __str__(self) -> str:
-        text = "List of traps : " + str(self.traps_list) + "\n"
-        text += "Stabilizer : " + str(self.stabilizer)
-        return text
+        return f"List of traps: {self.traps_list}\nStabilizer: {self.stabilizer}"
