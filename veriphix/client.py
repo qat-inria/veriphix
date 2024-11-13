@@ -24,6 +24,8 @@ if TYPE_CHECKING:
 
     from veriphix.trappifiedCanvas import Trap
 
+
+# TODO update docstring
 """
 Usage:
 
@@ -62,6 +64,7 @@ class SecretDatas:
     a: Secret_a
     theta: dict[int, int]
 
+    # NOTE: not a class method?
     @staticmethod
     def from_secrets(secrets: Secrets, graph, input_nodes, output_nodes):
         node_list, edge_list = graph
@@ -81,6 +84,9 @@ class SecretDatas:
         a_N = {}
         if secrets.a:
             # Create `a` secret for all
+            # order is Z(theta) X |+>
+            # so x useless on non input qubits
+            # TODO: remove
             for node in node_list:
                 a[node] = np.random.randint(0, 2)
 
@@ -172,10 +178,10 @@ class Client:
         self.input_state = input_state if input_state is not None else [BasicStates.PLUS for _ in self.input_nodes]
 
     def blind_qubits(self, backend: Backend) -> None:
-        def z_rotation(theta):
+        def z_rotation(theta) -> np.array:
             return np.array([[1, 0], [0, np.exp(1j * theta * np.pi / 4)]])
 
-        def x_blind(a):
+        def x_blind(a) -> graphix.Pauli:
             return graphix.pauli.X if (a == 1) else graphix.pauli.I
 
         for node in self.nodes_list:
@@ -213,6 +219,8 @@ class Client:
 
         For a color, single-qubit traps are created for each node of that color.
         """
+
+        # TODO: just pattern.get_graph()
         graph = nx.Graph()
         nodes, edges = self.graph
         graph.add_edges_from(edges)
@@ -255,7 +263,7 @@ class Client:
 
         trap_outcomes = []
         for trap in run.traps_list:
-            outcomes = [self.results.get(component, 0) for component in trap]
+            outcomes = [self.results[component] for component in trap]  # here
             trap_outcome = sum(outcomes) % 2
             trap_outcomes.append(trap_outcome)
 

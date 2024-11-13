@@ -168,7 +168,7 @@ class TestClient:
             secrets = Secrets(a=True, r=True, theta=True)
 
             # Create a |+> state for each input node, and associate index
-            states = [BasicStates.PLUS for node in pattern.input_nodes]
+            states = [BasicStates.PLUS for _ in pattern.input_nodes]
 
             # Create the client with the input state
             client = Client(pattern=pattern, input_state=states, secrets=secrets)
