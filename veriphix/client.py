@@ -249,12 +249,14 @@ class Client:
             runs.append(trappified_canvas)
         return runs
 
-    def delegate_test_run(self, backend: Backend, run: TrappifiedCanvas) -> list[int]:
+    def delegate_test_run(self, backend: Backend, run: TrappifiedCanvas, **kwargs) -> list[int]:
         # The state is entirely prepared and blinded by the client before being sent to the server
         backend.add_nodes(nodes=sorted(self.graph[0]), data=run.states)
         self.blind_qubits(backend)
 
+        tmp_measurement_db = self.measurement_db.copy()
         # Modify the pattern to be all X-basis measurements, no shifts/signalling updates
+        # Warning should only work for BQP ie classical output
         for node in self.measurement_db:
             self.measurement_db[node] = graphix.command.M(node=node)
 
@@ -266,6 +268,8 @@ class Client:
             outcomes = [self.results[component] for component in trap]  # here
             trap_outcome = sum(outcomes) % 2
             trap_outcomes.append(trap_outcome)
+
+        self.measurement_db = tmp_measurement_db
 
         return trap_outcomes
 
