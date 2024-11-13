@@ -167,15 +167,28 @@ class Client:
 
         self.measurement_db = {measure.node: measure for measure in pattern.get_measurement_commands()}
         self.byproduct_db = get_byproduct_db(pattern)
+        # print("byprod_db", self.byproduct_db)
 
         if secrets is None:
+            self.secrets_bool = False
             secrets = Secrets()
+        else:
+            self.secrets_bool = True
+            self.secret_types = secrets
+
         self.secrets = SecretDatas.from_secrets(secrets, self.graph, self.input_nodes, self.output_nodes)
 
         pattern_without_flow = remove_flow(pattern)
         self.clean_pattern = prepared_nodes_as_input_nodes(pattern_without_flow)
 
         self.input_state = input_state if input_state is not None else [BasicStates.PLUS for _ in self.input_nodes]
+
+    def refresh_randomness(self) -> None:
+        "method to refresh random randomness using parameters from Clinent instatiation."
+
+        # refresh only if secrets bool is True; False is no randomness at all.
+        if self.secrets_bool:
+            self.secrets = SecretDatas.from_secrets(self.secret_types, self.graph, self.input_nodes, self.output_nodes)
 
     def blind_qubits(self, backend: Backend) -> None:
         def z_rotation(theta) -> np.array:
@@ -289,6 +302,7 @@ class Client:
     def decode_output_state(self, backend: Backend):
         for node in self.output_nodes:
             z_decoding, x_decoding = self.decode_output(node)
+            # print(f"decoding bits {z_decoding} and {x_decoding}")
             if z_decoding:
                 backend.apply_single(node=node, op=graphix.ops.Ops.z)
             if x_decoding:
@@ -315,21 +329,26 @@ class ClientMeasureMethod(MeasureMethod):
     def get_measurement_description(self, cmd: BaseM) -> graphix.simulator.MeasurementDescription:
         parameters = self.__client.measurement_db[cmd.node]
 
+        # print("Client measurement db ", self.__client.measurement_db)
         r_value = self.__client.secrets.r.get(cmd.node, 0)
         theta_value = self.__client.secrets.theta.get(cmd.node, 0)
         a_value = self.__client.secrets.a.a.get(cmd.node, 0)
         a_N_value = self.__client.secrets.a.a_N.get(cmd.node, 0)
-
+        # print("parameters.", parameters)
+        # print("secrets", self.__client.secrets)
         # extract signals for adaptive angle
         s_signal = sum(self.__client.results[j] for j in parameters.s_domain)
         t_signal = sum(self.__client.results[j] for j in parameters.t_domain)
         measure_update = graphix.pauli.MeasureUpdate.compute(
             parameters.plane, s_signal % 2 == 1, t_signal % 2 == 1, graphix.clifford.I
         )
+        # print("meas update", measure_update)
         angle = parameters.angle * np.pi
         angle = angle * measure_update.coeff + measure_update.add_term
         angle = (-1) ** a_value * angle + theta_value * np.pi / 4 + np.pi * (r_value + a_N_value)
         # angle = angle * measure_update.coeff + measure_update.add_term
+
+        # print(f"angle {angle}")
         return graphix.simulator.MeasurementDescription(measure_update.new_plane, angle)
         # return graphix.sim.base_backend.MeasurementDescription(measure_update.new_plane, angle)
 

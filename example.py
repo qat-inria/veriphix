@@ -54,6 +54,10 @@ secrets = Secrets(r=True, a=True, theta=True)
 client = Client(pattern=pattern, input_state=states, secrets=secrets)
 
 print(f"client secrets {client.secrets}")
+
+for _ in range(15):
+    client.refresh_randomness()
+    print(f"client secrets {client.secrets}")
 test_runs = client.create_test_runs()
 
 # reinit the backend every time
@@ -63,8 +67,8 @@ for run in test_runs:
     # backend = StatevectorBackend()
     backend = DensityMatrixBackend(pr_calc=True)
     trap_outcomes = client.delegate_test_run(backend=backend, run=run, noise_model=noise_model) 
-    print("Client leasurel db ", client.measurement_db)
-    print('trap', trap_outcomes)
+    # print("Client leasurel db ", client.measurement_db)
+    # print('trap', trap_outcomes)
     assert trap_outcomes == [0 for _ in run.traps_list]
 
 
@@ -72,12 +76,12 @@ for run in test_runs:
 backend = DensityMatrixBackend(pr_calc=True)
 # Blinded simulation, between the client and the server
 
-for _ in range(10):
+for _ in range(1): #10
     client.delegate_pattern(backend, noise_model=noise_model)
 
 # add a state attribute to the client?
 # no last measurement: get |+> state as expected.
-    print(client.results, backend.state) # noise_model=noise_model
+    # print(client.results, backend.state) # noise_model=noise_model
 
     assert client.results[4] == 0
 
