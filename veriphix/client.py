@@ -151,7 +151,7 @@ def prepared_nodes_as_input_nodes(pattern: Pattern) -> Pattern:
 
 
 class Client:
-    def __init__(self, pattern, input_state=None, measure_method_cls=None, secrets=None):
+    def __init__(self, pattern, input_state=None, measure_method_cls=None, secrets: None | Secrets = None) -> None:
         self.initial_pattern = pattern
 
         self.input_nodes = self.initial_pattern.input_nodes.copy()
@@ -260,7 +260,11 @@ class Client:
         for node in self.measurement_db:
             self.measurement_db[node] = graphix.command.M(node=node)
 
-        sim = PatternSimulator(backend=backend, pattern=self.clean_pattern, measure_method=self.measure_method)
+        # TODO add measurements on output nodes?
+
+        sim = PatternSimulator(
+            backend=backend, pattern=self.clean_pattern, measure_method=self.measure_method, **kwargs
+        )
         sim.run(input_state=None)
 
         trap_outcomes = []
@@ -273,10 +277,12 @@ class Client:
 
         return trap_outcomes
 
-    def delegate_pattern(self, backend: Backend) -> None:
+    def delegate_pattern(self, backend: Backend, **kwargs) -> None:
         self.prepare_states(backend)
         self.blind_qubits(backend)
-        sim = PatternSimulator(backend=backend, pattern=self.clean_pattern, measure_method=self.measure_method)
+        sim = PatternSimulator(
+            backend=backend, pattern=self.clean_pattern, measure_method=self.measure_method, **kwargs
+        )
         sim.run(input_state=None)
         self.decode_output_state(backend)
 
