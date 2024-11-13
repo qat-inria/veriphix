@@ -179,6 +179,7 @@ class Client:
         # self.secrets : SecretDatas-> self.secret_datas
         self.secrets = secrets
         if secrets is None:
+            self.secrets_bool = False
             secrets = Secrets()
 
         self.secret_datas = SecretDatas.from_secrets(secrets, self.graph, self.input_nodes, self.output_nodes)
