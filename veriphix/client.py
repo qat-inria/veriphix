@@ -79,7 +79,7 @@ class SecretDatas:
             # Create theta secret for all non-output nodes (measured qubits)
             for node in node_list:
                 theta[node] = np.random.randint(0, 8) if node not in output_nodes else 0  # Expressed in pi/4 units
-
+                ## TODO:
         a = {}
         a_N = {}
         if secrets.a:
@@ -200,8 +200,10 @@ class Client:
         for node in self.nodes_list:
             theta = self.secrets.theta.get(node, 0)
             a = self.secrets.a.a.get(node, 0)
-            backend.apply_single(node=node, op=x_blind(a).matrix)
-            backend.apply_single(node=node, op=z_rotation(theta))
+            if a:
+                backend.apply_single(node=node, op=x_blind(a).matrix)
+            if theta:
+                backend.apply_single(node=node, op=z_rotation(theta))
 
     def prepare_states(self, backend: Backend) -> None:
         # First prepare inputs
