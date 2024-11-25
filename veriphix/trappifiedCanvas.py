@@ -3,14 +3,16 @@ from __future__ import annotations
 import random
 from typing import TYPE_CHECKING
 
+import stim
+
 import graphix.command
 import graphix.ops
 import graphix.pattern
-import graphix.pauli
 import graphix.sim.base_backend
 import graphix.sim.statevec
 import graphix.simulator
-import stim
+from graphix.fundamentals import IXYZ
+from graphix.pauli import Pauli
 
 if TYPE_CHECKING:
     import networkx as nx
@@ -123,8 +125,8 @@ class TrappifiedCanvas:
     def generate_eigenstate(self) -> list[State]:
         states = []
         for node in sorted(self.graph.nodes):
-            operator = graphix.pauli.TABLE[self.stabilizer[node]][0][0]
-            states.append(operator.get_eigenstate(eigenvalue=self.coins[node]))
+            operator = Pauli(IXYZ(self.stabilizer[node]))
+            states.append(operator.eigenstate(binary=self.coins[node]))
         return states
 
     def generate_coins_dummies(self):
