@@ -14,9 +14,10 @@ import networkx as nx
 import numpy as np
 from graphix.command import BaseM, CommandKind
 from graphix.pattern import Pattern
+from graphix.sim.statevec import StatevectorBackend
 from graphix.simulator import MeasureMethod, PatternSimulator
 from graphix.states import BasicStates
-from graphix.sim.statevec import StatevectorBackend
+
 from veriphix.trappifiedCanvas import TrappifiedCanvas
 
 if TYPE_CHECKING:
@@ -270,10 +271,9 @@ class Client:
         preparation_backend = StatevectorBackend()
         preparation_backend.add_nodes(nodes=sorted(self.graph[0]), data=run.states)
         self.blind_qubits(preparation_backend)
-    
+
         backend.add_nodes(nodes=sorted(self.graph[0]), data=preparation_backend.state)
 
-        
         tmp_measurement_db = self.measurement_db.copy()
         # Modify the pattern to be all X-basis measurements, no shifts/signalling updates
         # Warning should only work for BQP ie classical output

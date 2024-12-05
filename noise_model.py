@@ -1,6 +1,7 @@
-from graphix.noise_models.noise_model import NoiseModel
-from graphix.channels import KrausChannel, depolarising_channel, two_qubit_depolarising_channel
 import numpy as np
+from graphix.channels import KrausChannel, depolarising_channel, two_qubit_depolarising_channel
+from graphix.noise_models.noise_model import NoiseModel
+
 
 class VBQCNoiseModel(NoiseModel):
     """Test noise model for testing.
