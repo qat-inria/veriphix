@@ -2,8 +2,8 @@ import graphix.command
 from graphix.sim.density_matrix import DensityMatrixBackend
 from graphix.states import BasicStates
 from graphix.transpiler import Circuit
-
 from noise_model import VBQCNoiseModel
+
 from veriphix.client import Client, Secrets
 
 # smallest deterministic BQP comp with XY plane measurements only (gadget)

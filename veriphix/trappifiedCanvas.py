@@ -4,13 +4,6 @@ import random
 from typing import TYPE_CHECKING
 
 import stim
-
-import graphix.command
-import graphix.ops
-import graphix.pattern
-import graphix.sim.base_backend
-import graphix.sim.statevec
-import graphix.simulator
 from graphix.fundamentals import IXYZ
 from graphix.pauli import Pauli
 

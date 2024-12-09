@@ -17,8 +17,8 @@ from graphix.command import BaseM, CommandKind, MeasureUpdate
 from graphix.measurements import Measurement
 from graphix.ops import Ops
 from graphix.pattern import Pattern
-from graphix.sim.statevec import StatevectorBackend
 from graphix.pauli import Pauli
+from graphix.sim.statevec import StatevectorBackend
 from graphix.simulator import MeasureMethod, PatternSimulator
 from graphix.states import BasicStates
 
@@ -351,9 +351,7 @@ class ClientMeasureMethod(MeasureMethod):
         # extract signals for adaptive angle
         s_signal = sum(self.__client.results[j] for j in parameters.s_domain)
         t_signal = sum(self.__client.results[j] for j in parameters.t_domain)
-        measure_update = MeasureUpdate.compute(
-            parameters.plane, s_signal % 2 == 1, t_signal % 2 == 1, Clifford.I
-        )
+        measure_update = MeasureUpdate.compute(parameters.plane, s_signal % 2 == 1, t_signal % 2 == 1, Clifford.I)
         # print("meas update", measure_update)
         angle = parameters.angle * np.pi
         angle = angle * measure_update.coeff + measure_update.add_term
