@@ -129,7 +129,7 @@ class TestClient:
         for measured_node in client.measurement_db:
             # Compare results on the client side and on the server side : should differ by r[node]
             result = client.results[measured_node]
-            client_r_secret = client.secrets.r[measured_node]
+            client_r_secret = client.secret_datas.r[measured_node]
             server_result = server_results[measured_node]
             assert result == (server_result + client_r_secret) % 2
 
@@ -168,7 +168,7 @@ class TestClient:
             secrets = Secrets(a=True, r=True, theta=True)
 
             # Create a |+> state for each input node, and associate index
-            states = [BasicStates.PLUS for node in pattern.input_nodes]
+            states = [BasicStates.PLUS for _ in pattern.input_nodes]
 
             # Create the client with the input state
             client = Client(pattern=pattern, input_state=states, secrets=secrets)
