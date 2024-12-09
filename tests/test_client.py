@@ -129,7 +129,7 @@ class TestClient:
         for measured_node in client.measurement_db:
             # Compare results on the client side and on the server side : should differ by r[node]
             result = client.results[measured_node]
-            client_r_secret = client.secrets.r[measured_node]
+            client_r_secret = client.secret_datas.r[measured_node]
             server_result = server_results[measured_node]
             assert result == (server_result + client_r_secret) % 2
 

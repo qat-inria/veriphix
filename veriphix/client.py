@@ -170,14 +170,14 @@ class Client:
         self.byproduct_db = get_byproduct_db(pattern)
         # print("byprod_db", self.byproduct_db)
 
+        # self.secrets_bool : bool -> self.secrets is not None
+        # self.secrets_type : Secrets -> self.secrets
+        # self.secrets : SecretDatas-> self.secret_datas
+        self.secrets = secrets
         if secrets is None:
-            self.secrets_bool = False
             secrets = Secrets()
-        else:
-            self.secrets_bool = True
-            self.secret_types = secrets
 
-        self.secrets = SecretDatas.from_secrets(secrets, self.graph, self.input_nodes, self.output_nodes)
+        self.secret_datas = SecretDatas.from_secrets(secrets, self.graph, self.input_nodes, self.output_nodes)
 
         pattern_without_flow = remove_flow(pattern)
         self.clean_pattern = prepared_nodes_as_input_nodes(pattern_without_flow)
@@ -188,8 +188,8 @@ class Client:
         "method to refresh random randomness using parameters from Clinent instatiation."
 
         # refresh only if secrets bool is True; False is no randomness at all.
-        if self.secrets_bool:
-            self.secrets = SecretDatas.from_secrets(self.secret_types, self.graph, self.input_nodes, self.output_nodes)
+        if self.secrets is not None:
+            self.secret_datas = SecretDatas.from_secrets(self.secrets, self.graph, self.input_nodes, self.output_nodes)
 
     def blind_qubits(self, backend: Backend) -> None:
         def z_rotation(theta) -> np.array:
@@ -199,8 +199,8 @@ class Client:
             return graphix.pauli.X if (a == 1) else graphix.pauli.I
 
         for node in self.nodes_list:
-            theta = self.secrets.theta.get(node, 0)
-            a = self.secrets.a.a.get(node, 0)
+            theta = self.secret_datas.theta.get(node, 0)
+            a = self.secret_datas.a.a.get(node, 0)
             if a:
                 backend.apply_single(node=node, op=x_blind(a).matrix)
             if theta:
@@ -219,8 +219,8 @@ class Client:
         # Prepare outputs
         output_data = []
         for node in self.output_nodes:
-            r_value = self.secrets.r.get(node, 0)
-            a_N_value = self.secrets.a.a_N.get(node, 0)
+            r_value = self.secret_datas.r.get(node, 0)
+            a_N_value = self.secret_datas.a.a_N.get(node, 0)
             output_data.append(BasicStates.PLUS if r_value ^ a_N_value == 0 else BasicStates.MINUS)
         backend.add_nodes(nodes=self.output_nodes, data=output_data)
 
@@ -317,15 +317,15 @@ class Client:
 
     def get_secrets_size(self):
         secrets_size = {}
-        for secret in self.secrets:
-            secrets_size[secret] = len(self.secrets[secret])
+        for secret in self.secret_datas:
+            secrets_size[secret] = len(self.secret_datas[secret])
         return secrets_size
 
     def decode_output(self, node):
         z_decoding = sum(self.results[z_dep] for z_dep in self.byproduct_db[node].z_domain) % 2
-        z_decoding ^= self.secrets.r.get(node, 0)
+        z_decoding ^= self.secret_datas.r.get(node, 0)
         x_decoding = sum(self.results[x_dep] for x_dep in self.byproduct_db[node].x_domain) % 2
-        x_decoding ^= self.secrets.a.a.get(node, 0)
+        x_decoding ^= self.secret_datas.a.a.get(node, 0)
         return z_decoding, x_decoding
 
 
@@ -337,10 +337,10 @@ class ClientMeasureMethod(MeasureMethod):
         parameters = self.__client.measurement_db[cmd.node]
 
         # print("Client measurement db ", self.__client.measurement_db)
-        r_value = self.__client.secrets.r.get(cmd.node, 0)
-        theta_value = self.__client.secrets.theta.get(cmd.node, 0)
-        a_value = self.__client.secrets.a.a.get(cmd.node, 0)
-        a_N_value = self.__client.secrets.a.a_N.get(cmd.node, 0)
+        r_value = self.__client.secret_datas.r.get(cmd.node, 0)
+        theta_value = self.__client.secret_datas.theta.get(cmd.node, 0)
+        a_value = self.__client.secret_datas.a.a.get(cmd.node, 0)
+        a_N_value = self.__client.secret_datas.a.a_N.get(cmd.node, 0)
         # print("parameters.", parameters)
         # print("secrets", self.__client.secrets)
         # extract signals for adaptive angle
@@ -363,6 +363,6 @@ class ClientMeasureMethod(MeasureMethod):
         raise ValueError("Server cannot have access to measurement results")
 
     def set_measure_result(self, node: int, result: bool) -> None:
-        if self.__client.secrets.r:
-            result ^= self.__client.secrets.r[node]
+        if self.__client.secret_datas.r:
+            result ^= self.__client.secret_datas.r[node]
         self.__client.results[node] = result
