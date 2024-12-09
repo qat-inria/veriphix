@@ -1,11 +1,11 @@
 import graphix.command
 import numpy as np
+from graphix.noise_models import DepolarisingNoiseModel
 from graphix.random_objects import Circuit, rand_circuit
 from graphix.sim.density_matrix import DensityMatrixBackend
 from graphix.sim.statevec import StatevectorBackend
 from graphix.states import BasicStates
 
-from noise_model import VBQCNoiseModel
 from veriphix.client import Client, Secrets
 
 
@@ -47,7 +47,7 @@ class TestVBQC:
 
         client = Client(pattern=pattern, input_state=states, secrets=secrets)
         test_runs = client.create_test_runs()
-        noise_model = VBQCNoiseModel(
+        noise_model = DepolarisingNoiseModel(
             measure_error_prob=0, entanglement_error_prob=0, x_error_prob=0, z_error_prob=0, measure_channel_prob=0
         )
         for run in test_runs:
@@ -73,7 +73,7 @@ class TestVBQC:
 
         client = Client(pattern=pattern, input_state=states, secrets=secrets)
         test_runs = client.create_test_runs()
-        noise_model = VBQCNoiseModel(
+        noise_model = DepolarisingNoiseModel(
             measure_error_prob=1, entanglement_error_prob=1, x_error_prob=1, z_error_prob=1, measure_channel_prob=1
         )
         total_trap_failures = 0

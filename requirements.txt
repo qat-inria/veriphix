@@ -1,2 +1,2 @@
-graphix @ git+https://github.com/thierry-martinez/graphix@vbqc
+graphix @ git+https://github.com/thierry-martinez/graphix@vbqc2
 stim>=1.13,<2
