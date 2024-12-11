@@ -12,8 +12,12 @@ import graphix.sim.statevec
 import graphix.simulator
 import networkx as nx
 import numpy as np
-from graphix.command import BaseM, CommandKind
+from graphix.clifford import Clifford
+from graphix.command import BaseM, CommandKind, MeasureUpdate
+from graphix.measurements import Measurement
+from graphix.ops import Ops
 from graphix.pattern import Pattern
+from graphix.pauli import Pauli
 from graphix.sim.statevec import StatevectorBackend
 from graphix.simulator import MeasureMethod, PatternSimulator
 from graphix.states import BasicStates
@@ -43,7 +47,7 @@ simulator.run()
 class TrappifiedRun:
     input_state: list
     tested_qubits: list[int]
-    stabilizer: graphix.pauli
+    stabilizer: Pauli
 
 
 @dataclass
@@ -175,6 +179,7 @@ class Client:
         # self.secrets : SecretDatas-> self.secret_datas
         self.secrets = secrets
         if secrets is None:
+            self.secrets_bool = False
             secrets = Secrets()
 
         self.secret_datas = SecretDatas.from_secrets(secrets, self.graph, self.input_nodes, self.output_nodes)
@@ -195,8 +200,8 @@ class Client:
         def z_rotation(theta) -> np.array:
             return np.array([[1, 0], [0, np.exp(1j * theta * np.pi / 4)]])
 
-        def x_blind(a) -> graphix.Pauli:
-            return graphix.pauli.X if (a == 1) else graphix.pauli.I
+        def x_blind(a) -> Pauli:
+            return Pauli.X if (a == 1) else Pauli.I
 
         for node in self.nodes_list:
             theta = self.secret_datas.theta.get(node, 0)
@@ -311,9 +316,9 @@ class Client:
             z_decoding, x_decoding = self.decode_output(node)
             # print(f"decoding bits {z_decoding} and {x_decoding}")
             if z_decoding:
-                backend.apply_single(node=node, op=graphix.ops.Ops.z)
+                backend.apply_single(node=node, op=Ops.Z)
             if x_decoding:
-                backend.apply_single(node=node, op=graphix.ops.Ops.x)
+                backend.apply_single(node=node, op=Ops.X)
 
     def get_secrets_size(self):
         secrets_size = {}
@@ -333,7 +338,7 @@ class ClientMeasureMethod(MeasureMethod):
     def __init__(self, client: Client):
         self.__client = client
 
-    def get_measurement_description(self, cmd: BaseM) -> graphix.simulator.MeasurementDescription:
+    def get_measurement_description(self, cmd: BaseM) -> Measurement:
         parameters = self.__client.measurement_db[cmd.node]
 
         # print("Client measurement db ", self.__client.measurement_db)
@@ -346,18 +351,13 @@ class ClientMeasureMethod(MeasureMethod):
         # extract signals for adaptive angle
         s_signal = sum(self.__client.results[j] for j in parameters.s_domain)
         t_signal = sum(self.__client.results[j] for j in parameters.t_domain)
-        measure_update = graphix.pauli.MeasureUpdate.compute(
-            parameters.plane, s_signal % 2 == 1, t_signal % 2 == 1, graphix.clifford.I
-        )
+        measure_update = MeasureUpdate.compute(parameters.plane, s_signal % 2 == 1, t_signal % 2 == 1, Clifford.I)
         # print("meas update", measure_update)
         angle = parameters.angle * np.pi
         angle = angle * measure_update.coeff + measure_update.add_term
         angle = (-1) ** a_value * angle + theta_value * np.pi / 4 + np.pi * (r_value + a_N_value)
         # angle = angle * measure_update.coeff + measure_update.add_term
-
-        # print(f"angle {angle}")
-        return graphix.simulator.MeasurementDescription(measure_update.new_plane, angle)
-        # return graphix.sim.base_backend.MeasurementDescription(measure_update.new_plane, angle)
+        return Measurement(plane=measure_update.new_plane, angle=angle)
 
     def get_measure_result(self, node: int) -> bool:
         raise ValueError("Server cannot have access to measurement results")
