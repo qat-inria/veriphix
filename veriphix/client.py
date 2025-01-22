@@ -90,10 +90,8 @@ class SecretDatas:
         if secrets.a:
             # Create `a` secret for all
             # order is Z(theta) X |+>
-            # so x useless on non input qubits
-            # TODO: remove
             for node in node_list:
-                a[node] = np.random.randint(0, 2)
+                a[node] = np.random.randint(0, 2) if node not in input_nodes else 0
 
             # After all the `a` secrets have been generated, the `a_N` value can be
             # computed from the graph topology
@@ -264,6 +262,11 @@ class Client:
                 trap_qubits = [colored_node]  # single-qubit trap
                 trap: Trap = set(trap_qubits)
                 traps_list.append(trap)
+
+            # In here, traps_list is a list of traps that are compatible already, because they are of the same color
+            # So we can just merge them all already
+            # And assume that TrappifiedCanvas needs to be instanciated with a traps_list that corresponds to a coloring.
+            # and TC just merges them assuming they are all mergeable.
 
             trappified_canvas = TrappifiedCanvas(graph, traps_list=traps_list)
 
