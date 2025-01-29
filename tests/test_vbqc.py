@@ -15,7 +15,7 @@ class TestVBQC:
         depth = 2
         circuit = rand_circuit(nqubits, depth, fx_rng)
         pattern = circuit.transpile().pattern
-        pattern.standardize()
+        # pattern.standardize()
 
         # don't forget to add in the output nodes that are not initially measured!
         for onode in pattern.output_nodes:
@@ -35,7 +35,9 @@ class TestVBQC:
         circuit.rz(1, np.pi / 4)
         circuit.cnot(0, 2)
         pattern = circuit.transpile().pattern
-        pattern.standardize()
+
+        print(f"{pattern.n_node} nodes")
+        # pattern.standardize()
         for o in pattern.output_nodes:
             pattern.add(graphix.command.M(node=o))
 

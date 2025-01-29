@@ -224,12 +224,6 @@ class Client:
         #             backend.apply_single(node=node, op=z_rotation(theta))
 
     def prepare_states_virtual(self, backend:Backend) -> None:
-        def z_rotation(theta) -> np.array:
-            return np.array([[1, 0], [0, np.exp(1j * theta * np.pi / 4)]])
-
-        def x_blind(a) -> Pauli:
-            return Pauli.X if (a == 1) else Pauli.I
-        
         for node in self.nodes_list :
             if node in self.input_nodes:
                 state = self.input_state[node]
@@ -241,19 +235,23 @@ class Client:
 
             else:
                 state = BasicStates.PLUS
-            theta = self.secret_datas.theta.get(node, 0)
-            a = self.secret_datas.a.a.get(node, 0)
+            self.blind_qubit(backend=backend, node=node, state=state)
 
-            single_qubit_backend = StatevectorBackend()
-            single_qubit_backend.add_nodes([0], [state])
-            if a:
-                single_qubit_backend.apply_single(node=0, op=x_blind(a).matrix)
-            if theta:
-                single_qubit_backend.apply_single(node=0, op=z_rotation(theta))
+    def blind_qubit(self, backend:Backend, node:int, state) -> None:
+        def z_rotation(theta) -> np.array:
+            return np.array([[1, 0], [0, np.exp(1j * theta * np.pi / 4)]])
 
-
-            backend.preparation_bank[node] = Statevec(single_qubit_backend.state)
-
+        def x_blind(a) -> Pauli:
+            return Pauli.X if (a == 1) else Pauli.I
+        theta = self.secret_datas.theta.get(node, 0)
+        a = self.secret_datas.a.a.get(node, 0)
+        single_qubit_backend = StatevectorBackend()
+        single_qubit_backend.add_nodes([0], [state])
+        if a:
+            single_qubit_backend.apply_single(node=0, op=x_blind(a).matrix)
+        if theta:
+            single_qubit_backend.apply_single(node=0, op=z_rotation(theta))
+        backend.preparation_bank[node] = Statevec(single_qubit_backend.state)
 
     def prepare_states(self, backend: Backend) -> None:
         self.prepare_states_virtual(backend=backend)
@@ -311,11 +309,19 @@ class Client:
     def delegate_test_run(self, backend: Backend, run: TrappifiedCanvas, **kwargs) -> list[int]:
         # The state is entirely prepared and blinded by the client before being sent to the server
         # StateVectorBackend because noiseless preparation
-        preparation_backend = StatevectorBackend()
-        preparation_backend.add_nodes(nodes=sorted(self.graph[0]), data=run.states)
-        self.blind_qubits(preparation_backend)
+        # preparation_backend = StatevectorBackend()
+        # preparation_backend.add_nodes(nodes=sorted(self.graph[0]), data=run.states)
+        # self.blind_qubits(preparation_backend)
 
-        backend.add_nodes(nodes=sorted(self.graph[0]), data=preparation_backend.state)
+        for node in self.graph[0]:
+            state = run.states[node]
+            self.blind_qubit(node=node, state=state, backend=backend)
+            if node in self.input_nodes:
+                backend.add_nodes(nodes=[node], data=state)
+        # The backend knows what state to create when needed
+
+
+        # backend.add_nodes(nodes=sorted(self.graph[0]), data=preparation_backend.state)
 
         tmp_measurement_db = self.measurement_db.copy()
         # Modify the pattern to be all X-basis measurements, no shifts/signalling updates
@@ -325,8 +331,9 @@ class Client:
 
         # TODO add measurements on output nodes?
 
+        clean_pattern_with_N = remove_flow(self.initial_pattern)
         sim = PatternSimulator(
-            backend=backend, pattern=self.clean_pattern, measure_method=self.measure_method, **kwargs
+            backend=backend, pattern=clean_pattern_with_N, measure_method=self.measure_method, **kwargs
         )
         sim.run(input_state=None)
 
@@ -383,19 +390,14 @@ class CircuitUtils():
         graphix_circuit = graphix.Circuit(n)
         for i in circuit:
             if i.name == "H":
-                # print("Hadamard on ")
                 for t in i.target_groups():
                     qubit = t[0].value
                     graphix_circuit.h(qubit)
-                    # print(qubit)
             if i.name == "S":
-                # print("S on ")
                 for t in i.target_groups():
                     qubit = t[0].value
                     graphix_circuit.s(qubit)
-                    # print(qubit)
             if i.name == "CX":
-                # print("CX on ")
                 for t in i.target_groups():
                     ctrl, targ = t[0].value, t[1].value
                     graphix_circuit.cnot(control=ctrl, target=targ)
