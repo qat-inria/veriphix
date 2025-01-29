@@ -18,7 +18,7 @@ from graphix.measurements import Measurement
 from graphix.ops import Ops
 from graphix.pattern import Pattern
 from graphix.pauli import Pauli
-from graphix.sim.statevec import StatevectorBackend
+from graphix.sim.statevec import StatevectorBackend, Statevec
 from graphix.simulator import MeasureMethod, PatternSimulator
 from graphix.states import BasicStates
 import stim
@@ -156,7 +156,7 @@ def prepared_nodes_as_input_nodes(pattern: Pattern) -> Pattern:
 
 class Client:
     def __init__(self, pattern, input_state=None, measure_method_cls=None, secrets: None | Secrets = None) -> None:
-        self.initial_pattern = pattern
+        self.initial_pattern:Pattern = pattern
 
         self.input_nodes = self.initial_pattern.input_nodes.copy()
         self.output_nodes = self.initial_pattern.output_nodes.copy()
@@ -196,21 +196,57 @@ class Client:
             self.secret_datas = SecretDatas.from_secrets(self.secrets, self.graph, self.input_nodes, self.output_nodes)
 
     def blind_qubits(self, backend: Backend) -> None:
+        pass
+        # def z_rotation(theta) -> np.array:
+        #     return np.array([[1, 0], [0, np.exp(1j * theta * np.pi / 4)]])
+
+        # def x_blind(a) -> Pauli:
+        #     return Pauli.X if (a == 1) else Pauli.I
+
+        # for node in self.nodes_list:
+        #     if node not in self.input_nodes:
+        #         theta = self.secret_datas.theta.get(node, 0)
+        #         a = self.secret_datas.a.a.get(node, 0)
+        #         if a:
+        #             backend.apply_single(node=node, op=x_blind(a).matrix)
+        #         if theta:
+        #             backend.apply_single(node=node, op=z_rotation(theta))
+
+    def prepare_states_virtual(self, backend:Backend) -> None:
         def z_rotation(theta) -> np.array:
             return np.array([[1, 0], [0, np.exp(1j * theta * np.pi / 4)]])
 
         def x_blind(a) -> Pauli:
             return Pauli.X if (a == 1) else Pauli.I
+        
+        for node in self.nodes_list :
+            if node in self.input_nodes:
+                state = self.input_state[node]
 
-        for node in self.nodes_list:
+            elif node in self.output_nodes :
+                r_value = self.secret_datas.r.get(node, 0)
+                a_N_value = self.secret_datas.a.a_N.get(node, 0)
+                state = BasicStates.PLUS if r_value ^ a_N_value == 0 else BasicStates.MINUS
+
+            else:
+                state = BasicStates.PLUS
             theta = self.secret_datas.theta.get(node, 0)
             a = self.secret_datas.a.a.get(node, 0)
+
+            single_qubit_backend = StatevectorBackend()
+            single_qubit_backend.add_nodes([0], [state])
             if a:
-                backend.apply_single(node=node, op=x_blind(a).matrix)
+                single_qubit_backend.apply_single(node=0, op=x_blind(a).matrix)
             if theta:
-                backend.apply_single(node=node, op=z_rotation(theta))
+                single_qubit_backend.apply_single(node=0, op=z_rotation(theta))
+
+
+            backend.preparation_bank[node] = Statevec(single_qubit_backend.state)
+
 
     def prepare_states(self, backend: Backend) -> None:
+        self.prepare_states_virtual(backend=backend)
+
         # First prepare inputs
         backend.add_nodes(nodes=self.input_nodes, data=self.input_state)
 
@@ -305,6 +341,7 @@ class Client:
         self.measurement_db = tmp_measurement_db
 
         return trap_outcomes
+
 
     def delegate_pattern(self, backend: Backend, **kwargs) -> None:
         self.prepare_states(backend)
