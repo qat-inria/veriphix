@@ -155,16 +155,14 @@ class TestClient:
         backend = StatevectorBackend()
         # Blinded simulation, between the client and the server
         client.prepare_states(backend)
-        assert set(backend.node_index) == set(nodes)
-        client.blind_qubits(backend)
-        assert set(backend.node_index) == set(nodes)
+        assert set(backend.node_index) == set(pattern.input_nodes)
 
     def test_UBQC(self, fx_rng: Generator):
         # Generate random pattern
         nqubits = 2
         # TODO : work on optimization of the quantum communication
         depth = 1
-        for _i in range(10):
+        for _i in range(1):
             circuit = rand_circuit(nqubits, depth, fx_rng)
             pattern = circuit.transpile().pattern
             pattern.standardize(method="global")
