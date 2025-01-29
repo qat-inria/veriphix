@@ -21,6 +21,7 @@ from graphix.pauli import Pauli
 from graphix.sim.statevec import StatevectorBackend
 from graphix.simulator import MeasureMethod, PatternSimulator
 from graphix.states import BasicStates
+import stim
 
 from veriphix.trappifiedCanvas import TrappifiedCanvas
 
@@ -335,6 +336,32 @@ class Client:
         x_decoding = sum(self.results[x_dep] for x_dep in self.byproduct_db[node].x_domain) % 2
         x_decoding ^= self.secret_datas.a.a.get(node, 0)
         return z_decoding, x_decoding
+
+
+class CircuitUtils():
+    def tableau_to_pattern(tableau:stim.Tableau)-> graphix.Pattern :
+        n = len(tableau)
+        circuit = tableau.to_circuit()
+        graphix_circuit = graphix.Circuit(n)
+        for i in circuit:
+            if i.name == "H":
+                # print("Hadamard on ")
+                for t in i.target_groups():
+                    qubit = t[0].value
+                    graphix_circuit.h(qubit)
+                    # print(qubit)
+            if i.name == "S":
+                # print("S on ")
+                for t in i.target_groups():
+                    qubit = t[0].value
+                    graphix_circuit.s(qubit)
+                    # print(qubit)
+            if i.name == "CX":
+                # print("CX on ")
+                for t in i.target_groups():
+                    ctrl, targ = t[0].value, t[1].value
+                    graphix_circuit.cnot(control=ctrl, target=targ)
+        return graphix_circuit.transpile().pattern
 
 
 class ClientMeasureMethod(MeasureMethod):
