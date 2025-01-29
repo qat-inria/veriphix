@@ -246,23 +246,24 @@ class Client:
 
     def prepare_states(self, backend: Backend) -> None:
         self.prepare_states_virtual(backend=backend)
+        backend.add_nodes(nodes = self.nodes_list)
 
-        # First prepare inputs
-        backend.add_nodes(nodes=self.input_nodes, data=self.input_state)
+        # # First prepare inputs
+        # backend.add_nodes(nodes=self.input_nodes, data=self.input_state)
 
-        # Then iterate over auxiliaries required to blind
-        outer_nodes = set(self.input_nodes + self.output_nodes)
-        aux_nodes = [node for node in self.nodes_list if node not in outer_nodes]
-        aux_data = [BasicStates.PLUS for _ in aux_nodes]
-        backend.add_nodes(nodes=aux_nodes, data=aux_data)
+        # # Then iterate over auxiliaries required to blind
+        # outer_nodes = set(self.input_nodes + self.output_nodes)
+        # aux_nodes = [node for node in self.nodes_list if node not in outer_nodes]
+        # aux_data = [BasicStates.PLUS for _ in aux_nodes]
+        # backend.add_nodes(nodes=aux_nodes, data=aux_data)
 
-        # Prepare outputs
-        output_data = []
-        for node in self.output_nodes:
-            r_value = self.secret_datas.r.get(node, 0)
-            a_N_value = self.secret_datas.a.a_N.get(node, 0)
-            output_data.append(BasicStates.PLUS if r_value ^ a_N_value == 0 else BasicStates.MINUS)
-        backend.add_nodes(nodes=self.output_nodes, data=output_data)
+        # # Prepare outputs
+        # output_data = []
+        # for node in self.output_nodes:
+        #     r_value = self.secret_datas.r.get(node, 0)
+        #     a_N_value = self.secret_datas.a.a_N.get(node, 0)
+        #     output_data.append(BasicStates.PLUS if r_value ^ a_N_value == 0 else BasicStates.MINUS)
+        # backend.add_nodes(nodes=self.output_nodes, data=output_data)
 
     def create_test_runs(self) -> list[TrappifiedCanvas]:
         """
@@ -345,7 +346,8 @@ class Client:
 
     def delegate_pattern(self, backend: Backend, **kwargs) -> None:
         self.prepare_states(backend)
-        self.blind_qubits(backend)
+        # self.blind_qubits(backend)
+
         sim = PatternSimulator(
             backend=backend, pattern=self.clean_pattern, measure_method=self.measure_method, **kwargs
         )

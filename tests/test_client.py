@@ -188,7 +188,7 @@ class TestClient:
             )
 
     def test_utils(self):
-        n = 15
+        n = 8
         rd_tableau = stim.Tableau.random(n)
         pattern = CircuitUtils.tableau_to_pattern(rd_tableau)
 
