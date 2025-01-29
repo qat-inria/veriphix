@@ -169,8 +169,18 @@ class Client:
             measure_method_cls = ClientMeasureMethod
         self.measure_method = measure_method_cls(self)
 
-        self.measurement_db = {measure.node: measure for measure in pattern.get_measurement_commands()}
-        self.byproduct_db = get_byproduct_db(pattern)
+        # careful: 'get_measurement_commands' standardizes the pattern
+        # but we want the measurement commands as if the pattern was standardized (that means, include the byproducts absorbed in the measurement as much as possible)
+        # So we copy the pattern so we can standardize it without touching the non-standardized version
+        pattern_copy = Pattern(pattern.input_nodes)
+        for cmd in pattern:
+            pattern_copy.add(cmd)
+        self.measurement_db = {measure.node: measure for measure in pattern_copy.get_measurement_commands()}
+        
+        # print(test_measurement_db.keys())
+        # print(self.measurement_db.keys())
+
+        self.byproduct_db = get_byproduct_db(pattern_copy)
         # print("byprod_db", self.byproduct_db)
 
         # self.secrets_bool : bool -> self.secrets is not None
@@ -183,8 +193,9 @@ class Client:
 
         self.secret_datas = SecretDatas.from_secrets(secrets, self.graph, self.input_nodes, self.output_nodes)
 
+
         pattern_without_flow = remove_flow(pattern)
-        self.clean_pattern = prepared_nodes_as_input_nodes(pattern_without_flow)
+        # self.clean_pattern = prepared_nodes_as_input_nodes(pattern_without_flow)
 
         self.input_state = input_state if input_state is not None else [BasicStates.PLUS for _ in self.input_nodes]
 

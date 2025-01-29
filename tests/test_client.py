@@ -161,11 +161,12 @@ class TestClient:
         # Generate random pattern
         nqubits = 2
         # TODO : work on optimization of the quantum communication
-        depth = 1
-        for _i in range(1):
+        depth = 15
+        for _ in range(10):
             circuit = rand_circuit(nqubits, depth, fx_rng)
             pattern = circuit.transpile().pattern
-            pattern.standardize(method="global")
+            # pattern.minimize_space()
+            # pattern.standardize(method="global")
 
             secrets = Secrets(a=True, r=True, theta=True)
 
