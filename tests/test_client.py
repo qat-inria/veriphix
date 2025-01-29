@@ -1,12 +1,16 @@
 import unittest
 
 import numpy as np
-from graphix.random_objects import rand_circuit
+from graphix.random_objects import rand_circuit, Circuit
 from graphix.sim.statevec import StatevectorBackend
 from graphix.states import BasicStates
 from numpy.random import Generator
+import stim
+import graphix.command
+from graphix.fundamentals import IXYZ
+from graphix.pauli import Pauli
 
-from veriphix.client import Client, ClientMeasureMethod, Secrets
+from veriphix.client import Client, ClientMeasureMethod, Secrets, CircuitUtils
 
 
 class TestClient:
@@ -183,6 +187,28 @@ class TestClient:
                 np.abs(np.dot(blinded_simulation.psi.flatten().conjugate(), clear_simulation.psi.flatten())), 1
             )
 
+    def test_utils(self):
+        n = 15
+        rd_tableau = stim.Tableau.random(n)
+        pattern = CircuitUtils.tableau_to_pattern(rd_tableau)
+
+
+        input_string = rd_tableau.inverse()(stim.PauliString("X"*n))
+        sign_error = input_string.sign.real == -1
+        input_state = [
+            Pauli(IXYZ(pauli)).eigenstate() for pauli in input_string
+        ]
+
+        pattern.minimize_space()
+        classical_output = pattern.output_nodes
+        for onode in classical_output:
+            pattern.add(graphix.command.M(node=onode))
+
+        backend = StatevectorBackend()
+        pattern.simulate_pattern(backend=backend, input_state=input_state)
+
+        
+        assert sum([pattern.results[i] for i in classical_output])%2 ^ sign_error == 0 
 
 if __name__ == "__main__":
     unittest.main()
