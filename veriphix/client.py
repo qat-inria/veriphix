@@ -72,18 +72,22 @@ class SecretDatas:
 
     # NOTE: not a class method?
     @staticmethod
-    def from_secrets(secrets: Secrets, graph, input_nodes, output_nodes):
-        node_list, edge_list = graph
+    def from_secrets(secrets: Secrets, graph:nx.Graph, input_nodes, output_nodes):
+        nodes, edges = graph
+        # Re-write graph
+        graph = nx.Graph()
+        graph.add_edges_from(edges)
+        graph.add_nodes_from(nodes)
         r = {}
         if secrets.r:
             # Need to generate the random bit for each measured qubit, 0 for the rest (output qubits)
-            for node in node_list:
+            for node in graph.nodes:
                 r[node] = np.random.randint(0, 2) if node not in output_nodes else 0
 
         theta = {}
         if secrets.theta:
             # Create theta secret for all non-output nodes (measured qubits)
-            for node in node_list:
+            for node in graph.nodes:
                 theta[node] = np.random.randint(0, 8) if node not in output_nodes else 0  # Expressed in pi/4 units
                 ## TODO:
         a = {}
@@ -91,16 +95,15 @@ class SecretDatas:
         if secrets.a:
             # Create `a` secret for all
             # order is Z(theta) X |+>
-            for node in node_list:
+            for node in graph.nodes:
                 a[node] = np.random.randint(0, 2) if node not in input_nodes else 0
 
             # After all the `a` secrets have been generated, the `a_N` value can be
             # computed from the graph topology
-            for i in node_list:
-                a_N_value = 0
-                for j in node_list:
-                    if (i, j) in edge_list or (j, i) in edge_list:
-                        a_N_value ^= a[j]
+            for i in graph.nodes:
+                a_N_value = sum([a[j] for j in graph.neighbors(i)])%2
+                # for j in graph.neighbors(i):
+                #     a_N_value ^= a[j]
                 a_N[i] = a_N_value
 
         return SecretDatas(r, Secret_a(a, a_N), theta)
@@ -175,13 +178,11 @@ class Client:
         pattern_copy = Pattern(pattern.input_nodes)
         for cmd in pattern:
             pattern_copy.add(cmd)
+        
         self.measurement_db = {measure.node: measure for measure in pattern_copy.get_measurement_commands()}
         
-        # print(test_measurement_db.keys())
-        # print(self.measurement_db.keys())
 
         self.byproduct_db = get_byproduct_db(pattern_copy)
-        # print("byprod_db", self.byproduct_db)
 
         # self.secrets_bool : bool -> self.secrets is not None
         # self.secrets_type : Secrets -> self.secrets
@@ -194,7 +195,7 @@ class Client:
         self.secret_datas = SecretDatas.from_secrets(secrets, self.graph, self.input_nodes, self.output_nodes)
 
 
-        pattern_without_flow = remove_flow(pattern)
+        # pattern_without_flow = remove_flow(pattern)
         # self.clean_pattern = prepared_nodes_as_input_nodes(pattern_without_flow)
 
         self.input_state = input_state if input_state is not None else [BasicStates.PLUS for _ in self.input_nodes]
@@ -251,9 +252,11 @@ class Client:
             single_qubit_backend.apply_single(node=0, op=x_blind(a).matrix)
         if theta:
             single_qubit_backend.apply_single(node=0, op=z_rotation(theta))
+
         backend.preparation_bank[node] = Statevec(single_qubit_backend.state)
 
     def prepare_states(self, backend: Backend) -> None:
+        # Initializes the bank (all the nodes)
         self.prepare_states_virtual(backend=backend)
         # Server asks the backend to create them
         ## Except for the input!
@@ -349,6 +352,7 @@ class Client:
 
 
     def delegate_pattern(self, backend: Backend, **kwargs) -> None:
+        # Initializes the bank & asks backend to create the input 
         self.prepare_states(backend)
         # self.blind_qubits(backend)
 
