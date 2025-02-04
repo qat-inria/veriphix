@@ -13,13 +13,13 @@ import graphix.simulator
 import networkx as nx
 import numpy as np
 from graphix.clifford import Clifford
-from graphix.command import BaseM, CommandKind, MeasureUpdate
+from graphix.command import BaseN, BaseM, CommandKind, MeasureUpdate
 from graphix.measurements import Measurement
 from graphix.ops import Ops
 from graphix.pattern import Pattern
 from graphix.pauli import Pauli
 from graphix.sim.statevec import StatevectorBackend, Statevec
-from graphix.simulator import MeasureMethod, PatternSimulator
+from graphix.simulator import PrepareMethod, MeasureMethod, PatternSimulator
 from graphix.states import BasicStates
 import stim
 
@@ -200,6 +200,9 @@ class Client:
 
         self.input_state = input_state if input_state is not None else [BasicStates.PLUS for _ in self.input_nodes]
 
+        self.preparation_bank = {}
+        self.prepare_method = ClientPrepareMethod(self.preparation_bank)
+
     def refresh_randomness(self) -> None:
         "method to refresh random randomness using parameters from Clinent instatiation."
 
@@ -253,21 +256,22 @@ class Client:
         if theta:
             single_qubit_backend.apply_single(node=0, op=z_rotation(theta))
 
-        backend.preparation_bank[node] = Statevec(single_qubit_backend.state)
+        self.preparation_bank[node] = Statevec(single_qubit_backend.state)
 
     def prepare_states(self, backend: Backend) -> None:
         # Initializes the bank (all the nodes)
         self.prepare_states_virtual(backend=backend)
         # Server asks the backend to create them
         ## Except for the input!
-        backend.add_nodes(nodes = self.input_nodes)
+        for node in self.input_nodes:
+            self.prepare_method.prepare_node(backend, node)
 
 
     def create_test_runs(self) -> list[TrappifiedCanvas]:
         """
         Creates test runs according to FK12 protocol of
         Fitzsimons, J. F., & Kashefi, E. (2017). Unconditionally verifiable blind quantum computation. Physical Review A, 96(1), 012303.
-        https://arxiv.org/abs/1203.5217
+x        https://arxiv.org/abs/1203.5217
 
         The graph is partitioned in `k` colors.
         Each color is associated to a test run, or a Trappified Canvas.
@@ -320,7 +324,7 @@ class Client:
             state = run.states[node]
             self.blind_qubit(node=node, state=state, backend=backend)
             if node in self.input_nodes:
-                backend.add_nodes(nodes=[node], data=state)
+                self.prepare_method.prepare_node(backend, node)
         # The backend knows what state to create when needed
 
 
@@ -336,7 +340,7 @@ class Client:
 
         clean_pattern_with_N = remove_flow(self.initial_pattern)
         sim = PatternSimulator(
-            backend=backend, pattern=clean_pattern_with_N, measure_method=self.measure_method, **kwargs
+            backend=backend, pattern=clean_pattern_with_N, prepare_method=self.prepare_method, measure_method=self.measure_method, **kwargs
         )
         sim.run(input_state=None)
 
@@ -359,7 +363,7 @@ class Client:
         clean_pattern_with_N = remove_flow(self.initial_pattern)
 
         sim = PatternSimulator(
-            backend=backend, pattern=clean_pattern_with_N, measure_method=self.measure_method, **kwargs
+            backend=backend, pattern=clean_pattern_with_N, prepare_method=self.prepare_method, measure_method=self.measure_method, **kwargs
         )
         sim.run(input_state=None)
         self.decode_output_state(backend)
@@ -406,6 +410,20 @@ class CircuitUtils():
                     ctrl, targ = t[0].value, t[1].value
                     graphix_circuit.cnot(control=ctrl, target=targ)
         return graphix_circuit.transpile().pattern
+
+
+class ClientPrepareMethod(PrepareMethod):
+    def __init__(self, preparation_bank):
+        self.__preparation_bank = preparation_bank
+
+    def prepare_node(self, backend: Backend, node: int) -> None:
+        """Prepare a node."""
+        backend.add_nodes(nodes=[node], data=self.__preparation_bank[node])
+
+    def prepare(self, backend: Backend, cmd: BaseN) -> None:
+        """Prepare a node."""
+        self.prepare_node(backend, cmd.node)
+        
 
 
 class ClientMeasureMethod(MeasureMethod):

@@ -1,2 +1,2 @@
-graphix @ git+https://github.com/jemappellesami/graphix@vbqc2
+graphix @ git+https://github.com/thierry-martinez/graphix@prepare-method
 stim>=1.13,<2
