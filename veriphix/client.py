@@ -96,7 +96,7 @@ class SecretDatas:
             # Create `a` secret for all
             # order is Z(theta) X |+>
             for node in graph.nodes:
-                a[node] = np.random.randint(0, 2) if node not in input_nodes else 0
+                a[node] = np.random.randint(0, 2) if node in input_nodes else 0
 
             # After all the `a` secrets have been generated, the `a_N` value can be
             # computed from the graph topology
@@ -271,7 +271,7 @@ class Client:
         """
         Creates test runs according to FK12 protocol of
         Fitzsimons, J. F., & Kashefi, E. (2017). Unconditionally verifiable blind quantum computation. Physical Review A, 96(1), 012303.
-x        https://arxiv.org/abs/1203.5217
+        https://arxiv.org/abs/1203.5217
 
         The graph is partitioned in `k` colors.
         Each color is associated to a test run, or a Trappified Canvas.
