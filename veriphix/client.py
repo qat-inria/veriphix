@@ -82,7 +82,7 @@ class SecretDatas:
         if secrets.r:
             # Need to generate the random bit for each measured qubit, 0 for the rest (output qubits)
             for node in graph.nodes:
-                r[node] = np.random.randint(0, 2) if node not in output_nodes else 0
+                r[node] = np.random.randint(0, 2) # if node not in output_nodes else 0
 
         theta = {}
         if secrets.theta:
