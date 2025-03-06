@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import itertools
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
@@ -15,13 +16,13 @@ import networkx as nx
 import numpy as np
 import stim
 from graphix.clifford import Clifford
-from graphix.command import BaseN, BaseM, CommandKind, MeasureUpdate
+from graphix.command import BaseM, BaseN, CommandKind, MeasureUpdate
 from graphix.measurements import Measurement
 from graphix.ops import Ops
 from graphix.pattern import Pattern
 from graphix.pauli import Pauli
-from graphix.sim.statevec import StatevectorBackend, Statevec
-from graphix.simulator import PrepareMethod, MeasureMethod, PatternSimulator
+from graphix.sim.statevec import Statevec, StatevectorBackend
+from graphix.simulator import MeasureMethod, PatternSimulator, PrepareMethod
 from graphix.states import BasicStates
 
 from veriphix.trappifiedCanvas import TrappifiedCanvas
@@ -83,7 +84,7 @@ class SecretDatas:
         if secrets.r:
             # Need to generate the random bit for each measured qubit, 0 for the rest (output qubits)
             for node in graph.nodes:
-                r[node] = np.random.randint(0, 2) # if node not in output_nodes else 0
+                r[node] = np.random.randint(0, 2)  # if node not in output_nodes else 0
 
         theta = {}
         if secrets.theta:
@@ -267,15 +268,37 @@ class Client:
             self.prepare_method.prepare_node(backend, node)
 
     def create_test_runs(self, manual_colouring: Sequence[set[int]] | None = None) -> list[TrappifiedCanvas]:
-        """
-        Creates test runs according to FK12 protocol of
-        Fitzsimons, J. F., & Kashefi, E. (2017). Unconditionally verifiable blind quantum computation. Physical Review A, 96(1), 012303.
+        """Creates test runs according to a graph colouring according to [FK12].
+        A test run, or a Trappified Canvas, is associated to each color in the colouring.
+        For a given test run, the trap nodes are defined as being the nodes belonging to the color the run corresponds to.
+        This procedure only allows for the definition of single-qubit traps.
+        If `manual_colouring` is not specified, then a colouring is found by using `networkx`'s greedy algorithm.
+
+        Parameters
+        ----------
+        manual_colouring : Sequence[set[int]] | None, optional
+            manual colouring to use if `networkx` is bypassed, by default None.
+
+        Returns
+        -------
+        list[TrappifiedCanvas]
+            list of canvases defining all the possible test runs to perform.
+
+        Raises
+        ------
+        ValueError
+            if the provided colouring is not an actual colouring (does not cover all nodes).
+        ValueError
+            if the provided colouring is not a proper colouring (a node belongs to more than one color).
+
+        Warnings
+        ------
+        when providing a `manual_colouring` make sure that the numbering of the nodes in the original pattern/graph and the one in the colouring are consistent.
+
+        Notes
+        ------
+        [FK12]: Fitzsimons, J. F., & Kashefi, E. (2017). Unconditionally verifiable blind quantum computation. Physical Review A, 96(1), 012303.
         https://arxiv.org/abs/1203.5217
-
-        The graph is partitioned in `k` colors.
-        Each color is associated to a test run, or a Trappified Canvas.
-
-        For a color, single-qubit traps are created for each node of that color.
         """
 
         graph = nx.Graph()
@@ -288,12 +311,24 @@ class Client:
         if manual_colouring is None:
             coloring = nx.coloring.greedy_color(graph, strategy="largest_first")
             colors = set(coloring.values())
-            nodes_by_color : dict[int, list[int]] = {c: [] for c in colors}
+            nodes_by_color: dict[int, list[int]] = {c: [] for c in colors}
             for node in sorted(graph.nodes):
                 color = coloring[node]
                 nodes_by_color[color].append(node)
         else:
-            # cheks here
+            # checks that manual_colouring is a proper colouring
+            ## first check uniion is the whole graph
+            color_union = print(set().union(*manual_colouring))
+            if not color_union == set(nodes):
+                raise ValueError("The provided colouring does not include all the nodes of the graph.")
+            # check that colors are two by two disjoint
+            # if sets are disjoint, empty set from intersection is interpreted as False.
+            # so one non-empty set -> one True value -> use any()
+            if any([i & j for i, j in itertools.combinations(manual_colouring, 2)]):
+                raise ValueError(
+                    "The provided colouring is not a proper colouring i.e the same node belongs to at least two colours."
+                )
+
             colors = set(range(len(manual_colouring)))
             nodes_by_color = {i: list(c) for i, c in enumerate(manual_colouring)}
 
@@ -343,7 +378,11 @@ class Client:
 
         clean_pattern_with_N = remove_flow(self.initial_pattern)
         sim = PatternSimulator(
-            backend=backend, pattern=clean_pattern_with_N, prepare_method=self.prepare_method, measure_method=self.measure_method, **kwargs
+            backend=backend,
+            pattern=clean_pattern_with_N,
+            prepare_method=self.prepare_method,
+            measure_method=self.measure_method,
+            **kwargs,
         )
         sim.run(input_state=None)
 
@@ -365,7 +404,11 @@ class Client:
         clean_pattern_with_N = remove_flow(self.initial_pattern)
 
         sim = PatternSimulator(
-            backend=backend, pattern=clean_pattern_with_N, prepare_method=self.prepare_method, measure_method=self.measure_method, **kwargs
+            backend=backend,
+            pattern=clean_pattern_with_N,
+            prepare_method=self.prepare_method,
+            measure_method=self.measure_method,
+            **kwargs,
         )
         sim.run(input_state=None)
         self.decode_output_state(backend)
@@ -425,7 +468,6 @@ class ClientPrepareMethod(PrepareMethod):
     def prepare(self, backend: Backend, cmd: BaseN) -> None:
         """Prepare a node."""
         self.prepare_node(backend, cmd.node)
-        
 
 
 class ClientMeasureMethod(MeasureMethod):

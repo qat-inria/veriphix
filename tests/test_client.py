@@ -1,19 +1,60 @@
 import unittest
 
+import graphix.command
 import numpy as np
-from graphix.random_objects import rand_circuit, Circuit
+import pytest
+import stim
+from graphix.fundamentals import IXYZ
+from graphix.pauli import Pauli
+from graphix.random_objects import rand_circuit
 from graphix.sim.statevec import StatevectorBackend
 from graphix.states import BasicStates
 from numpy.random import Generator
-import stim
-import graphix.command
-from graphix.fundamentals import IXYZ
-from graphix.pauli import Pauli
 
-from veriphix.client import Client, ClientMeasureMethod, Secrets, CircuitUtils
+from veriphix.client import CircuitUtils, Client, ClientMeasureMethod, Secrets
 
 
 class TestClient:
+    def test_create_test_run_manual_fail(self, fx_rng):
+        """testing not all qubits in the manual colouring"""
+
+        # generate random circuit
+        nqubits = 2
+        depth = 1
+        circuit = rand_circuit(nqubits, depth, fx_rng)
+        # transpile to pattern
+        pattern = circuit.transpile().pattern
+        pattern.standardize(method="global")
+
+        nodes, edges = pattern.get_graph()
+
+        # initialise client
+        secrets = Secrets(r=True, a=True, theta=True)
+        client = Client(pattern=pattern, secrets=secrets)
+
+        with pytest.raises(ValueError):
+            client.create_test_runs(manual_colouring=(set([0]), set()))
+
+    def test_create_test_run_manual_fail_improper(self, fx_rng):
+        """testing manual colouring not proper"""
+
+        # generate random circuit
+        nqubits = 2
+        depth = 1
+        circuit = rand_circuit(nqubits, depth, fx_rng)
+        # transpile to pattern
+        pattern = circuit.transpile().pattern
+        pattern.standardize(method="global")
+
+        nodes, edges = pattern.get_graph()
+
+        # initialise client
+        secrets = Secrets(r=True, a=True, theta=True)
+        client = Client(pattern=pattern, secrets=secrets)
+
+        with pytest.raises(ValueError):  # trivially duplicate a node
+            client.create_test_runs(manual_colouring=(set(nodes), set([nodes[0]])))
+
     def test_client_input(self, fx_rng: Generator):
         # Generate random pattern
         nqubits = 2
@@ -191,12 +232,9 @@ class TestClient:
         rd_tableau = stim.Tableau.random(n)
         pattern = CircuitUtils.tableau_to_pattern(rd_tableau)
 
-
-        input_string = rd_tableau.inverse()(stim.PauliString("X"*n))
+        input_string = rd_tableau.inverse()(stim.PauliString("X" * n))
         sign_error = input_string.sign.real == -1
-        input_state = [
-            Pauli(IXYZ(pauli)).eigenstate() for pauli in input_string
-        ]
+        input_state = [Pauli(IXYZ(pauli)).eigenstate() for pauli in input_string]
 
         pattern.minimize_space()
         classical_output = pattern.output_nodes
@@ -206,8 +244,8 @@ class TestClient:
         backend = StatevectorBackend()
         pattern.simulate_pattern(backend=backend, input_state=input_state)
 
-        
-        assert sum([pattern.results[i] for i in classical_output])%2 ^ sign_error == 0 
+        assert sum([pattern.results[i] for i in classical_output]) % 2 ^ sign_error == 0
+
 
 if __name__ == "__main__":
     unittest.main()
