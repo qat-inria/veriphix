@@ -284,11 +284,13 @@ class Client:
         if manual_colouring is None:
             coloring = nx.coloring.greedy_color(graph, strategy="largest_first")
             colors = set(coloring.values())
-            nodes_by_color = {c: [] for c in colors}
+            nodes_by_color : dict[int, list[int]] = {c: [] for c in colors}
             for node in sorted(graph.nodes):
                 color = coloring[node]
                 nodes_by_color[color].append(node)
         else:
+            # cheks here
+            colors = set(range(len(manual_colouring)))
             nodes_by_color = {i: list(c) for i, c in enumerate(manual_colouring)}
 
         # Create the test runs : one per color
