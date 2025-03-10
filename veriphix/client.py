@@ -318,7 +318,7 @@ class Client:
         else:
             # checks that manual_colouring is a proper colouring
             ## first check uniion is the whole graph
-            color_union = print(set().union(*manual_colouring))
+            color_union = set().union(*manual_colouring)
             if not color_union == set(nodes):
                 raise ValueError("The provided colouring does not include all the nodes of the graph.")
             # check that colors are two by two disjoint
