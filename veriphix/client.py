@@ -25,7 +25,7 @@ from graphix.sim.statevec import Statevec, StatevectorBackend
 from graphix.simulator import MeasureMethod, PatternSimulator, PrepareMethod
 from graphix.states import BasicStates
 
-from veriphix.trappifiedCanvas import TrappifiedCanvas
+from veriphix.trappifiedCanvas import TrapStabilizers, TrappifiedCanvas
 
 if TYPE_CHECKING:
     from graphix.sim.base_backend import Backend
@@ -267,7 +267,7 @@ class Client:
         for node in self.input_nodes:
             self.prepare_method.prepare_node(backend, node)
 
-    def create_test_runs(self, manual_colouring: Sequence[set[int]] | None = None) -> list[TrappifiedCanvas]:
+    def create_test_runs(self, manual_colouring: Sequence[set[int]] | None = None) -> list[TrapStabilizers]:
         """Creates test runs according to a graph colouring according to [FK12].
         A test run, or a Trappified Canvas, is associated to each color in the colouring.
         For a given test run, the trap nodes are defined as being the nodes belonging to the color the run corresponds to.
@@ -333,7 +333,7 @@ class Client:
             nodes_by_color = {i: list(c) for i, c in enumerate(manual_colouring)}
 
         # Create the test runs : one per color
-        runs: list[TrappifiedCanvas] = []
+        runs: list[TrapStabilizers] = []
         for color in colors:
             # 1 color = 1 test run = 1 set of traps
             traps_list = []
@@ -347,9 +347,9 @@ class Client:
             # And assume that TrappifiedCanvas needs to be instanciated with a traps_list that corresponds to a coloring.
             # and TC just merges them assuming they are all mergeable.
 
-            trappified_canvas = TrappifiedCanvas(graph, traps_list=traps_list)
+            stabilizers = TrapStabilizers(graph, traps_list=traps_list)
 
-            runs.append(trappified_canvas)
+            runs.append(stabilizers)
         return runs
 
     def delegate_test_run(self, backend: Backend, run: TrappifiedCanvas, **kwargs) -> list[int]:

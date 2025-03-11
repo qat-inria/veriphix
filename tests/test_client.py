@@ -24,7 +24,7 @@ class TestClient:
         circuit = rand_circuit(nqubits, depth, fx_rng)
         # transpile to pattern
         pattern = circuit.transpile().pattern
-        pattern.standardize(method="global")
+        pattern.standardize()
 
         nodes, edges = pattern.get_graph()
 
@@ -44,7 +44,7 @@ class TestClient:
         circuit = rand_circuit(nqubits, depth, fx_rng)
         # transpile to pattern
         pattern = circuit.transpile().pattern
-        pattern.standardize(method="global")
+        pattern.standardize()
 
         nodes, edges = pattern.get_graph()
 
@@ -61,7 +61,7 @@ class TestClient:
         depth = 1
         circuit = rand_circuit(nqubits, depth, fx_rng)
         pattern = circuit.transpile().pattern
-        pattern.standardize(method="global")
+        pattern.standardize()
 
         secrets = Secrets(theta=True)
 
@@ -81,7 +81,7 @@ class TestClient:
         for _i in range(10):
             circuit = rand_circuit(nqubits, depth, fx_rng)
             pattern = circuit.transpile().pattern
-            pattern.standardize(method="global")
+            pattern.standardize()
 
             state = circuit.simulate_statevector().statevec
 
@@ -101,7 +101,7 @@ class TestClient:
         for _i in range(10):
             circuit = rand_circuit(nqubits, depth, fx_rng)
             pattern = circuit.transpile().pattern
-            pattern.standardize(method="global")
+            pattern.standardize()
 
             secrets = Secrets(theta=True)
 
@@ -129,7 +129,7 @@ class TestClient:
         for _ in range(10):
             circuit = rand_circuit(nqubits, depth, fx_rng)
             pattern = circuit.transpile().pattern
-            pattern.standardize(method="global")
+            pattern.standardize()
 
             secrets = Secrets(a=True)
 
@@ -155,7 +155,7 @@ class TestClient:
         depth = 1
         circuit = rand_circuit(nqubits, depth, fx_rng)
         pattern = circuit.transpile().pattern
-        pattern.standardize(method="global")
+        pattern.standardize()
         server_results = dict()
 
         class CacheMeasureMethod(ClientMeasureMethod):
@@ -184,7 +184,7 @@ class TestClient:
         circuit = rand_circuit(nqubits, depth, fx_rng)
         pattern = circuit.transpile().pattern
         nodes = pattern.get_graph()[0]
-        pattern.standardize(method="global")
+        pattern.standardize()
         secrets = Secrets(a=True, r=True, theta=True)
 
         # Create a |+> state for each input node, and associate index
