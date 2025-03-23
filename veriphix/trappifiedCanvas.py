@@ -8,8 +8,6 @@ from graphix.pauli import Pauli
 from graphix.rng import ensure_rng
 
 if TYPE_CHECKING:
-    from typing import Generator
-
     import networkx as nx
     from graphix.states import State
     from numpy.random import Generator
