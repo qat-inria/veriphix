@@ -12,6 +12,7 @@ if TYPE_CHECKING:
 
     import networkx as nx
     from graphix.states import State
+    from numpy.random import Generator
 
     Trap = set[int]
 

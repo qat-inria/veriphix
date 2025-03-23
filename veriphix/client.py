@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import itertools
-from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -14,7 +13,6 @@ import graphix.sim.statevec
 import graphix.simulator
 import networkx as nx
 import numpy as np
-import stim
 from graphix.clifford import Clifford
 from graphix.command import BaseM, BaseN, CommandKind, MeasureUpdate
 from graphix.measurements import Measurement
@@ -25,9 +23,12 @@ from graphix.sim.statevec import Statevec, StatevectorBackend
 from graphix.simulator import MeasureMethod, PatternSimulator, PrepareMethod
 from graphix.states import BasicStates
 
-from veriphix.trappifiedCanvas import TrapStabilizers, TrappifiedCanvas
+from veriphix.trappifiedCanvas import TrappifiedCanvas, TrapStabilizers
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    import stim
     from graphix.sim.base_backend import Backend
 
     from veriphix.trappifiedCanvas import Trap
