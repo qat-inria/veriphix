@@ -2,4 +2,4 @@
 __pycache__/
 /.tox/
 /veriphix.egg-info/
-.DStore
+.DS_Store
