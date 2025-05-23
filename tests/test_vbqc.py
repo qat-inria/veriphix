@@ -13,8 +13,8 @@ from veriphix.trappifiedCanvas import TrappifiedCanvas
 
 class TestVBQC:
     def test_trap_delegated(self, fx_rng: np.random.Generator):
-        nqubits = 2
-        depth = 2
+        nqubits = 3
+        depth = 5
         circuit = rand_circuit(nqubits, depth, fx_rng)
         pattern = circuit.transpile().pattern
         # pattern.standardize()
@@ -33,13 +33,14 @@ class TestVBQC:
             trap_outcomes = client.delegate_test_run(backend=backend, run=canvas)
             assert trap_outcomes == [0 for _ in stab.traps_list]
 
+
+
     def test_noiseless(self, fx_rng: Generator):
-        circuit = Circuit(3)
-        circuit.rz(1, np.pi / 4)
-        circuit.cnot(0, 2)
+        nqubits = 3
+        depth = 5
+        circuit = rand_circuit(nqubits, depth, fx_rng)
         pattern = circuit.transpile().pattern
 
-        print(f"{pattern.n_node} nodes")
         # pattern.standardize()
         for o in pattern.output_nodes:
             pattern.add(graphix.command.M(node=o))
@@ -61,11 +62,11 @@ class TestVBQC:
             assert sum(trap_outcomes) == 0
 
     def test_noisy(self, fx_rng: Generator):
-        circuit = Circuit(3)
-        circuit.rz(1, np.pi / 4)
-        circuit.cnot(0, 2)
+        nqubits = 3
+        depth = 5
+        circuit = rand_circuit(nqubits, depth, fx_rng)
         pattern = circuit.transpile().pattern
-        pattern.standardize()
+
         for o in pattern.output_nodes:
             pattern.add(graphix.command.M(node=o))
 

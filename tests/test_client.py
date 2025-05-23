@@ -55,6 +55,47 @@ class TestClient:
         with pytest.raises(ValueError):  # trivially duplicate a node
             client.create_test_runs(manual_colouring=(set(nodes), set([nodes[0]])))
 
+    def test_standardize(self, fx_rng: Generator):
+        """
+        Test to check that the Client-Server delegation works with standardized patterns
+        """
+        nqubits = 2
+        depth = 2
+        circuit = rand_circuit(nqubits, depth, fx_rng)
+        pattern = circuit.transpile().pattern
+        pattern.standardize()
+        for o in pattern.output_nodes:
+            pattern.add(graphix.command.M(node=o))
+
+        states = [BasicStates.PLUS for _ in pattern.input_nodes]
+
+        secrets = Secrets(a=True, r=True, theta=True)
+
+        client = Client(pattern=pattern, input_state=states, secrets=secrets)
+        client.delegate_pattern(backend=StatevectorBackend())
+        # No assertion needed
+        
+    def test_minimize_space(self, fx_rng: Generator):
+        """
+        Test to check that the Client-Server delegation works with patterns re-organized with minimize-space
+        """
+        nqubits = 3
+        depth = 5
+        circuit = rand_circuit(nqubits, depth, fx_rng)
+        pattern = circuit.transpile().pattern
+        pattern.minimize_space()
+        for o in pattern.output_nodes:
+            pattern.add(graphix.command.M(node=o))
+
+        states = [BasicStates.PLUS for _ in pattern.input_nodes]
+
+        secrets = Secrets(a=True, r=True, theta=True)
+
+        client = Client(pattern=pattern, input_state=states, secrets=secrets)
+        client.delegate_pattern(backend=StatevectorBackend())
+        # No assertion needed
+
+
     def test_client_input(self, fx_rng: Generator):
         # Generate random pattern
         nqubits = 2

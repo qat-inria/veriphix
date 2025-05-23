@@ -161,7 +161,7 @@ def prepared_nodes_as_input_nodes(pattern: Pattern) -> Pattern:
 
 
 class Client:
-    def __init__(self, pattern, input_state=None, measure_method_cls=None, secrets: None | Secrets = None) -> None:
+    def __init__(self, pattern, input_state=None, measure_method_cls=None, test_measure_method_cls = None, secrets: None | Secrets = None) -> None:
         self.initial_pattern: Pattern = pattern
 
         self.input_nodes = self.initial_pattern.input_nodes.copy()
@@ -173,7 +173,11 @@ class Client:
         self.results = pattern.results.copy()
         if measure_method_cls is None:
             measure_method_cls = ClientMeasureMethod
+        if test_measure_method_cls is None:
+            test_measure_method_cls = TestMeasureMethod
+
         self.measure_method = measure_method_cls(self)
+        self.test_measure_method = test_measure_method_cls(self)
 
         # careful: 'get_measurement_commands' standardizes the pattern
         # but we want the measurement commands as if the pattern was standardized (that means, include the byproducts absorbed in the measurement as much as possible)
@@ -196,8 +200,8 @@ class Client:
 
         self.secret_datas = SecretDatas.from_secrets(secrets, self.graph, self.input_nodes, self.output_nodes)
 
-        # pattern_without_flow = remove_flow(pattern)
-        # self.clean_pattern = prepared_nodes_as_input_nodes(pattern_without_flow)
+
+        self.clean_pattern = remove_flow(self.initial_pattern)
 
         self.input_state = input_state if input_state is not None else [BasicStates.PLUS for _ in self.input_nodes]
 
@@ -210,23 +214,6 @@ class Client:
         # refresh only if secrets bool is True; False is no randomness at all.
         if self.secrets is not None:
             self.secret_datas = SecretDatas.from_secrets(self.secrets, self.graph, self.input_nodes, self.output_nodes)
-
-    def blind_qubits(self, backend: Backend) -> None:
-        pass
-        # def z_rotation(theta) -> np.array:
-        #     return np.array([[1, 0], [0, np.exp(1j * theta * np.pi / 4)]])
-
-        # def x_blind(a) -> Pauli:
-        #     return Pauli.X if (a == 1) else Pauli.I
-
-        # for node in self.nodes_list:
-        #     if node not in self.input_nodes:
-        #         theta = self.secret_datas.theta.get(node, 0)
-        #         a = self.secret_datas.a.a.get(node, 0)
-        #         if a:
-        #             backend.apply_single(node=node, op=x_blind(a).matrix)
-        #         if theta:
-        #             backend.apply_single(node=node, op=z_rotation(theta))
 
     def prepare_states_virtual(self, backend: Backend) -> None:
         for node in self.nodes_list:
@@ -365,48 +352,34 @@ class Client:
             self.blind_qubit(node=node, state=state, backend=backend)
             if node in self.input_nodes:
                 self.prepare_method.prepare_node(backend, node)
-        # The backend knows what state to create when needed
 
-        # backend.add_nodes(nodes=sorted(self.graph[0]), data=preparation_backend.state)
 
-        tmp_measurement_db = self.measurement_db.copy()
-        # Modify the pattern to be all X-basis measurements, no shifts/signalling updates
-        # Warning should only work for BQP ie classical output
-        for node in self.measurement_db:
-            self.measurement_db[node] = graphix.command.M(node=node)
-
-        # TODO add measurements on output nodes?
-
-        clean_pattern_with_N = remove_flow(self.initial_pattern)
         sim = PatternSimulator(
             backend=backend,
-            pattern=clean_pattern_with_N,
+            pattern=self.clean_pattern,
             prepare_method=self.prepare_method,
-            measure_method=self.measure_method,
+            measure_method=self.test_measure_method,
             **kwargs,
         )
         sim.run(input_state=None)
 
+        # TODO: post-processing must come after
         trap_outcomes = []
         for trap in run.traps_list:
             outcomes = [self.results[component] for component in trap]  # here
             trap_outcome = sum(outcomes) % 2
             trap_outcomes.append(trap_outcome)
 
-        self.measurement_db = tmp_measurement_db
 
         return trap_outcomes
 
     def delegate_pattern(self, backend: Backend, **kwargs) -> None:
         # Initializes the bank & asks backend to create the input
         self.prepare_states(backend)
-        # self.blind_qubits(backend)
-
-        clean_pattern_with_N = remove_flow(self.initial_pattern)
 
         sim = PatternSimulator(
             backend=backend,
-            pattern=clean_pattern_with_N,
+            pattern=self.clean_pattern,
             prepare_method=self.prepare_method,
             measure_method=self.measure_method,
             **kwargs,
@@ -478,23 +451,49 @@ class ClientMeasureMethod(MeasureMethod):
     def get_measurement_description(self, cmd: BaseM) -> Measurement:
         parameters = self.__client.measurement_db[cmd.node]
 
-        # print("Client measurement db ", self.__client.measurement_db)
+        # Extract secrets from Client
         r_value = self.__client.secret_datas.r.get(cmd.node, 0)
         theta_value = self.__client.secret_datas.theta.get(cmd.node, 0)
         a_value = self.__client.secret_datas.a.a.get(cmd.node, 0)
         a_N_value = self.__client.secret_datas.a.a_N.get(cmd.node, 0)
-        # print("parameters.", parameters)
-        # print("secrets", self.__client.secrets)
-        # extract signals for adaptive angle
+
+        # Extract signals and compute the angle for the computation
         s_signal = sum(self.__client.results[j] for j in parameters.s_domain)
         t_signal = sum(self.__client.results[j] for j in parameters.t_domain)
         measure_update = MeasureUpdate.compute(parameters.plane, s_signal % 2 == 1, t_signal % 2 == 1, Clifford.I)
-        # print("meas update", measure_update)
         angle = parameters.angle * np.pi
         angle = angle * measure_update.coeff + measure_update.add_term
+
+        # Blind the angle using the Client's secrets
         angle = (-1) ** a_value * angle + theta_value * np.pi / 4 + np.pi * (r_value + a_N_value)
-        # angle = angle * measure_update.coeff + measure_update.add_term
         return Measurement(plane=measure_update.new_plane, angle=angle)
+
+    def get_measure_result(self, node: int) -> bool:
+        raise ValueError("Server cannot have access to measurement results")
+
+    def set_measure_result(self, node: int, result: bool) -> None:
+        if self.__client.secret_datas.r:
+            result ^= self.__client.secret_datas.r[node]
+        self.__client.results[node] = result
+
+
+class TestMeasureMethod(MeasureMethod):
+    def __init__(self, client: Client):
+        self.__client = client
+
+    def get_measurement_description(self, cmd: BaseM) -> Measurement:
+        parameters = self.__client.measurement_db[cmd.node]
+
+        # Extract secrets from Client
+        r_value = self.__client.secret_datas.r.get(cmd.node, 0)
+        theta_value = self.__client.secret_datas.theta.get(cmd.node, 0)
+        a_value = self.__client.secret_datas.a.a.get(cmd.node, 0)
+        a_N_value = self.__client.secret_datas.a.a_N.get(cmd.node, 0)
+
+
+        # Blind the angle using the Client's secrets
+        angle = theta_value * np.pi / 4 + np.pi * (r_value + a_N_value)
+        return Measurement(plane=parameters.plane, angle=angle)
 
     def get_measure_result(self, node: int) -> bool:
         raise ValueError("Server cannot have access to measurement results")
