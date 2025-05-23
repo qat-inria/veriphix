@@ -236,7 +236,7 @@ class TestClient:
 
         backend = StatevectorBackend()
         # Blinded simulation, between the client and the server
-        client.prepare_states(backend)
+        client.prepare_states(backend, states_dict=client.computation_states)
         assert set(backend.node_index) == set(pattern.input_nodes)
 
     def test_UBQC(self, fx_rng: Generator):

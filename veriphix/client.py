@@ -147,19 +147,6 @@ def remove_flow(pattern):
     return clean_pattern
 
 
-def prepared_nodes_as_input_nodes(pattern: Pattern) -> Pattern:
-    input_nodes = pattern.input_nodes
-    seq = []
-    for cmd in pattern:
-        if cmd.kind == CommandKind.N:
-            input_nodes.append(cmd.node)
-        else:
-            seq.append(cmd)
-    result = Pattern(input_nodes=input_nodes)
-    result.extend(seq)
-    return result
-
-
 class Client:
     def __init__(self, pattern, input_state=None, measure_method_cls=None, test_measure_method_cls = None, secrets: None | Secrets = None) -> None:
         self.initial_pattern: Pattern = pattern
@@ -201,9 +188,12 @@ class Client:
         self.secret_datas = SecretDatas.from_secrets(secrets, self.graph, self.input_nodes, self.output_nodes)
 
 
+        # Remove informations from the pattern, leaves only the graph structure, and order of measurements/creation of qubits
         self.clean_pattern = remove_flow(self.initial_pattern)
 
         self.input_state = input_state if input_state is not None else [BasicStates.PLUS for _ in self.input_nodes]
+        # Creates the states to be used during the protocol
+        self.computation_states = self.get_computation_states()
 
         self.preparation_bank = {}
         self.prepare_method = ClientPrepareMethod(self.preparation_bank)
@@ -215,7 +205,9 @@ class Client:
         if self.secrets is not None:
             self.secret_datas = SecretDatas.from_secrets(self.secrets, self.graph, self.input_nodes, self.output_nodes)
 
-    def prepare_states_virtual(self, backend: Backend) -> None:
+
+    def get_computation_states(self) :
+        states = dict()
         for node in self.nodes_list:
             if node in self.input_nodes:
                 state = self.input_state[node]
@@ -227,9 +219,19 @@ class Client:
 
             else:
                 state = BasicStates.PLUS
-            self.blind_qubit(backend=backend, node=node, state=state)
+            states[node] = state
+        return states
+    
+    def prepare_states_virtual(self, states_dict:dict[(int, BasicStates)], backend: Backend) -> None:
+        """
+        The Client creates the qubits and blind them in its preparation_bank
+        """
+        for node in states_dict:
+            blinded_qubit_state = self.blind_qubit(node=node, state=states_dict[node])
+            self.preparation_bank[node] = Statevec(blinded_qubit_state)
 
-    def blind_qubit(self, backend: Backend, node: int, state) -> None:
+
+    def blind_qubit(self, node: int, state) -> None:
         def z_rotation(theta) -> np.array:
             return np.array([[1, 0], [0, np.exp(1j * theta * np.pi / 4)]])
 
@@ -244,12 +246,12 @@ class Client:
             single_qubit_backend.apply_single(node=0, op=x_blind(a).matrix)
         if theta:
             single_qubit_backend.apply_single(node=0, op=z_rotation(theta))
+        return single_qubit_backend.state
 
-        self.preparation_bank[node] = Statevec(single_qubit_backend.state)
 
-    def prepare_states(self, backend: Backend) -> None:
+    def prepare_states(self, backend: Backend, states_dict:dict[(int, BasicStates)]) -> None:
         # Initializes the bank (all the nodes)
-        self.prepare_states_virtual(backend=backend)
+        self.prepare_states_virtual(backend=backend, states_dict=states_dict)
         # Server asks the backend to create them
         ## Except for the input!
         for node in self.input_nodes:
@@ -347,11 +349,9 @@ class Client:
         # preparation_backend.add_nodes(nodes=sorted(self.graph[0]), data=run.states)
         # self.blind_qubits(preparation_backend)
 
-        for node in self.graph[0]:
-            state = run.states[node]
-            self.blind_qubit(node=node, state=state, backend=backend)
-            if node in self.input_nodes:
-                self.prepare_method.prepare_node(backend, node)
+
+        input_state = {node:run.states[node] for node in self.nodes_list}
+        self.prepare_states(backend=backend, states_dict=input_state)
 
 
         sim = PatternSimulator(
@@ -375,7 +375,7 @@ class Client:
 
     def delegate_pattern(self, backend: Backend, **kwargs) -> None:
         # Initializes the bank & asks backend to create the input
-        self.prepare_states(backend)
+        self.prepare_states(backend, states_dict=self.computation_states)
 
         sim = PatternSimulator(
             backend=backend,
@@ -390,7 +390,6 @@ class Client:
     def decode_output_state(self, backend: Backend):
         for node in self.output_nodes:
             z_decoding, x_decoding = self.decode_output(node)
-            # print(f"decoding bits {z_decoding} and {x_decoding}")
             if z_decoding:
                 backend.apply_single(node=node, op=Ops.Z)
             if x_decoding:
