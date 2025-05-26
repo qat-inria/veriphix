@@ -10,6 +10,7 @@ from graphix.random_objects import rand_circuit
 from graphix.sim.statevec import StatevectorBackend
 from graphix.states import BasicStates
 from numpy.random import Generator
+from stim import PauliString
 
 from veriphix.client import CircuitUtils, Client, ClientMeasureMethod, Secrets
 
@@ -287,6 +288,25 @@ class TestClient:
 
         assert sum([pattern.results[i] for i in classical_output]) % 2 ^ sign_error == 0
 
+
+    def test_graph_clifford_structure(self, fx_rng: Generator):
+        nqubits = 5
+        depth = 10
+        circuit = rand_circuit(nqubits, depth, fx_rng)
+        pattern = circuit.transpile().pattern
+        client = Client(pattern=pattern)
+        for node in client.graph.nodes:
+            x_string = PauliString([
+                    "X" if i == node else "I"
+                for i in client.graph.nodes ] 
+            )
+            conjugated_string = client.clifford_structure.inverse()(x_string)
+            neighbors = set(client.graph.neighbors(node))
+            expected_conjugated_string = PauliString([
+                    "X" if i == node else "Z" if i in neighbors else "I"
+                for i in client.graph.nodes ] 
+            )
+            assert conjugated_string == expected_conjugated_string
 
 if __name__ == "__main__":
     unittest.main()

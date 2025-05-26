@@ -22,7 +22,7 @@ from graphix.pauli import Pauli
 from graphix.sim.statevec import Statevec, StatevectorBackend
 from graphix.simulator import MeasureMethod, PatternSimulator, PrepareMethod
 from graphix.states import BasicStates
-from stim import Tableau
+from stim import Tableau, Circuit
 
 from veriphix.trappifiedCanvas import TrappifiedCanvas, TrapStabilizers
 
@@ -142,6 +142,12 @@ def remove_flow(pattern):
         clean_pattern.add(new_cmd)
     return clean_pattern
 
+def get_graph_clifford_structure(graph:nx.Graph):
+    circuit = Circuit()
+    for edge in graph.edges:
+        i, j = edge
+        circuit.append_from_stim_program_text(f"CZ {i} {j}")
+    return circuit.to_tableau()
 
 class Client:
     def __init__(self, pattern, input_state=None, measure_method_cls=None, test_measure_method_cls = None, secrets: None | Secrets = None) -> None:
@@ -153,6 +159,7 @@ class Client:
         self.graph = nx.Graph()
         self.graph.add_nodes_from(graph[0])
         self.graph.add_edges_from(graph[1])
+        self.clifford_structure = get_graph_clifford_structure(self.graph)
 
         self.nodes_list = self.graph.nodes
 
@@ -205,10 +212,6 @@ class Client:
         if self.secrets is not None:
             self.secret_datas = SecretDatas.from_secrets(self.secrets, self.graph, self.input_nodes, self.output_nodes)
     
-    def get_clifford_structure(self):
-        tableau = Tableau(len(self.nodes_list))
-
-
 
     def get_computation_states(self) :
         states = dict()
