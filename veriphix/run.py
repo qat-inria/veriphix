@@ -4,33 +4,55 @@ from graphix.sim.base_backend import Backend
 from graphix.states import State
 from graphix.pauli import Pauli, IXYZ
 from stim import Tableau, PauliString
+from graphix.pattern import PatternSimulator
+from dataclasses import dataclass
 
 class Run(ABC):
     def __init__(self, client:Client) -> None:
         self.client = client
 
     @abstractmethod
-    def delegate_UBQC(self, backend:Backend):
+    def delegate(self, backend:Backend, **kwargs):
+        # Delegates using UBQC
         pass
 
-class ComputationRun(Run):
-    def __init__(self) -> None:
-        super().__init__()
 
-    def delegate_UBQC(self, backend:Backend):
+
+class ComputationRun(Run):
+    def __init__(self, client:Client) -> None:
+        super().__init__(client=client)
+
+    ## TODO: replace this by "delegate_pattern" and delete that
+    def delegate(self, backend:Backend, **kwargs):
         results = self.client.delegate_pattern(backend=backend)
-        return results
+        return [results[j] for j in self.client.output_nodes]
+        # return results
     
+
+def merge_pauli_strings(stabilizer_1: PauliString, stabilizer_2: PauliString) -> PauliString:
+    result = stabilizer_2.sign * stabilizer_1
+    # We can iterate through the support of stab2 as they are supposed to have equal support
+    for node in stabilizer_2.pauli_indices("XYZ"):
+        result[node] = stabilizer_2[node]
+    return result
 
 def merge(strings:list[PauliString]):
     n = len(strings)
     l = len(strings[0])
     common_string = strings[0]
-    for i in range(n):
+    # if common_string.sign == -1:
+    #     print("Have to change the sign")
+    # common_string.sign = 1
+    for i in range(1, n):
+        common_string.sign *= strings[i].sign
         for j in range(l):
+            if (common_string[j] != 0 and strings[i][j] != 0) and (common_string[j] != strings[i][j]):
+                raise Exception("Traps are not compatible.")
             if common_string[j] == 0 and strings[i][j] != 0:
                 common_string[j] = strings[i][j]
     return common_string
+
+
 
 def generate_eigenstate(stabilizer:PauliString) -> list[State]:
     states = []
@@ -41,36 +63,62 @@ def generate_eigenstate(stabilizer:PauliString) -> list[State]:
     return states
         
 
+Trap=set[int]
 
 class TestRun(Run):
-    def __init__(self, traps:set[set[int]], clifford_structure:Tableau, meas_basis:str="X") -> None:
-        super().__init__()
+    def __init__(self, client:Client, traps:set[Trap], meas_basis:str="X") -> None:
+        super().__init__(client=client)
         self.traps = traps
         self.meas_basis = meas_basis
-        self.clifford_structure = clifford_structure
+        self.clifford_structure = client.clifford_structure
         self.nqubits = len(self.clifford_structure)
+        self.stabilizer = self.build_common_stabilizer()
+        self.input_state = self.build_common_eigenstate()
 
     def build_common_stabilizer(self):
         # Build the PauliStrings representing the individual measurement of each trap qubit
         measurement_strings = [
             PauliString([
                     self.meas_basis if i in trap else "I"
+                    for i in range(self.nqubits)
                 ]
-                for i in len(self.nqubits)
             )
             for trap in self.traps
         ]
         # Conjugate each measurement
-        conjugated_measurements = [self.clifford_structure(meas) for meas in measurement_strings]
+        conjugated_measurements = [self.clifford_structure.inverse()(meas) for meas in measurement_strings]
         common_stabilizer = merge(conjugated_measurements)
         return common_stabilizer
 
     def build_common_eigenstate(self):
-        stabilizer = self.build_common_stabilizer()
-        self.input_state = generate_eigenstate(stabilizer)
+        input_state = generate_eigenstate(self.stabilizer)
+        return input_state
 
 
 
-    def delegate_UBQC(self, backend:Backend):
-        self.client.delegate_pattern(backend=backend)
+    def delegate(self, backend:Backend, **kwargs):
+        states_dict = {node:self.input_state[node] for node in self.client.nodes_list}
+        self.client.prepare_states(backend=backend, states_dict=states_dict)
+        sim = PatternSimulator(
+            backend=backend,
+            pattern=self.client.clean_pattern,
+            prepare_method=self.client.prepare_method,
+            measure_method=self.client.test_measure_method,
+            **kwargs,
+        )
+        sim.run(input_state=None)
+
+
+        trap_outcomes = dict()
+        for trap in self.traps:
+            
+            outcomes = [self.client.results[component] for component in trap]
+            trap_outcome = (sum(outcomes) + (self.stabilizer.sign==-1)) % 2
+            trap_outcomes[
+                frozenset(trap)
+                ] = trap_outcome
+            # trap_outcomes.append(trap_outcome)
+        return trap_outcomes
+
+
     

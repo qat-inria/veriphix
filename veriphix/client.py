@@ -63,9 +63,9 @@ class Secret_a:
 
 @dataclass
 class Secrets:
-    r: bool = False
-    a: bool = False
-    theta: bool = False
+    r: bool = True
+    a: bool = True
+    theta: bool = True
 
 
 @dataclass
@@ -161,7 +161,7 @@ class Client:
         self.graph.add_edges_from(graph[1])
         self.clifford_structure = get_graph_clifford_structure(self.graph)
 
-        self.nodes_list = self.graph.nodes
+        self.nodes_list = list(self.graph.nodes)
 
         # Copy the pauli-preprocessed nodes' measurement outcomes
         self.results = pattern.results.copy()
@@ -368,6 +368,19 @@ class Client:
 
 
         return trap_outcomes
+    
+    # self.trappified_scheme_parameters = d, s, w
+    # self.test_runs = self.generate_test_runs(strategy= 'dummyless')
+
+    # rounds = client.sample_random_canvas()
+    # computation_runs_db = dict()
+
+
+    # for i in range(N):
+    #     results[i] = rounds[i].delegate()
+            
+        
+        
 
     def delegate_pattern(self, backend: Backend, **kwargs) -> None:
         # Initializes the bank & asks backend to create the input

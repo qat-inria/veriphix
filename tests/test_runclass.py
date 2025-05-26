@@ -1,0 +1,42 @@
+import graphix.command
+import numpy as np
+from numpy.random import Generator
+from graphix.noise_models import DepolarisingNoiseModel
+from graphix.random_objects import Circuit, rand_circuit
+from graphix.sim.density_matrix import DensityMatrixBackend
+from graphix.sim.statevec import StatevectorBackend
+from graphix.states import BasicStates
+
+from veriphix.client import Client, Secrets
+from veriphix.run import TestRun
+from veriphix.trappifiedCanvas import TrappifiedCanvas
+import random
+
+
+class TestRunClass:
+    def test_delegate_test(self, fx_rng: np.random.Generator):
+        nqubits = 3
+        depth = 5
+        circuit = rand_circuit(nqubits, depth, fx_rng)
+        pattern = circuit.transpile().pattern
+
+        for onode in pattern.output_nodes:
+            pattern.add(graphix.command.M(node=onode))
+        secrets = Secrets(r=True, a=True, theta=True)
+        client = Client(pattern=pattern, secrets=secrets)
+
+        for _ in range(10):
+            # Test noiseless trap delegation
+            trap_size = random.choice(range(len(client.nodes_list)))
+            random_nodes = random.sample(client.nodes_list, k=trap_size)
+
+            random_multi_qubit_trap = frozenset(random_nodes)
+            traps = frozenset([random_multi_qubit_trap])
+            test_run = TestRun(client=client,
+                traps=traps)
+            
+            backend = StatevectorBackend()
+            outcomes = test_run.delegate(backend=backend)
+
+            for trap in traps:
+                assert outcomes[trap]==0
