@@ -113,7 +113,7 @@ class TestRun(Run):
         for trap in self.traps:
             
             outcomes = [self.client.results[component] for component in trap]
-            trap_outcome = (sum(outcomes) + (self.stabilizer.sign==-1)) % 2
+            trap_outcome = sum(outcomes) % 2 ^ (self.stabilizer.sign==-1) 
             trap_outcomes[
                 frozenset(trap)
                 ] = trap_outcome

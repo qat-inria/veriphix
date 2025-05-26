@@ -25,6 +25,7 @@ from graphix.states import BasicStates
 from stim import Tableau, Circuit
 
 from veriphix.trappifiedCanvas import TrappifiedCanvas, TrapStabilizers
+# from veriphix.run import TestRun, ComputationRun
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -339,6 +340,8 @@ class Client:
             # And assume that TrappifiedCanvas needs to be instanciated with a traps_list that corresponds to a coloring.
             # and TC just merges them assuming they are all mergeable.
 
+            # TODO: continue
+            # test_run = TestRun(client=self, traps=frozenset(traps_list))
             stabilizers = TrapStabilizers(self.graph, traps_list=traps_list)
 
             runs.append(stabilizers)
