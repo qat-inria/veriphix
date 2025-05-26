@@ -43,9 +43,9 @@ def generate_eigenstate(stabilizer:PauliString) -> list[State]:
 
 
 class TestRun(Run):
-    def __init__(self, trap_qubits:set[int], clifford_structure:Tableau, meas_basis:str) -> None:
+    def __init__(self, traps:set[set[int]], clifford_structure:Tableau, meas_basis:str="X") -> None:
         super().__init__()
-        self.trap_qubits = trap_qubits
+        self.traps = traps
         self.meas_basis = meas_basis
         self.clifford_structure = clifford_structure
         self.nqubits = len(self.clifford_structure)
@@ -54,11 +54,11 @@ class TestRun(Run):
         # Build the PauliStrings representing the individual measurement of each trap qubit
         measurement_strings = [
             PauliString([
-                    self.meas_basis if i == qubit else "I"
+                    self.meas_basis if i in trap else "I"
                 ]
                 for i in len(self.nqubits)
             )
-            for qubit in self.trap_qubits
+            for trap in self.traps
         ]
         # Conjugate each measurement
         conjugated_measurements = [self.clifford_structure(meas) for meas in measurement_strings]
