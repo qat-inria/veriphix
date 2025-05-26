@@ -22,6 +22,7 @@ from graphix.pauli import Pauli
 from graphix.sim.statevec import Statevec, StatevectorBackend
 from graphix.simulator import MeasureMethod, PatternSimulator, PrepareMethod
 from graphix.states import BasicStates
+from stim import Tableau
 
 from veriphix.trappifiedCanvas import TrappifiedCanvas, TrapStabilizers
 
@@ -76,11 +77,6 @@ class SecretDatas:
     # NOTE: not a class method?
     @staticmethod
     def from_secrets(secrets: Secrets, graph: nx.Graph, input_nodes, output_nodes):
-        nodes, edges = graph
-        # Re-write graph
-        graph = nx.Graph()
-        graph.add_edges_from(edges)
-        graph.add_nodes_from(nodes)
         r = {}
         if secrets.r:
             # Need to generate the random bit for each measured qubit, 0 for the rest (output qubits)
@@ -153,8 +149,12 @@ class Client:
 
         self.input_nodes = self.initial_pattern.input_nodes.copy()
         self.output_nodes = self.initial_pattern.output_nodes.copy()
-        self.graph = self.initial_pattern.get_graph()
-        self.nodes_list = self.graph[0]
+        graph = self.initial_pattern.get_graph()
+        self.graph = nx.Graph()
+        self.graph.add_nodes_from(graph[0])
+        self.graph.add_edges_from(graph[1])
+
+        self.nodes_list = self.graph.nodes
 
         # Copy the pauli-preprocessed nodes' measurement outcomes
         self.results = pattern.results.copy()
@@ -204,6 +204,10 @@ class Client:
         # refresh only if secrets bool is True; False is no randomness at all.
         if self.secrets is not None:
             self.secret_datas = SecretDatas.from_secrets(self.secrets, self.graph, self.input_nodes, self.output_nodes)
+    
+    def get_clifford_structure(self):
+        tableau = Tableau(len(self.nodes_list))
+
 
 
     def get_computation_states(self) :
@@ -253,7 +257,7 @@ class Client:
         # Initializes the bank (all the nodes)
         self.prepare_states_virtual(backend=backend, states_dict=states_dict)
         # Server asks the backend to create them
-        ## Except for the input!
+        ## Except for the input! The Client creates them itself
         for node in self.input_nodes:
             self.prepare_method.prepare_node(backend, node)
 
@@ -291,25 +295,20 @@ class Client:
         https://arxiv.org/abs/1203.5217
         """
 
-        graph = nx.Graph()
-        nodes, edges = self.graph
-        graph.add_edges_from(edges)
-        graph.add_nodes_from(nodes)
-
         # Create the graph coloring
         # Networkx output format: dict[int, int] eg {0: 0, 1: 1, 2: 0, 3: 1}
         if manual_colouring is None:
-            coloring = nx.coloring.greedy_color(graph, strategy="largest_first")
+            coloring = nx.coloring.greedy_color(self.graph, strategy="largest_first")
             colors = set(coloring.values())
             nodes_by_color: dict[int, list[int]] = {c: [] for c in colors}
-            for node in sorted(graph.nodes):
+            for node in sorted(self.graph.nodes):
                 color = coloring[node]
                 nodes_by_color[color].append(node)
         else:
             # checks that manual_colouring is a proper colouring
             ## first check uniion is the whole graph
             color_union = set().union(*manual_colouring)
-            if not color_union == set(nodes):
+            if not color_union == set(self.graph.nodes):
                 raise ValueError("The provided colouring does not include all the nodes of the graph.")
             # check that colors are two by two disjoint
             # if sets are disjoint, empty set from intersection is interpreted as False.
@@ -337,19 +336,13 @@ class Client:
             # And assume that TrappifiedCanvas needs to be instanciated with a traps_list that corresponds to a coloring.
             # and TC just merges them assuming they are all mergeable.
 
-            stabilizers = TrapStabilizers(graph, traps_list=traps_list)
+            stabilizers = TrapStabilizers(self.graph, traps_list=traps_list)
 
             runs.append(stabilizers)
         return runs
 
     def delegate_test_run(self, backend: Backend, run: TrappifiedCanvas, **kwargs) -> list[int]:
         # The state is entirely prepared and blinded by the client before being sent to the server
-        # StateVectorBackend because noiseless preparation
-        # preparation_backend = StatevectorBackend()
-        # preparation_backend.add_nodes(nodes=sorted(self.graph[0]), data=run.states)
-        # self.blind_qubits(preparation_backend)
-
-
         input_state = {node:run.states[node] for node in self.nodes_list}
         self.prepare_states(backend=backend, states_dict=input_state)
 
