@@ -7,7 +7,7 @@ from graphix.sim.density_matrix import DensityMatrixBackend
 from graphix.sim.statevec import StatevectorBackend
 from graphix.states import BasicStates
 
-from veriphix.client import Client, Secrets
+from veriphix.client import Client, Secrets, TrappifiedSchemeParameters
 
 
 class TestVBQC:
@@ -24,13 +24,52 @@ class TestVBQC:
         states = [BasicStates.PLUS for _ in pattern.input_nodes]
         secrets = Secrets(r=True, a=True, theta=True)
         client = Client(pattern=pattern, input_state=states, secrets=secrets)
-        test_runs = client.create_test_runs()
-        for test_run in test_runs:
+        for test_run in client.test_runs:
             backend = StatevectorBackend()
             trap_outcomes = test_run.delegate(backend=backend)
             assert sum(trap_outcomes.values())==0
 
 
+    def test_sample_canvas(self, fx_rng: Generator):
+        nqubits = 3
+        depth = 5
+        circuit = rand_circuit(nqubits, depth, fx_rng)
+        pattern = circuit.transpile().pattern
+        # pattern.standardize()
+        # don't forget to add in the output nodes that are not initially measured!
+        for onode in pattern.output_nodes:
+            pattern.add(graphix.command.M(node=onode))
+
+        states = [BasicStates.PLUS for _ in pattern.input_nodes]
+        secrets = Secrets(r=True, a=True, theta=True)
+        client = Client(pattern=pattern, input_state=states, secrets=secrets)
+
+        canvas = client.sample_canvas()
+
+
+    def test_delegate_canvas(self, fx_rng: Generator):
+        nqubits = 3
+        depth = 5
+        circuit = rand_circuit(nqubits, depth, fx_rng)
+        pattern = circuit.transpile().pattern
+        # pattern.standardize()
+        # don't forget to add in the output nodes that are not initially measured!
+        onodes = pattern.output_nodes.copy()
+        for onode in pattern.output_nodes:
+            pattern.add(graphix.command.M(node=onode))
+
+        states = [BasicStates.PLUS for _ in pattern.input_nodes]
+        secrets = Secrets(r=True, a=True, theta=True)
+        
+        parameters = TrappifiedSchemeParameters(d=50, s=50, w=10)
+        client = Client(pattern=pattern, input_state=states, secrets=secrets, parameters=parameters)
+        client.output_nodes = onodes
+
+        backend = StatevectorBackend()
+
+        canvas = client.sample_canvas()
+        outcomes = client.delegate_canvas(canvas=canvas, backend=backend)
+        print(outcomes)
 
     def test_noiseless(self, fx_rng: Generator):
         nqubits = 3
@@ -47,11 +86,10 @@ class TestVBQC:
         secrets = Secrets(a=True, r=True, theta=True)
 
         client = Client(pattern=pattern, input_state=states, secrets=secrets)
-        test_runs = client.create_test_runs()
         noise_model = DepolarisingNoiseModel(
             measure_error_prob=0, entanglement_error_prob=0, x_error_prob=0, z_error_prob=0, measure_channel_prob=0
         )
-        for test_run in test_runs:
+        for test_run in client.test_runs:
             client.refresh_randomness()
             backend = DensityMatrixBackend(rng=fx_rng)
             trap_outcomes = test_run.delegate(backend=backend, noise_model=noise_model)
@@ -71,11 +109,10 @@ class TestVBQC:
         secrets = Secrets(a=True, r=True, theta=True)
 
         client = Client(pattern=pattern, input_state=states, secrets=secrets)
-        test_runs = client.create_test_runs()
         noise_model = DepolarisingNoiseModel(
             measure_error_prob=1, entanglement_error_prob=1, x_error_prob=1, z_error_prob=1, measure_channel_prob=1
         )
-        for test_run in test_runs:
+        for test_run in client.test_runs:
             backend = DensityMatrixBackend(rng=fx_rng)
             client.refresh_randomness()
             trap_outcomes = test_run.delegate(backend=backend, noise_model=noise_model)

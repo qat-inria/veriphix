@@ -23,6 +23,7 @@ from graphix.sim.statevec import Statevec, StatevectorBackend
 from graphix.simulator import MeasureMethod, PatternSimulator, PrepareMethod
 from graphix.states import BasicStates
 from stim import Tableau, Circuit
+import random
 
 
 if TYPE_CHECKING:
@@ -38,6 +39,12 @@ class TrappifiedScheme:
     s:int
     w:int
     test_runs:list
+@dataclass
+class TrappifiedSchemeParameters:
+    d:int
+    s:int
+    w:int
+
 # TODO update docstring
 """
 Usage:
@@ -153,7 +160,7 @@ def get_graph_clifford_structure(graph:nx.Graph):
     return circuit.to_tableau()
 
 class Client:
-    def __init__(self, pattern, input_state=None, measure_method_cls=None, test_measure_method_cls = None, secrets: None | Secrets = None) -> None:
+    def __init__(self, pattern, input_state=None, measure_method_cls=None, test_measure_method_cls = None, secrets: None | Secrets = None, parameters:TrappifiedSchemeParameters=TrappifiedSchemeParameters(20, 20, 5)) -> None:
         self.initial_pattern: Pattern = pattern
 
         self.input_nodes = self.initial_pattern.input_nodes.copy()
@@ -207,6 +214,16 @@ class Client:
 
         self.preparation_bank = {}
         self.prepare_method = ClientPrepareMethod(self.preparation_bank)
+
+        from veriphix.run import TestRun, ComputationRun, Run
+        self.computationRun = ComputationRun(self)
+        self.test_runs = self.create_test_runs()
+        self.trappifiedScheme = TrappifiedScheme(
+            d=parameters.d,
+            s=parameters.s,
+            w=parameters.w,
+            test_runs=self.test_runs
+        )
 
     def refresh_randomness(self) -> None:
         "method to refresh random randomness using parameters from Clinent instatiation."
@@ -341,21 +358,25 @@ class Client:
         # print(test_runs)
         return test_runs
 
-        
+    def sample_canvas(self):
+        N = self.trappifiedScheme.d + self.trappifiedScheme.s
+        computation_rounds = set(random.sample(range(N), self.trappifiedScheme.d))
 
-    def delegate_pattern(self, backend: Backend, **kwargs) -> None:
-        # Initializes the bank & asks backend to create the input
-        self.prepare_states(backend, states_dict=self.computation_states)
+        rounds_run = dict()
+        for round in range(N):
+            if round in computation_rounds:
+                rounds_run[round] = self.computationRun
+            else:
+                rounds_run[round] = random.choice(self.test_runs)
+        return rounds_run
+    
+    def delegate_canvas(self, canvas:dict, backend:Backend, **kwargs):
+        outcomes = dict({
+            round: canvas[round].delegate(backend=backend, **kwargs)
+            for round in canvas
+        })
+        return outcomes
 
-        sim = PatternSimulator(
-            backend=backend,
-            pattern=self.clean_pattern,
-            prepare_method=self.prepare_method,
-            measure_method=self.measure_method,
-            **kwargs,
-        )
-        sim.run(input_state=None)
-        self.decode_output_state(backend)
 
     def decode_output_state(self, backend: Backend):
         for node in self.output_nodes:

@@ -27,7 +27,6 @@ class TestClient:
         pattern = circuit.transpile().pattern
         pattern.standardize()
 
-        nodes, edges = pattern.get_graph()
 
         # initialise client
         secrets = Secrets(r=True, a=True, theta=True)
