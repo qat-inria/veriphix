@@ -30,8 +30,10 @@ class TestRunClass:
             trap_size = random.choice(range(len(client.nodes_list)))
             random_nodes = random.sample(client.nodes_list, k=trap_size)
 
-            random_multi_qubit_trap = frozenset(random_nodes)
-            traps = frozenset([random_multi_qubit_trap])
+            random_multi_qubit_trap = tuple(random_nodes)
+            # Only one trap
+            traps = (random_multi_qubit_trap,)
+
             test_run = TestRun(client=client,
                 traps=traps)
             

@@ -63,10 +63,11 @@ def generate_eigenstate(stabilizer:PauliString) -> list[State]:
     return states
         
 
-Trap=set[int]
+# Trap=set[int]
+Trap=tuple[int]
 
 class TestRun(Run):
-    def __init__(self, client:Client, traps:set[Trap], meas_basis:str="X") -> None:
+    def __init__(self, client:Client, traps:tuple[Trap], meas_basis:str="X") -> None:
         super().__init__(client=client)
         self.traps = traps
         self.meas_basis = meas_basis
@@ -115,7 +116,7 @@ class TestRun(Run):
             outcomes = [self.client.results[component] for component in trap]
             trap_outcome = sum(outcomes) % 2 ^ (self.stabilizer.sign==-1) 
             trap_outcomes[
-                frozenset(trap)
+                trap
                 ] = trap_outcome
             # trap_outcomes.append(trap_outcome)
         return trap_outcomes

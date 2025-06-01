@@ -25,7 +25,6 @@ from graphix.states import BasicStates
 from stim import Tableau, Circuit
 
 from veriphix.trappifiedCanvas import TrappifiedCanvas, TrapStabilizers
-# from veriphix.run import TestRun, ComputationRun
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -266,6 +265,8 @@ class Client:
             self.prepare_method.prepare_node(backend, node)
 
     def create_test_runs(self, manual_colouring: Sequence[set[int]] | None = None) -> list[TrapStabilizers]:
+        from veriphix.run import TestRun
+
         """Creates test runs according to a graph colouring according to [FK12].
         A test run, or a Trappified Canvas, is associated to each color in the colouring.
         For a given test run, the trap nodes are defined as being the nodes belonging to the color the run corresponds to.
@@ -327,13 +328,18 @@ class Client:
 
         # Create the test runs : one per color
         runs: list[TrapStabilizers] = []
+        test_runs:list[TestRun] = []
         for color in colors:
             # 1 color = 1 test run = 1 set of traps
             traps_list = []
+            traps_list_new = []
             for colored_node in nodes_by_color[color]:
-                trap_qubits = [colored_node]  # single-qubit trap
-                trap: Trap = set(trap_qubits)
+                trap = {colored_node}
+                trap_new = (colored_node,)
+                # frozen_trap = frozenset(trap)
                 traps_list.append(trap)
+                traps_list_new.append(trap_new)
+            traps = tuple(traps_list_new)
 
             # In here, traps_list is a list of traps that are compatible already, because they are of the same color
             # So we can just merge them all already
@@ -341,10 +347,12 @@ class Client:
             # and TC just merges them assuming they are all mergeable.
 
             # TODO: continue
-            # test_run = TestRun(client=self, traps=frozenset(traps_list))
+            test_run = TestRun(client=self, traps=traps)
             stabilizers = TrapStabilizers(self.graph, traps_list=traps_list)
 
             runs.append(stabilizers)
+            test_runs.append(test_run)
+        print(test_runs)
         return runs
 
     def delegate_test_run(self, backend: Backend, run: TrappifiedCanvas, **kwargs) -> list[int]:
