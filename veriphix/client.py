@@ -160,11 +160,17 @@ def get_graph_clifford_structure(graph:nx.Graph):
     return circuit.to_tableau()
 
 class Client:
-    def __init__(self, pattern, input_state=None, measure_method_cls=None, test_measure_method_cls = None, secrets: None | Secrets = None, parameters:TrappifiedSchemeParameters=TrappifiedSchemeParameters(20, 20, 5)) -> None:
+    def __init__(self, pattern, input_state=None, classical_output:bool=True, measure_method_cls=None, test_measure_method_cls = None, secrets: None | Secrets = None, parameters:TrappifiedSchemeParameters=TrappifiedSchemeParameters(20, 20, 5)) -> None:
         self.initial_pattern: Pattern = pattern
 
         self.input_nodes = self.initial_pattern.input_nodes.copy()
         self.output_nodes = self.initial_pattern.output_nodes.copy()
+        self.classical_output = classical_output
+        if self.classical_output:
+            for onode in self.output_nodes:
+                self.initial_pattern.add(graphix.command.M(node=onode))
+
+
         graph = self.initial_pattern.get_graph()
         self.graph = nx.Graph()
         self.graph.add_nodes_from(graph[0])

@@ -38,7 +38,7 @@ class ComputationRun(Run):
         sim.run(input_state=None)
 
         # If quantum output, decode the state, nothing needs to be returned (backend.state can be accessed by the Client)
-        if self.client.output_nodes == self.client.initial_pattern.output_nodes:
+        if not self.client.classical_output:
             self.client.decode_output_state(backend)
             return {}
         # If classical output, return the output

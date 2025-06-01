@@ -130,7 +130,7 @@ class TestClient:
             # Initialize the client
             secrets = Secrets(r=True)
             # Giving it empty will create a random secret
-            client = Client(pattern=pattern, secrets=secrets)
+            client = Client(pattern=pattern, secrets=secrets, classical_output=False)
             ComputationRun(client).delegate(backend)
             state_mbqc = backend.state
             np.testing.assert_almost_equal(np.abs(np.dot(state_mbqc.psi.flatten().conjugate(), state.psi.flatten())), 1)
@@ -150,7 +150,7 @@ class TestClient:
             states = [BasicStates.PLUS for node in pattern.input_nodes]
 
             # Create the client with the input state
-            client = Client(pattern=pattern, input_state=states, secrets=secrets)
+            client = Client(pattern=pattern, input_state=states, secrets=secrets, classical_output=False)
             backend = StatevectorBackend()
             # Blinded simulation, between the client and the server
             ComputationRun(client).delegate(backend)
@@ -178,7 +178,7 @@ class TestClient:
             states = [BasicStates.PLUS for __ in pattern.input_nodes]
 
             # Create the client with the input state
-            client = Client(pattern=pattern, input_state=states, secrets=secrets)
+            client = Client(pattern=pattern, input_state=states, secrets=secrets, classical_output=False)
             backend = StatevectorBackend()
             # Blinded simulation, between the client and the server
             ComputationRun(client).delegate(backend)
@@ -256,7 +256,7 @@ class TestClient:
             states = [BasicStates.PLUS for _ in pattern.input_nodes]
 
             # Create the client with the input state
-            client = Client(pattern=pattern, input_state=states, secrets=secrets)
+            client = Client(pattern=pattern, input_state=states, secrets=secrets, classical_output=False)
 
             backend = StatevectorBackend()
             # Blinded simulation, between the client and the server
@@ -297,14 +297,7 @@ class TestClient:
         circuit = rand_circuit(nqubits, depth, fx_rng)
         pattern = circuit.transpile().pattern
 
-        onodes = pattern.output_nodes.copy()
-        # don't forget to add in the output nodes that are not initially measured!
-        for onode in pattern.output_nodes:
-            pattern.add(graphix.command.M(node=onode))
-            
-        # print(pattern.output_nodes, onodes)
         client = Client(pattern=pattern)
-        client.output_nodes = onodes
 
         comp_run = ComputationRun(client=client)
         backend = StatevectorBackend()

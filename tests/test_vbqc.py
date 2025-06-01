@@ -35,16 +35,13 @@ class TestVBQC:
         depth = 5
         circuit = rand_circuit(nqubits, depth, fx_rng)
         pattern = circuit.transpile().pattern
-        # pattern.standardize()
-        # don't forget to add in the output nodes that are not initially measured!
-        for onode in pattern.output_nodes:
-            pattern.add(graphix.command.M(node=onode))
 
         states = [BasicStates.PLUS for _ in pattern.input_nodes]
         secrets = Secrets(r=True, a=True, theta=True)
         client = Client(pattern=pattern, input_state=states, secrets=secrets)
 
         canvas = client.sample_canvas()
+        # Just tests that it runs
 
 
     def test_delegate_canvas(self, fx_rng: Generator):
@@ -52,34 +49,26 @@ class TestVBQC:
         depth = 5
         circuit = rand_circuit(nqubits, depth, fx_rng)
         pattern = circuit.transpile().pattern
-        # pattern.standardize()
-        # don't forget to add in the output nodes that are not initially measured!
-        onodes = pattern.output_nodes.copy()
-        for onode in pattern.output_nodes:
-            pattern.add(graphix.command.M(node=onode))
 
         states = [BasicStates.PLUS for _ in pattern.input_nodes]
         secrets = Secrets(r=True, a=True, theta=True)
         
         parameters = TrappifiedSchemeParameters(d=50, s=50, w=10)
         client = Client(pattern=pattern, input_state=states, secrets=secrets, parameters=parameters)
-        client.output_nodes = onodes
 
         backend = StatevectorBackend()
 
         canvas = client.sample_canvas()
         outcomes = client.delegate_canvas(canvas=canvas, backend=backend)
-        print(outcomes)
+        # Just tests that it runs
+
+
 
     def test_noiseless(self, fx_rng: Generator):
         nqubits = 3
         depth = 3
         circuit = rand_circuit(nqubits, depth, fx_rng)
         pattern = circuit.transpile().pattern
-
-        # pattern.standardize()
-        for o in pattern.output_nodes:
-            pattern.add(graphix.command.M(node=o))
 
         states = [BasicStates.PLUS for _ in pattern.input_nodes]
 
@@ -101,8 +90,6 @@ class TestVBQC:
         circuit = rand_circuit(nqubits, depth, fx_rng)
         pattern = circuit.transpile().pattern
 
-        for o in pattern.output_nodes:
-            pattern.add(graphix.command.M(node=o))
 
         states = [BasicStates.PLUS for _ in pattern.input_nodes]
 

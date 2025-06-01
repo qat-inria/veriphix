@@ -19,8 +19,6 @@ class TestRunClass:
         circuit = rand_circuit(nqubits, depth, fx_rng)
         pattern = circuit.transpile().pattern
 
-        for onode in pattern.output_nodes:
-            pattern.add(graphix.command.M(node=onode))
         secrets = Secrets(r=True, a=True, theta=True)
         client = Client(pattern=pattern, secrets=secrets)
 
