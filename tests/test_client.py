@@ -13,7 +13,7 @@ from numpy.random import Generator
 from stim import PauliString
 
 from veriphix.client import CircuitUtils, Client, ClientMeasureMethod, Secrets
-
+from veriphix.run import ComputationRun
 
 class TestClient:
     def test_create_test_run_manual_fail(self, fx_rng):
@@ -261,8 +261,11 @@ class TestClient:
 
             backend = StatevectorBackend()
             # Blinded simulation, between the client and the server
-            client.delegate_pattern(backend)
+            # client.delegate_pattern(backend)
+            computation = ComputationRun(client=client)
+            computation.delegate(backend=backend)
             blinded_simulation = backend.state
+            
             # Clear simulation = no secret, just simulate the circuit defined above
             clear_simulation = circuit.simulate_statevector().statevec
             np.testing.assert_almost_equal(
@@ -287,6 +290,27 @@ class TestClient:
         pattern.simulate_pattern(backend=backend, input_state=input_state)
 
         assert sum([pattern.results[i] for i in classical_output]) % 2 ^ sign_error == 0
+
+
+    def test_delegate_pattern(self, fx_rng: Generator):
+        nqubits = 5
+        depth = 10
+        circuit = rand_circuit(nqubits, depth, fx_rng)
+        pattern = circuit.transpile().pattern
+
+        onodes = pattern.output_nodes.copy()
+        # don't forget to add in the output nodes that are not initially measured!
+        for onode in pattern.output_nodes:
+            pattern.add(graphix.command.M(node=onode))
+            
+        # print(pattern.output_nodes, onodes)
+        client = Client(pattern=pattern)
+        client.output_nodes = onodes
+
+        comp_run = ComputationRun(client=client)
+        backend = StatevectorBackend()
+        outcomes = comp_run.delegate(backend=backend)
+        # TODO: assert something ? generate BQP computation for that
 
 
     def test_graph_clifford_structure(self, fx_rng: Generator):

@@ -23,10 +23,27 @@ class ComputationRun(Run):
         super().__init__(client=client)
 
     ## TODO: replace this by "delegate_pattern" and delete that
-    def delegate(self, backend:Backend, **kwargs):
-        results = self.client.delegate_pattern(backend=backend)
-        return [results[j] for j in self.client.output_nodes]
-        # return results
+    def delegate(self, backend:Backend, **kwargs) -> dict[int, int]:
+
+        # Initializes the bank & asks backend to create the input
+        self.client.prepare_states(backend, states_dict=self.client.computation_states)
+
+        sim = PatternSimulator(
+            backend=backend,
+            pattern=self.client.clean_pattern,
+            prepare_method=self.client.prepare_method,
+            measure_method=self.client.measure_method,
+            **kwargs,
+        )
+        sim.run(input_state=None)
+
+        # If quantum output, decode the state, nothing needs to be returned (backend.state can be accessed by the Client)
+        if self.client.output_nodes == self.client.initial_pattern.output_nodes:
+            self.client.decode_output_state(backend)
+            return {}
+        # If classical output, return the output
+        else:
+            return {onode: self.client.results[onode] for onode in self.client.output_nodes}
     
 
 def merge_pauli_strings(stabilizer_1: PauliString, stabilizer_2: PauliString) -> PauliString:

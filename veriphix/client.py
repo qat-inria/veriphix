@@ -32,7 +32,12 @@ if TYPE_CHECKING:
     from graphix.sim.base_backend import Backend
 
 Trap=tuple[int]
-
+@dataclass
+class TrappifiedScheme:
+    d:int
+    s:int
+    w:int
+    test_runs:list
 # TODO update docstring
 """
 Usage:
