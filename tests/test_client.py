@@ -73,7 +73,7 @@ class TestClient:
         secrets = Secrets(a=True, r=True, theta=True)
 
         client = Client(pattern=pattern, input_state=states, secrets=secrets)
-        client.delegate_pattern(backend=StatevectorBackend())
+        ComputationRun(client).delegate(backend=StatevectorBackend())
         # No assertion needed
         
     def test_minimize_space(self, fx_rng: Generator):
@@ -93,7 +93,7 @@ class TestClient:
         secrets = Secrets(a=True, r=True, theta=True)
 
         client = Client(pattern=pattern, input_state=states, secrets=secrets)
-        client.delegate_pattern(backend=StatevectorBackend())
+        ComputationRun(client).delegate(backend=StatevectorBackend())
         # No assertion needed
 
 
@@ -132,7 +132,7 @@ class TestClient:
             secrets = Secrets(r=True)
             # Giving it empty will create a random secret
             client = Client(pattern=pattern, secrets=secrets)
-            client.delegate_pattern(backend)
+            ComputationRun(client).delegate(backend)
             state_mbqc = backend.state
             np.testing.assert_almost_equal(np.abs(np.dot(state_mbqc.psi.flatten().conjugate(), state.psi.flatten())), 1)
 
@@ -154,7 +154,7 @@ class TestClient:
             client = Client(pattern=pattern, input_state=states, secrets=secrets)
             backend = StatevectorBackend()
             # Blinded simulation, between the client and the server
-            client.delegate_pattern(backend)
+            ComputationRun(client).delegate(backend)
             blinded_simulation = backend.state
 
             # Clear simulation = no secret, just simulate the circuit defined above
@@ -182,7 +182,7 @@ class TestClient:
             client = Client(pattern=pattern, input_state=states, secrets=secrets)
             backend = StatevectorBackend()
             # Blinded simulation, between the client and the server
-            client.delegate_pattern(backend)
+            ComputationRun(client).delegate(backend)
             blinded_simulation = backend.state
 
             # Clear simulation = no secret, just simulate the circuit defined above
@@ -211,7 +211,7 @@ class TestClient:
         # Giving it empty will create a random secret
         client = Client(pattern=pattern, measure_method_cls=CacheMeasureMethod, secrets=secrets)
         backend = StatevectorBackend()
-        client.delegate_pattern(backend)
+        ComputationRun(client).delegate(backend)
 
         for measured_node in client.measurement_db:
             # Compare results on the client side and on the server side : should differ by r[node]
@@ -261,7 +261,7 @@ class TestClient:
 
             backend = StatevectorBackend()
             # Blinded simulation, between the client and the server
-            # client.delegate_pattern(backend)
+            # ComputationRun(client).delegate(backend)
             computation = ComputationRun(client=client)
             computation.delegate(backend=backend)
             blinded_simulation = backend.state
