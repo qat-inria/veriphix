@@ -24,7 +24,6 @@ from graphix.simulator import MeasureMethod, PatternSimulator, PrepareMethod
 from graphix.states import BasicStates
 from stim import Tableau, Circuit
 
-from veriphix.trappifiedCanvas import TrappifiedCanvas, TrapStabilizers
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -32,8 +31,7 @@ if TYPE_CHECKING:
     import stim
     from graphix.sim.base_backend import Backend
 
-    from veriphix.trappifiedCanvas import Trap
-
+Trap=tuple[int]
 
 # TODO update docstring
 """
@@ -264,7 +262,7 @@ class Client:
         for node in self.input_nodes:
             self.prepare_method.prepare_node(backend, node)
 
-    def create_test_runs(self, manual_colouring: Sequence[set[int]] | None = None) -> list[TrapStabilizers]:
+    def create_test_runs(self, manual_colouring: Sequence[set[int]] | None = None):
         from veriphix.run import TestRun
 
         """Creates test runs according to a graph colouring according to [FK12].
@@ -280,8 +278,8 @@ class Client:
 
         Returns
         -------
-        list[TrappifiedCanvas]
-            list of canvases defining all the possible test runs to perform.
+        list[TestRun]
+            list of TestRun objects defining all the possible test runs to perform.
 
         Raises
         ------
@@ -327,70 +325,17 @@ class Client:
             nodes_by_color = {i: list(c) for i, c in enumerate(manual_colouring)}
 
         # Create the test runs : one per color
-        runs: list[TrapStabilizers] = []
         test_runs:list[TestRun] = []
         for color in colors:
-            # 1 color = 1 test run = 1 set of traps
-            traps_list = []
-            traps_list_new = []
-            for colored_node in nodes_by_color[color]:
-                trap = {colored_node}
-                trap_new = (colored_node,)
-                # frozen_trap = frozenset(trap)
-                traps_list.append(trap)
-                traps_list_new.append(trap_new)
-            traps = tuple(traps_list_new)
-
-            # In here, traps_list is a list of traps that are compatible already, because they are of the same color
-            # So we can just merge them all already
-            # And assume that TrappifiedCanvas needs to be instanciated with a traps_list that corresponds to a coloring.
-            # and TC just merges them assuming they are all mergeable.
-
-            # TODO: continue
+            # 1 color = 1 test run = 1 collection of single-qubit traps
+            traps_list = [(colored_node,) for colored_node in nodes_by_color[color]]
+            traps = tuple(traps_list)
             test_run = TestRun(client=self, traps=traps)
-            stabilizers = TrapStabilizers(self.graph, traps_list=traps_list)
-
-            runs.append(stabilizers)
             test_runs.append(test_run)
-        print(test_runs)
-        return runs
 
-    def delegate_test_run(self, backend: Backend, run: TrappifiedCanvas, **kwargs) -> list[int]:
-        # The state is entirely prepared and blinded by the client before being sent to the server
-        input_state = {node:run.states[node] for node in self.nodes_list}
-        self.prepare_states(backend=backend, states_dict=input_state)
+        # print(test_runs)
+        return test_runs
 
-
-        sim = PatternSimulator(
-            backend=backend,
-            pattern=self.clean_pattern,
-            prepare_method=self.prepare_method,
-            measure_method=self.test_measure_method,
-            **kwargs,
-        )
-        sim.run(input_state=None)
-
-        # TODO: post-processing must come after
-        trap_outcomes = []
-        for trap in run.traps_list:
-            outcomes = [self.results[component] for component in trap]  # here
-            trap_outcome = sum(outcomes) % 2
-            trap_outcomes.append(trap_outcome)
-
-
-        return trap_outcomes
-    
-    # self.trappified_scheme_parameters = d, s, w
-    # self.test_runs = self.generate_test_runs(strategy= 'dummyless')
-
-    # rounds = client.sample_random_canvas()
-    # computation_runs_db = dict()
-
-
-    # for i in range(N):
-    #     results[i] = rounds[i].delegate()
-            
-        
         
 
     def delegate_pattern(self, backend: Backend, **kwargs) -> None:

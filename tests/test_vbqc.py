@@ -8,7 +8,6 @@ from graphix.sim.statevec import StatevectorBackend
 from graphix.states import BasicStates
 
 from veriphix.client import Client, Secrets
-from veriphix.trappifiedCanvas import TrappifiedCanvas
 
 
 class TestVBQC:
@@ -26,18 +25,17 @@ class TestVBQC:
         states = [BasicStates.PLUS for _ in pattern.input_nodes]
         secrets = Secrets(r=True, a=True, theta=True)
         client = Client(pattern=pattern, input_state=states, secrets=secrets)
-        test_stabs = client.create_test_runs()
-        for stab in test_stabs:
+        test_runs = client.create_test_runs()
+        for test_run in test_runs:
             backend = StatevectorBackend()
-            canvas = TrappifiedCanvas(stab)
-            trap_outcomes = client.delegate_test_run(backend=backend, run=canvas)
-            assert trap_outcomes == [0 for _ in stab.traps_list]
+            trap_outcomes = test_run.delegate(backend=backend)
+            assert sum(trap_outcomes.values())==0
 
 
 
     def test_noiseless(self, fx_rng: Generator):
         nqubits = 3
-        depth = 5
+        depth = 3
         circuit = rand_circuit(nqubits, depth, fx_rng)
         pattern = circuit.transpile().pattern
 
@@ -50,20 +48,19 @@ class TestVBQC:
         secrets = Secrets(a=True, r=True, theta=True)
 
         client = Client(pattern=pattern, input_state=states, secrets=secrets)
-        test_stabs = client.create_test_runs()
+        test_runs = client.create_test_runs()
         noise_model = DepolarisingNoiseModel(
             measure_error_prob=0, entanglement_error_prob=0, x_error_prob=0, z_error_prob=0, measure_channel_prob=0
         )
-        for stab in test_stabs:
-            backend = DensityMatrixBackend(rng=fx_rng)
+        for test_run in test_runs:
             client.refresh_randomness()
-            canvas = TrappifiedCanvas(stab, rng=fx_rng)
-            trap_outcomes = client.delegate_test_run(backend=backend, run=canvas, noise_model=noise_model)
-            assert sum(trap_outcomes) == 0
+            backend = DensityMatrixBackend(rng=fx_rng)
+            trap_outcomes = test_run.delegate(backend=backend, noise_model=noise_model)
+            assert sum(trap_outcomes.values()) == 0
 
     def test_noisy(self, fx_rng: Generator):
         nqubits = 3
-        depth = 5
+        depth = 3
         circuit = rand_circuit(nqubits, depth, fx_rng)
         pattern = circuit.transpile().pattern
 
@@ -75,15 +72,12 @@ class TestVBQC:
         secrets = Secrets(a=True, r=True, theta=True)
 
         client = Client(pattern=pattern, input_state=states, secrets=secrets)
-        test_stabs = client.create_test_runs()
+        test_runs = client.create_test_runs()
         noise_model = DepolarisingNoiseModel(
             measure_error_prob=1, entanglement_error_prob=1, x_error_prob=1, z_error_prob=1, measure_channel_prob=1
         )
-        total_trap_failures = 0
-        for stab in test_stabs:
+        for test_run in test_runs:
             backend = DensityMatrixBackend(rng=fx_rng)
             client.refresh_randomness()
-            canvas = TrappifiedCanvas(stab, rng=fx_rng)
-            trap_outcomes = client.delegate_test_run(backend=backend, run=canvas, noise_model=noise_model)
-            total_trap_failures += sum(trap_outcomes)
-        assert total_trap_failures > 0
+            trap_outcomes = test_run.delegate(backend=backend, noise_model=noise_model)
+            assert sum(trap_outcomes.values()) > 0

@@ -9,7 +9,6 @@ from graphix.states import BasicStates
 
 from veriphix.client import Client, Secrets
 from veriphix.run import TestRun
-from veriphix.trappifiedCanvas import TrappifiedCanvas
 import random
 
 
