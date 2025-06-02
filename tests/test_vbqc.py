@@ -61,6 +61,15 @@ class TestVBQC:
         canvas = client.sample_canvas()
         outcomes = client.delegate_canvas(canvas=canvas, backend=backend)
         # Just tests that it runs
+        """
+        TODO, in the Client class:
+        - Compute number of test rounds failures
+        - Compute majority vote
+
+        TODO, in the tests:
+        - In noiseless executions, check that we always accept
+        - In noisy executions, reject with high probability
+        """
 
 
 

@@ -22,7 +22,6 @@ class ComputationRun(Run):
     def __init__(self, client:Client) -> None:
         super().__init__(client=client)
 
-    ## TODO: replace this by "delegate_pattern" and delete that
     def delegate(self, backend:Backend, **kwargs) -> dict[int, int]:
 
         # Initializes the bank & asks backend to create the input
@@ -81,7 +80,7 @@ def generate_eigenstate(stabilizer:PauliString) -> list[State]:
         
 
 # Trap=set[int]
-Trap=tuple[int]
+Trap=tuple[int] # Better because immutable, so can be used as key in dictionary
 
 class TestRun(Run):
     def __init__(self, client:Client, traps:tuple[Trap], meas_basis:str="X") -> None:
