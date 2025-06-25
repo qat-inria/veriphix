@@ -1,4 +1,6 @@
 import graphix.command
+from graphix.pattern import Pattern
+
 import numpy as np
 from numpy.random import Generator
 from graphix.noise_models import DepolarisingNoiseModel
@@ -6,8 +8,25 @@ from graphix.random_objects import Circuit, rand_circuit
 from graphix.sim.density_matrix import DensityMatrixBackend
 from graphix.sim.statevec import StatevectorBackend
 from graphix.states import BasicStates
+from pathlib import Path
+
+from veriphix.qasm_parser import read_qasm
+import veriphix.brickwork_state_transpiler
 
 from veriphix.client import Client, Secrets, TrappifiedSchemeParameters
+from veriphix.run import TestRun
+import json
+import random
+
+
+def load_pattern_from_circuit(circuit_label: str) -> tuple[Pattern, list[int]]:
+    with Path(f"tests/circuits/{circuit_label}").open() as f:
+        circuit = read_qasm(f)
+        pattern = veriphix.brickwork_state_transpiler.transpile(circuit)
+
+        
+        pattern.minimize_space()
+    return pattern
 
 
 class TestVBQC:
@@ -60,6 +79,7 @@ class TestVBQC:
 
         canvas = client.sample_canvas()
         outcomes = client.delegate_canvas(canvas=canvas, backend=backend)
+                
         # Just tests that it runs
         """
         TODO, in the Client class:
@@ -71,7 +91,67 @@ class TestVBQC:
         - In noisy executions, reject with high probability
         """
 
+    def test_analyze_outcomes(self, fx_rng: Generator):
+        nqubits = 3
+        depth = 3
+        circuit = rand_circuit(nqubits, depth, fx_rng)
+        pattern = circuit.transpile().pattern
 
+        states = [BasicStates.PLUS for _ in pattern.input_nodes]
+        secrets = Secrets(r=True, a=True, theta=True)
+        
+        parameters = TrappifiedSchemeParameters(d=50, s=50, w=10)
+        client = Client(pattern=pattern, input_state=states, secrets=secrets, parameters=parameters)
+
+        backend = StatevectorBackend()
+
+        canvas = client.sample_canvas()
+        outcomes = client.delegate_canvas(canvas=canvas, backend=backend)
+        decision, result = client.analyze_outcomes(canvas, outcomes)
+        print(decision, result)
+
+        # while result == "Abort":
+        #     nqubits = 3
+        #     depth = 3
+        #     circuit = rand_circuit(nqubits, depth, fx_rng)
+        #     pattern = circuit.transpile().pattern
+
+        #     states = [BasicStates.PLUS for _ in pattern.input_nodes]
+        #     secrets = Secrets(r=True, a=True, theta=True)
+            
+        #     parameters = TrappifiedSchemeParameters(d=50, s=50, w=10)
+        #     client = Client(pattern=pattern, input_state=states, secrets=secrets, parameters=parameters)
+
+        #     backend = StatevectorBackend()
+
+        #     canvas = client.sample_canvas()
+        #     outcomes = client.delegate_canvas(canvas=canvas, backend=backend)
+        #     decision, result = client.analyze_outcomes(canvas, outcomes)
+        #     print(decision, result)
+
+    def test_BQP_circuit(self, fx_rng: Generator):
+        bqp_error = 0.3
+        with Path("tests/circuits/table.json").open() as f:
+            table = json.load(f)
+            circuits = [name for name, prob in table.items() if prob < bqp_error or prob > 1 - bqp_error]
+        random_circuit_label = random.choice(circuits)
+        pattern = load_pattern_from_circuit(circuit_label=random_circuit_label)
+
+        states = [BasicStates.PLUS for _ in pattern.input_nodes]
+        secrets = Secrets(r=True, a=True, theta=True)
+        
+        parameters = TrappifiedSchemeParameters(d=50, s=50, w=10)
+        client = Client(pattern=pattern, input_state=states, secrets=secrets, parameters=parameters)
+
+        backend = StatevectorBackend()
+
+        canvas = client.sample_canvas()
+        outcomes = client.delegate_canvas(canvas=canvas, backend=backend)
+        # QCircuit, we keep the first output only
+        decision, result = client.analyze_outcomes(canvas, outcomes, desired_outputs=[0])
+
+        assert decision == True
+        assert result != find_correct_value(random_circuit_label, bqp_error)
 
     def test_noiseless(self, fx_rng: Generator):
         nqubits = 3
@@ -113,3 +193,13 @@ class TestVBQC:
             client.refresh_randomness()
             trap_outcomes = test_run.delegate(backend=backend, noise_model=noise_model)
             assert sum(trap_outcomes.values()) > 0
+
+
+def find_correct_value(circuit_name, bqp_error):
+    with Path("tests/circuits/table.json").open() as f:
+        table = json.load(f)
+        # return 1 if yes instance
+        # return 0 else (no instance, as circuits are already filtered)
+        # print(table[circuit_name])
+        return(int(table[circuit_name] > 1-bqp_error))
+    

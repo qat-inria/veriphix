@@ -382,6 +382,32 @@ class Client:
             for round in canvas
         })
         return outcomes
+    
+    def analyze_outcomes(self, canvas:dict, outcomes:dict, desired_outputs=None):
+        from veriphix.run import TestRun
+        failed_test_rounds = 0
+        computation_outcomes_count = dict()
+        for round in canvas:
+            if isinstance(canvas[round], TestRun):
+                failed_test_rounds += (sum(outcomes[round].values())>0)
+            else:
+                if desired_outputs is None:
+                    outcome_string = ''.join([f"{o}" for o in outcomes[round].values()])
+                else: # if we specified which outputs to keep (in particular, for QCircuit, we only keep the first output)
+                    outputs = list(outcomes[round].values())
+                    restricted_outputs = [outputs[i] for i in desired_outputs]
+                    outcome_string = ''.join([f"{o}" for o in restricted_outputs])
+                computation_outcomes_count[outcome_string] = computation_outcomes_count.get(outcome_string, 0) + 1
+
+                
+        # True if Accept, False if Reject
+        decision = failed_test_rounds <= self.trappifiedScheme.w    
+
+        # Compute majority vote        
+        biased_outcome = [k for k, v in computation_outcomes_count.items() if v > self.trappifiedScheme.d/2]
+        final_outcome = biased_outcome[0] if biased_outcome else "Abort"
+
+        return decision, final_outcome        
 
 
     def decode_output_state(self, backend: Backend):
