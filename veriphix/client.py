@@ -23,6 +23,7 @@ from graphix.sim.statevec import Statevec, StatevectorBackend
 from graphix.simulator import MeasureMethod, PatternSimulator, PrepareMethod
 from graphix.states import BasicStates
 from stim import Tableau, Circuit
+from math import ceil
 import random
 
 
@@ -403,8 +404,9 @@ class Client:
         # True if Accept, False if Reject
         decision = failed_test_rounds <= self.trappifiedScheme.w    
 
+        print(computation_outcomes_count)
         # Compute majority vote        
-        biased_outcome = [k for k, v in computation_outcomes_count.items() if v > self.trappifiedScheme.d/2]
+        biased_outcome = [k for k, v in computation_outcomes_count.items() if v >= ceil(self.trappifiedScheme.d/2)]
         final_outcome = biased_outcome[0] if biased_outcome else "Abort"
 
         return decision, final_outcome        

@@ -130,17 +130,19 @@ class TestVBQC:
         #     print(decision, result)
 
     def test_BQP_circuit(self, fx_rng: Generator):
-        bqp_error = 0.3
+        bqp_error = 0.01
         with Path("tests/circuits/table.json").open() as f:
             table = json.load(f)
             circuits = [name for name, prob in table.items() if prob < bqp_error or prob > 1 - bqp_error]
         random_circuit_label = random.choice(circuits)
+        print(random_circuit_label)
+        print(find_correct_value(random_circuit_label))
         pattern = load_pattern_from_circuit(circuit_label=random_circuit_label)
 
         states = [BasicStates.PLUS for _ in pattern.input_nodes]
         secrets = Secrets(r=True, a=True, theta=True)
         
-        parameters = TrappifiedSchemeParameters(d=50, s=50, w=10)
+        parameters = TrappifiedSchemeParameters(d=10, s=0, w=0)
         client = Client(pattern=pattern, input_state=states, secrets=secrets, parameters=parameters)
 
         backend = StatevectorBackend()
@@ -151,7 +153,8 @@ class TestVBQC:
         decision, result = client.analyze_outcomes(canvas, outcomes, desired_outputs=[0])
 
         assert decision == True
-        assert result != find_correct_value(random_circuit_label, bqp_error)
+        assert result != "Abort"
+        assert int(result) == find_correct_value(random_circuit_label)
 
     def test_noiseless(self, fx_rng: Generator):
         nqubits = 3
@@ -195,11 +198,11 @@ class TestVBQC:
             assert sum(trap_outcomes.values()) > 0
 
 
-def find_correct_value(circuit_name, bqp_error):
+def find_correct_value(circuit_name):
     with Path("tests/circuits/table.json").open() as f:
         table = json.load(f)
+        print(table[circuit_name])
         # return 1 if yes instance
         # return 0 else (no instance, as circuits are already filtered)
         # print(table[circuit_name])
-        return(int(table[circuit_name] > 1-bqp_error))
-    
+        return round(table[circuit_name])
