@@ -127,13 +127,13 @@ class TestVBQC:
         secrets = Secrets(r=secrets, a=secrets, theta=secrets)
         
         parameters = TrappifiedSchemeParameters(comp_rounds=10, test_rounds=10, threshold=5)
-        client = Client(pattern=pattern, input_state=states, secrets=secrets, parameters=parameters)
+        client = Client(pattern=pattern, input_state=states, secrets=secrets, parameters=parameters, desired_outputs=[0])
         backend = StatevectorBackend()
 
         canvas = client.sample_canvas()
         outcomes = client.delegate_canvas(canvas=canvas, backend=backend)
         # QCircuit, we keep the first output only
-        decision, result = client.analyze_outcomes(canvas, outcomes, desired_outputs=[0])
+        decision, result = client.analyze_outcomes(canvas, outcomes)
         assert decision == True
         assert result != "Abort"
         assert int(result) == find_correct_value(random_circuit_label)

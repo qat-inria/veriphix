@@ -165,7 +165,7 @@ def get_graph_clifford_structure(graph:nx.Graph):
     return circuit.to_tableau()
 
 class Client:
-    def __init__(self, pattern, input_state=None, classical_output:bool=True, measure_method_cls=None, test_measure_method_cls = None, secrets: None | Secrets = None, parameters:TrappifiedSchemeParameters=TrappifiedSchemeParameters(20, 20, 5)) -> None:
+    def __init__(self, pattern, input_state=None, classical_output:bool=True, desired_outputs:List[int]=None, measure_method_cls=None, test_measure_method_cls = None, secrets: None | Secrets = None, parameters:TrappifiedSchemeParameters=TrappifiedSchemeParameters(20, 20, 5)) -> None:
         """
         TODO: absolutely clean this constructor... 
         """
@@ -177,6 +177,7 @@ class Client:
         if self.classical_output:
             for onode in self.output_nodes:
                 self.initial_pattern.add(graphix.command.M(node=onode))
+        self.desired_outputs = desired_outputs
 
 
         graph = self.initial_pattern.get_graph()
@@ -390,10 +391,10 @@ class Client:
         })
         return outcomes
 
-    def analyze_outcomes(self, canvas:dict, outcomes:dict, desired_outputs=None):
+    def analyze_outcomes(self, canvas:dict, outcomes:dict):
         result_analysis = ResultAnalysis(nr_failed_test_rounds=0, computation_outcomes_count=dict())
         for round in canvas:
-            canvas[round].analyze(result_analysis=result_analysis, round_outcomes=outcomes[round], desired_outputs=desired_outputs)
+            canvas[round].analyze(result_analysis=result_analysis, round_outcomes=outcomes[round])
                 
         # True if Accept, False if Reject
         decision = result_analysis.nr_failed_test_rounds <= self.trappifiedScheme.params.threshold    

@@ -17,7 +17,7 @@ class Run(ABC):
     def delegate(self, backend:Backend, **kwargs) -> dict[int,int] :
         # Delegates using UBQC 
         pass
-    def analyze(self, result_analysis:ResultAnalysis, round_outcomes, desired_outputs) :
+    def analyze(self, result_analysis:ResultAnalysis, round_outcomes) :
         # Modifies result_analysis in place
         pass
 
@@ -51,12 +51,12 @@ class ComputationRun(Run):
             return {onode: self.client.results[onode] for onode in self.client.output_nodes}
         
     @override
-    def analyze(self, result_analysis: ResultAnalysis, round_outcomes, desired_outputs):
-        if desired_outputs is None:
+    def analyze(self, result_analysis: ResultAnalysis, round_outcomes):
+        if self.client.desired_outputs is None:
             outcome_string = ''.join([f"{o}" for o in round_outcomes.values()])
         else: # if we specified which outputs to keep (in particular, for QCircuit, we only keep the first output)
             outputs = list(round_outcomes.values())
-            restricted_outputs = [int(outputs[i]) for i in desired_outputs]
+            restricted_outputs = [int(outputs[i]) for i in self.client.desired_outputs]
             outcome_string = ''.join([f"{o}" for o in restricted_outputs])
         result_analysis.computation_outcomes_count[outcome_string] = result_analysis.computation_outcomes_count.get(outcome_string, 0) + 1
 
@@ -133,7 +133,7 @@ class TestRun(Run):
         return input_state
 
     @override
-    def analyze(self, result_analysis: ResultAnalysis, round_outcomes, desired_outputs):
+    def analyze(self, result_analysis: ResultAnalysis, round_outcomes):
         result_analysis.nr_failed_test_rounds += (sum(round_outcomes.values())>0)
 
     @override
