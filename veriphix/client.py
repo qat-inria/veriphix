@@ -369,8 +369,8 @@ class Client:
         return test_runs
 
     def sample_canvas(self):
-        N = self.trappifiedScheme.d + self.trappifiedScheme.s
-        computation_rounds = set(random.sample(range(N), self.trappifiedScheme.d))
+        N = self.trappifiedScheme.params.comp_rounds + self.trappifiedScheme.params.test_rounds
+        computation_rounds = set(random.sample(range(N), self.trappifiedScheme.params.comp_rounds))
 
         rounds_run = dict()
         for round in range(N):
@@ -410,11 +410,11 @@ class Client:
 
                 
         # True if Accept, False if Reject
-        decision = failed_test_rounds <= self.trappifiedScheme.w    
+        decision = failed_test_rounds <= self.trappifiedScheme.params.threshold    
 
         print(computation_outcomes_count)
         # Compute majority vote        
-        biased_outcome = [k for k, v in computation_outcomes_count.items() if v >= ceil(self.trappifiedScheme.d/2)]
+        biased_outcome = [k for k, v in computation_outcomes_count.items() if v >= ceil(self.trappifiedScheme.params.comp_rounds/2)]
         final_outcome = biased_outcome[0] if biased_outcome else None
 
         return decision, final_outcome        
