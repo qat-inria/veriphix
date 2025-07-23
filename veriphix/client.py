@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import itertools
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, List, Optional
 
 import graphix.command
 import graphix.ops
@@ -165,66 +165,45 @@ def get_graph_clifford_structure(graph:nx.Graph):
     return circuit.to_tableau()
 
 class Client:
-    def __init__(self, pattern, input_state=None, classical_output:bool=True, desired_outputs:List[int]=None, measure_method_cls=None, test_measure_method_cls = None, secrets: None | Secrets = None, parameters:TrappifiedSchemeParameters=TrappifiedSchemeParameters(20, 20, 5)) -> None:
-        """
-        TODO: absolutely clean this constructor... 
-        """
+    def __init__(
+        self,
+        pattern,
+        input_state=None,
+        classical_output: bool = True,
+        desired_outputs: Optional[List[int]] = None,
+        measure_method_cls=None,
+        test_measure_method_cls=None,
+        secrets: Optional[Secrets] = None,
+        parameters: TrappifiedSchemeParameters = TrappifiedSchemeParameters(20, 20, 5)
+    ) -> None:
         self.initial_pattern: Pattern = pattern
-
-        self.input_nodes = self.initial_pattern.input_nodes.copy()
-        self.output_nodes = self.initial_pattern.output_nodes.copy()
         self.classical_output = classical_output
-        if self.classical_output:
-            for onode in self.output_nodes:
-                self.initial_pattern.add(graphix.command.M(node=onode))
         self.desired_outputs = desired_outputs
+        self.input_nodes = pattern.input_nodes.copy()
+        self.output_nodes = pattern.output_nodes.copy()
 
+        if classical_output:
+            self._add_measurement_commands()
 
-        graph = self.initial_pattern.get_graph()
-        self.graph = nx.Graph()
-        self.graph.add_nodes_from(graph[0])
-        self.graph.add_edges_from(graph[1])
+        self.graph = self._build_graph()
         self.clifford_structure = get_graph_clifford_structure(self.graph)
-
         self.nodes_list = list(self.graph.nodes)
 
-        # Copy the pauli-preprocessed nodes' measurement outcomes
         self.results = pattern.results.copy()
-        if measure_method_cls is None:
-            measure_method_cls = ClientMeasureMethod
-        if test_measure_method_cls is None:
-            test_measure_method_cls = TestMeasureMethod
+        self.measure_method = (measure_method_cls or ClientMeasureMethod)(self)
+        self.test_measure_method = (test_measure_method_cls or TestMeasureMethod)(self)
 
-        self.measure_method = measure_method_cls(self)
-        self.test_measure_method = test_measure_method_cls(self)
+        self.measurement_db = self._get_measurement_db()
+        self.byproduct_db = get_byproduct_db(self._copy_pattern())
 
-        # careful: 'get_measurement_commands' standardizes the pattern
-        # but we want the measurement commands as if the pattern was standardized (that means, include the byproducts absorbed in the measurement as much as possible)
-        # So we copy the pattern so we can standardize it without touching the non-standardized version
-        pattern_copy = Pattern(pattern.input_nodes)
-        for cmd in pattern:
-            pattern_copy.add(cmd)
+        self.secrets = secrets or Secrets()
+        self.secrets_bool = secrets is not None
+        self.secret_datas = SecretDatas.from_secrets(
+            self.secrets, self.graph, self.input_nodes, self.output_nodes
+        )
 
-        self.measurement_db = {measure.node: measure for measure in pattern_copy.get_measurement_commands()}
-
-        self.byproduct_db = get_byproduct_db(pattern_copy)
-
-        # self.secrets_bool : bool -> self.secrets is not None
-        # self.secrets_type : Secrets -> self.secrets
-        # self.secrets : SecretDatas-> self.secret_datas
-        self.secrets = secrets
-        if secrets is None:
-            self.secrets_bool = False
-            secrets = Secrets()
-
-        self.secret_datas = SecretDatas.from_secrets(secrets, self.graph, self.input_nodes, self.output_nodes)
-
-
-        # Remove informations from the pattern, leaves only the graph structure, and order of measurements/creation of qubits
         self.clean_pattern = remove_flow(self.initial_pattern)
-
-        self.input_state = input_state if input_state is not None else [BasicStates.PLUS for _ in self.input_nodes]
-        # Creates the states to be used during the protocol
+        self.input_state = input_state or [BasicStates.PLUS for _ in self.input_nodes]
         self.computation_states = self.get_computation_states()
 
         self.preparation_bank = {}
@@ -233,10 +212,29 @@ class Client:
         from veriphix.run import TestRun, ComputationRun, Run
         self.computationRun = ComputationRun(self)
         self.test_runs = self.create_test_runs()
-        self.trappifiedScheme = TrappifiedScheme(
-            params=parameters,
-            test_runs=self.test_runs
-        )
+        self.trappifiedScheme = TrappifiedScheme(params=parameters, test_runs=self.test_runs)
+
+    def _add_measurement_commands(self):
+        for onode in self.output_nodes:
+            self.initial_pattern.add(graphix.command.M(node=onode))
+
+    def _build_graph(self):
+        raw_graph = self.initial_pattern.get_graph()
+        graph = nx.Graph()
+        graph.add_nodes_from(raw_graph[0])
+        graph.add_edges_from(raw_graph[1])
+        return graph
+
+    def _copy_pattern(self) -> Pattern:
+        pattern_copy = Pattern(self.initial_pattern.input_nodes)
+        for cmd in self.initial_pattern:
+            pattern_copy.add(cmd)
+        pattern_copy.standardize()
+        return pattern_copy
+
+    def _get_measurement_db(self):
+        copied_pattern = self._copy_pattern()
+        return {m.node: m for m in copied_pattern.get_measurement_commands()}
 
     def refresh_randomness(self) -> None:
         "method to refresh random randomness using parameters from Clinent instatiation."
