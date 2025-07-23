@@ -17,7 +17,7 @@ class Run(ABC):
     def delegate(self, backend:Backend, **kwargs) -> dict[int,int] :
         # Delegates using UBQC 
         pass
-    def analyze(self, result_analysis:ResultAnalysis) :
+    def analyze(self, result_analysis:ResultAnalysis, round_outcomes, desired_outputs) :
         # Modifies result_analysis in place
         pass
 
@@ -50,6 +50,7 @@ class ComputationRun(Run):
         else:
             return {onode: self.client.results[onode] for onode in self.client.output_nodes}
         
+    @override
     def analyze(self, result_analysis: ResultAnalysis, round_outcomes, desired_outputs):
         if desired_outputs is None:
             outcome_string = ''.join([f"{o}" for o in round_outcomes.values()])
@@ -131,7 +132,9 @@ class TestRun(Run):
         input_state = generate_eigenstate(self.stabilizer)
         return input_state
 
-
+    @override
+    def analyze(self, result_analysis: ResultAnalysis, round_outcomes, desired_outputs):
+        result_analysis.nr_failed_test_rounds += (sum(round_outcomes.values())>0)
 
     @override
     def delegate(self, backend:Backend, **kwargs) -> dict[int,int] :

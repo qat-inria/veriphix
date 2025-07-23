@@ -391,26 +391,13 @@ class Client:
         return outcomes
 
     def analyze_outcomes(self, canvas:dict, outcomes:dict, desired_outputs=None):
-        from veriphix.run import TestRun
-        failed_test_rounds = 0
-        computation_outcomes_count = dict()
         result_analysis = ResultAnalysis(nr_failed_test_rounds=0, computation_outcomes_count=dict())
-
-
         for round in canvas:
-            # canvas[round].analyze(result_analysis=result_analysis, round_outcomes=outcomes[round], desired_outputs=desired_outputs)
-            ## implémenter ça dans les runs
-
-            if isinstance(canvas[round], TestRun):
-                result_analysis.nr_failed_test_rounds += (sum(outcomes[round].values())>0)
-            else:
-                canvas[round].analyze(result_analysis=result_analysis, round_outcomes=outcomes[round], desired_outputs=desired_outputs)
-                pass # done in Computation run
+            canvas[round].analyze(result_analysis=result_analysis, round_outcomes=outcomes[round], desired_outputs=desired_outputs)
                 
         # True if Accept, False if Reject
         decision = result_analysis.nr_failed_test_rounds <= self.trappifiedScheme.params.threshold    
 
-        print(result_analysis.computation_outcomes_count)
         # Compute majority vote        
         biased_outcome = [k for k, v in result_analysis.computation_outcomes_count.items() if v >= ceil(self.trappifiedScheme.params.comp_rounds/2)]
         final_outcome = biased_outcome[0] if biased_outcome else None
