@@ -17,6 +17,7 @@ from veriphix.client import Client, Secrets, TrappifiedSchemeParameters
 from veriphix.run import TestRun
 import json
 import random
+import pytest
 
 
 def load_pattern_from_circuit(circuit_label: str) -> tuple[Pattern, list[int]]:
@@ -79,16 +80,16 @@ class TestVBQC:
 
         canvas = client.sample_canvas()
         outcomes = client.delegate_canvas(canvas=canvas, backend=backend)
-                
         # Just tests that it runs
         """
         TODO, in the Client class:
         - Compute number of test rounds failures
-        - Compute majority vote
+        - Compute majority vote (for BQP)
 
         TODO, in the tests:
         - In noiseless executions, check that we always accept
         - In noisy executions, reject with high probability
+        - Noiseless, not BQP: check evolution of the state for 1 comp. run
         """
 
     def test_analyze_outcomes(self, fx_rng: Generator):
@@ -108,50 +109,31 @@ class TestVBQC:
         canvas = client.sample_canvas()
         outcomes = client.delegate_canvas(canvas=canvas, backend=backend)
         decision, result = client.analyze_outcomes(canvas, outcomes)
-        print(decision, result)
 
-        # while result == "Abort":
-        #     nqubits = 3
-        #     depth = 3
-        #     circuit = rand_circuit(nqubits, depth, fx_rng)
-        #     pattern = circuit.transpile().pattern
 
-        #     states = [BasicStates.PLUS for _ in pattern.input_nodes]
-        #     secrets = Secrets(r=True, a=True, theta=True)
-            
-        #     parameters = TrappifiedSchemeParameters(d=50, s=50, w=10)
-        #     client = Client(pattern=pattern, input_state=states, secrets=secrets, parameters=parameters)
 
-        #     backend = StatevectorBackend()
-
-        #     canvas = client.sample_canvas()
-        #     outcomes = client.delegate_canvas(canvas=canvas, backend=backend)
-        #     decision, result = client.analyze_outcomes(canvas, outcomes)
-        #     print(decision, result)
-
-    def test_BQP_circuit(self, fx_rng: Generator):
+    @pytest.mark.parametrize('secrets', (False, True))
+    def test_BQP_circuit(self, fx_rng: Generator, secrets:bool):
         bqp_error = 0.01
         with Path("tests/circuits/table.json").open() as f:
             table = json.load(f)
             circuits = [name for name, prob in table.items() if prob < bqp_error or prob > 1 - bqp_error]
         random_circuit_label = random.choice(circuits)
-        print(random_circuit_label)
-        print(find_correct_value(random_circuit_label))
+        # Example of deterministic circuit with output 0
+        random_circuit_label = "circuit677.qasm"
         pattern = load_pattern_from_circuit(circuit_label=random_circuit_label)
 
         states = [BasicStates.PLUS for _ in pattern.input_nodes]
-        secrets = Secrets(r=True, a=True, theta=True)
+        secrets = Secrets(r=secrets, a=secrets, theta=secrets)
         
-        parameters = TrappifiedSchemeParameters(d=10, s=0, w=0)
+        parameters = TrappifiedSchemeParameters(d=5, s=0, w=0)
         client = Client(pattern=pattern, input_state=states, secrets=secrets, parameters=parameters)
-
         backend = StatevectorBackend()
 
         canvas = client.sample_canvas()
         outcomes = client.delegate_canvas(canvas=canvas, backend=backend)
         # QCircuit, we keep the first output only
         decision, result = client.analyze_outcomes(canvas, outcomes, desired_outputs=[0])
-
         assert decision == True
         assert result != "Abort"
         assert int(result) == find_correct_value(random_circuit_label)

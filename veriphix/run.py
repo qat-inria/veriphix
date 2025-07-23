@@ -6,14 +6,16 @@ from graphix.pauli import Pauli, IXYZ
 from stim import Tableau, PauliString
 from graphix.pattern import PatternSimulator
 from dataclasses import dataclass
+from typing import override
+
 
 class Run(ABC):
     def __init__(self, client:Client) -> None:
         self.client = client
 
     @abstractmethod
-    def delegate(self, backend:Backend, **kwargs):
-        # Delegates using UBQC
+    def delegate(self, backend:Backend, **kwargs) -> dict[int,int] :
+        # Delegates using UBQC 
         pass
 
 
@@ -22,6 +24,7 @@ class ComputationRun(Run):
     def __init__(self, client:Client) -> None:
         super().__init__(client=client)
 
+    @override
     def delegate(self, backend:Backend, **kwargs) -> dict[int, int]:
 
         # Initializes the bank & asks backend to create the input
@@ -79,11 +82,16 @@ def generate_eigenstate(stabilizer:PauliString) -> list[State]:
     return states
         
 
-# Trap=set[int]
-Trap=tuple[int] # Better because immutable, so can be used as key in dictionary
+# Trap=tuple[int] # Better because immutable, so can be used as key in dictionary
+Trap=frozenset[int]
+## TODO: pourquoi pas frozenset ?
+## collections abstraites: classe set, par défaut immutable
+from collections.abc import Set as AbstractSet
+## TODO: Traps pourrait être AbstractSet
+## L'avoir comme abstractSet en argument de la fonction, le caster en frozenset à chaque fois
 
 class TestRun(Run):
-    def __init__(self, client:Client, traps:tuple[Trap], meas_basis:str="X") -> None:
+    def __init__(self, client:Client, traps:frozenset[Trap], meas_basis:str="X") -> None:
         super().__init__(client=client)
         self.traps = traps
         self.meas_basis = meas_basis
@@ -113,7 +121,8 @@ class TestRun(Run):
 
 
 
-    def delegate(self, backend:Backend, **kwargs):
+    @override
+    def delegate(self, backend:Backend, **kwargs) -> dict[int,int] :
         states_dict = {node:self.input_state[node] for node in self.client.nodes_list}
         self.client.prepare_states(backend=backend, states_dict=states_dict)
         sim = PatternSimulator(

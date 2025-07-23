@@ -33,18 +33,19 @@ if TYPE_CHECKING:
     import stim
     from graphix.sim.base_backend import Backend
 
-Trap=tuple[int]
 @dataclass
 class TrappifiedScheme:
     d:int
     s:int
     w:int
+    ## TODO: factoriser ça
     test_runs:list
 @dataclass
 class TrappifiedSchemeParameters:
-    d:int
-    s:int
-    w:int
+    d:int # nr of comp rounds
+    s:int # nr of test rounds
+    w:int # threshold (nr of allowed test rounds failure)
+    ## TODO: utiliser les noms réels
 
 # TODO update docstring
 """
@@ -57,6 +58,12 @@ simulator = PatternSimulator(client.pattern, backend=sv_backend)
 simulator.run()
 
 """
+
+## TODO : implémenter ça, et l'initialiser
+@dataclass
+class result_analysis:
+    nr_failed_test_rounds: int
+    computation_outcomes_count: dict[str, int]
 
 
 @dataclass
@@ -249,6 +256,7 @@ class Client:
             elif node in self.output_nodes:
                 r_value = self.secret_datas.r.get(node, 0)
                 a_N_value = self.secret_datas.a.a_N.get(node, 0)
+                # TODO: here is where the additional decoding happens
                 state = BasicStates.PLUS if r_value ^ a_N_value == 0 else BasicStates.MINUS
 
             else:
@@ -357,8 +365,8 @@ class Client:
         test_runs:list[TestRun] = []
         for color in colors:
             # 1 color = 1 test run = 1 collection of single-qubit traps
-            traps_list = [(colored_node,) for colored_node in nodes_by_color[color]]
-            traps = tuple(traps_list)
+            traps_list = [frozenset([colored_node]) for colored_node in nodes_by_color[color]]
+            traps = frozenset(traps_list)
             test_run = TestRun(client=self, traps=traps)
             test_runs.append(test_run)
 
@@ -379,16 +387,21 @@ class Client:
     
     def delegate_canvas(self, canvas:dict, backend:Backend, **kwargs):
         outcomes = dict({
-            round: canvas[round].delegate(backend=backend, **kwargs)
-            for round in canvas
+            round: run.delegate(backend=backend, **kwargs)
+            for round, run in canvas.items()
         })
         return outcomes
-    
+
     def analyze_outcomes(self, canvas:dict, outcomes:dict, desired_outputs=None):
         from veriphix.run import TestRun
         failed_test_rounds = 0
         computation_outcomes_count = dict()
+
+
         for round in canvas:
+            # canvas[round].analyze(result_analysis)
+            ## implémenter ça dans les runs
+
             if isinstance(canvas[round], TestRun):
                 failed_test_rounds += (sum(outcomes[round].values())>0)
             else:
@@ -396,7 +409,7 @@ class Client:
                     outcome_string = ''.join([f"{o}" for o in outcomes[round].values()])
                 else: # if we specified which outputs to keep (in particular, for QCircuit, we only keep the first output)
                     outputs = list(outcomes[round].values())
-                    restricted_outputs = [outputs[i] for i in desired_outputs]
+                    restricted_outputs = [int(outputs[i]) for i in desired_outputs]
                     outcome_string = ''.join([f"{o}" for o in restricted_outputs])
                 computation_outcomes_count[outcome_string] = computation_outcomes_count.get(outcome_string, 0) + 1
 
@@ -407,7 +420,7 @@ class Client:
         print(computation_outcomes_count)
         # Compute majority vote        
         biased_outcome = [k for k, v in computation_outcomes_count.items() if v >= ceil(self.trappifiedScheme.d/2)]
-        final_outcome = biased_outcome[0] if biased_outcome else "Abort"
+        final_outcome = biased_outcome[0] if biased_outcome else None
 
         return decision, final_outcome        
 
@@ -476,7 +489,7 @@ class ClientMeasureMethod(MeasureMethod):
         parameters = self.__client.measurement_db[cmd.node]
 
         # Extract secrets from Client
-        r_value = self.__client.secret_datas.r.get(cmd.node, 0)
+        r_value = self.__client.secret_datas.r.get(cmd.node, 0) if cmd.node not in self.__client.output_nodes else 0
         theta_value = self.__client.secret_datas.theta.get(cmd.node, 0)
         a_value = self.__client.secret_datas.a.a.get(cmd.node, 0)
         a_N_value = self.__client.secret_datas.a.a_N.get(cmd.node, 0)
@@ -526,3 +539,5 @@ class TestMeasureMethod(MeasureMethod):
         if self.__client.secret_datas.r:
             result ^= self.__client.secret_datas.r[node]
         self.__client.results[node] = result
+
+## TODO: factoriser la measuremethod? 
