@@ -1,8 +1,9 @@
 from __future__ import annotations
-from pathlib import Path
+
 import json
 import math
-from typing import TYPE_CHECKING
+from pathlib import Path
+from typing import TYPE_CHECKING, Annotated
 
 import git
 import matplotlib.pyplot as plt
@@ -89,8 +90,7 @@ def sample_circuit(
                 if qubit < nqubits - 1 and rng.random() < p_cnot:
                     last_next = last_gate_by_qubit.get(qubit + 1, None)
                     if (last, last_next) == ("control", "target") or (
-                        (last, last_next) != ("target", "control")
-                        and rng.random() < p_cnot_flip
+                        (last, last_next) != ("target", "control") and rng.random() < p_cnot_flip
                     ):
                         control = qubit + 1
                         target = qubit
@@ -130,9 +130,7 @@ def sample_truncated_circuit(
     # return sample_circuit(nqubits, depth, rng, p_gate, p_cnot, p_cnot_flip, p_rx)
     while True:
         while True:
-            circuit = sample_circuit(
-                nqubits, 2 * depth, rng, p_gate, p_cnot, p_cnot_flip, p_rx
-            )
+            circuit = sample_circuit(nqubits, 2 * depth, rng, p_gate, p_cnot, p_cnot_flip, p_rx)
             layers = transpile_to_layers(circuit)
             if len(layers) >= depth:
                 break
@@ -157,7 +155,7 @@ def sample_truncated_circuit(
         rotated = set()
         for instr in circuit.instruction:
             # Use of `==` here for mypy
-            if instr.kind == InstructionKind.RX or instr.kind == InstructionKind.RZ:  # noqa: PLR1714
+            if instr.kind == InstructionKind.RX or instr.kind == InstructionKind.RZ:
                 rotated.add(instr.target)
         # if rotated != set(range(nqubits)):
         #    continue
@@ -166,9 +164,7 @@ def sample_truncated_circuit(
     return circuit
 
 
-def complete_circuit(
-    circuit: Circuit, p_cnot_flip: float, rng: np.random.Generator
-) -> None:
+def complete_circuit(circuit: Circuit, p_cnot_flip: float, rng: np.random.Generator) -> None:
     """
     Complete circuit with CNOTs so that all gates can affect qubit 0.
     """
@@ -190,7 +186,7 @@ def complete_circuit(
             add_cnots(min_qubit)
             reachable = min_qubit + 1
         # Use of `==` here for mypy
-        elif instr.kind == InstructionKind.RX or instr.kind == InstructionKind.RZ:  # noqa: PLR1714
+        elif instr.kind == InstructionKind.RX or instr.kind == InstructionKind.RZ:
             if instr.target <= reachable:
                 continue
             add_cnots(instr.target)
@@ -225,7 +221,7 @@ def strip_circuit(circuit: Circuit) -> None:
             # Keep the instruction.
             new_instructions.append(instr)
         # Use of `==` here for mypy
-        elif instr.kind == InstructionKind.RX or instr.kind == InstructionKind.RZ:  # noqa: PLR1714
+        elif instr.kind == InstructionKind.RX or instr.kind == InstructionKind.RZ:
             # Keep the rotation only if it can affect a qubit within the reachable range.
             if instr.target <= reachable:
                 new_instructions.append(instr)
@@ -322,10 +318,7 @@ def estimate_circuit_by_expectation_value(qc: QuantumCircuit) -> float:
 def estimate_circuits(
     circuits: Iterable[QuantumCircuit],
 ) -> list[tuple[QuantumCircuit, float]]:
-    return [
-        (circuit, estimate_circuit_by_expectation_value(circuit))
-        for circuit in tqdm(list(circuits))
-    ]
+    return [(circuit, estimate_circuit_by_expectation_value(circuit)) for circuit in tqdm(list(circuits))]
 
 
 def save_circuits(circuits: list[tuple[QuantumCircuit, float]], path: Path) -> None:
@@ -340,9 +333,7 @@ def save_circuits(circuits: list[tuple[QuantumCircuit, float]], path: Path) -> N
         json.dump(table, f)
 
 
-def plot_distribution(
-    circuits: list[tuple[QuantumCircuit, float]], filename: Path
-) -> None:
+def plot_distribution(circuits: list[tuple[QuantumCircuit, float]], filename: Path) -> None:
     samples = [p for _circuit, p in circuits]
     plt.hist(samples, bins=30, edgecolor="black", alpha=0.7)
     plt.xlabel("Value")
@@ -352,15 +343,15 @@ def plot_distribution(
 
 
 def sample_circuits(
-    ncircuits: int = typer.Option(..., help="Number of circuits"),
-    nqubits: int = typer.Option(..., help="Number of qubits"),
-    depth: int = typer.Option(..., help="Circuit depth"),
-    p_gate: float = typer.Option(..., help="Probability of applying a gate"),
-    p_cnot: float = typer.Option(..., help="Probability of applying a CNOT gate"),
-    p_cnot_flip: float = typer.Option(..., help="Probability of flipping a CNOT gate"),
-    p_rx: float = typer.Option(..., help="Probability of applying an RX gate"),
-    seed: int = typer.Option(..., help="Random seed"),
-    target: Path = typer.Option(..., help="Target directory"),
+    ncircuits: Annotated[int, typer.Option(..., help="Number of circuits")],
+    nqubits: Annotated[int, typer.Option(..., help="Number of qubits")],
+    depth: Annotated[int, typer.Option(..., help="Circuit depth")],
+    p_gate: Annotated[float, typer.Option(..., help="Probability of applying a gate")],
+    p_cnot: Annotated[float, typer.Option(..., help="Probability of applying a CNOT gate")],
+    p_cnot_flip: Annotated[float, typer.Option(..., help="Probability of flipping a CNOT gate")],
+    p_rx: Annotated[float, typer.Option(..., help="Probability of applying an RX gate")],
+    seed: Annotated[int, typer.Option(..., help="Random seed")],
+    target: Annotated[Path, typer.Option(..., help="Target directory")],
 ) -> None:
     params = locals()
     sequence = np.random.SeedSequence(entropy=seed)
@@ -381,9 +372,7 @@ def sample_circuits(
     estimated_circuits = estimate_circuits(qiskit_circuits)
     save_circuits(estimated_circuits, target)
     plot_distribution(estimated_circuits, target / "distribution.svg")
-    arg_str = " ".join(
-        f"--{key.replace('_', '-')} {value}" for key, value in params.items()
-    )
+    arg_str = " ".join(f"--{key.replace('_', '-')} {value}" for key, value in params.items())
     command_line = f"python -m veriphix.sampling_circuits.sampling_circuits {arg_str}"
     repo = git.Repo(search_parent_directories=True)
     sha = repo.head.object.hexsha

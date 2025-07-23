@@ -1,23 +1,27 @@
-import graphix.command
-from graphix.pattern import Pattern
+from __future__ import annotations
 
+import json
+import random
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+import graphix.command
 import numpy as np
-from numpy.random import Generator
+import pytest
 from graphix.noise_models import DepolarisingNoiseModel
-from graphix.random_objects import Circuit, rand_circuit
+from graphix.random_objects import rand_circuit
 from graphix.sim.density_matrix import DensityMatrixBackend
 from graphix.sim.statevec import StatevectorBackend
 from graphix.states import BasicStates
-from pathlib import Path
 
-from veriphix.sampling_circuits.qasm_parser import read_qasm
 import veriphix.sampling_circuits.brickwork_state_transpiler
-
 from veriphix.client import Client, Secrets, TrappifiedSchemeParameters
-from veriphix.run import TestRun, ComputationRun
-import json
-import random
-import pytest
+from veriphix.run import ComputationRun
+from veriphix.sampling_circuits.qasm_parser import read_qasm
+
+if TYPE_CHECKING:
+    from graphix.pattern import Pattern
+    from numpy.random import Generator
 
 
 def load_pattern_from_circuit(circuit_label: str) -> tuple[Pattern, list[int]]:
@@ -25,7 +29,6 @@ def load_pattern_from_circuit(circuit_label: str) -> tuple[Pattern, list[int]]:
         circuit = read_qasm(f)
         pattern = veriphix.sampling_circuits.brickwork_state_transpiler.transpile(circuit)
 
-        
         pattern.minimize_space()
     return pattern
 
@@ -47,8 +50,7 @@ class TestVBQC:
         for test_run in client.test_runs:
             backend = StatevectorBackend()
             trap_outcomes = test_run.delegate(backend=backend)
-            assert sum(trap_outcomes.values())==0
-
+            assert sum(trap_outcomes.values()) == 0
 
     def test_sample_canvas(self, fx_rng: Generator):
         nqubits = 3
@@ -60,9 +62,8 @@ class TestVBQC:
         secrets = Secrets(r=True, a=True, theta=True)
         client = Client(pattern=pattern, input_state=states, secrets=secrets)
 
-        canvas = client.sample_canvas()
+        assert client.sample_canvas()
         # Just tests that it runs
-
 
     def test_delegate_canvas(self, fx_rng: Generator):
         nqubits = 3
@@ -76,21 +77,23 @@ class TestVBQC:
 
         states = [BasicStates.PLUS for _ in pattern.input_nodes]
         secrets = Secrets(r=True, a=True, theta=True)
-        
+
         parameters = TrappifiedSchemeParameters(comp_rounds=10, test_rounds=10, threshold=0)
-        client = Client(pattern=pattern, input_state=states, secrets=secrets, parameters=parameters, classical_output=False)
+        client = Client(
+            pattern=pattern, input_state=states, secrets=secrets, parameters=parameters, classical_output=False
+        )
 
         backend = StatevectorBackend()
 
         canvas = client.sample_canvas()
         outcomes = client.delegate_canvas(canvas=canvas, backend=backend)
-        for round in canvas:
-            if isinstance(canvas[round], ComputationRun):
+        for r in canvas:
+            if isinstance(canvas[r], ComputationRun):
                 np.testing.assert_almost_equal(
-                    np.abs(np.dot(outcomes[round].psi.flatten().conjugate(), simulated_pattern_output.psi.flatten())), 1
+                    np.abs(np.dot(outcomes[r].psi.flatten().conjugate(), simulated_pattern_output.psi.flatten())), 1
                 )
                 np.testing.assert_almost_equal(
-                    np.abs(np.dot(outcomes[round].psi.flatten().conjugate(), simulated_circuit_output.psi.flatten())), 1
+                    np.abs(np.dot(outcomes[r].psi.flatten().conjugate(), simulated_circuit_output.psi.flatten())), 1
                 )
         # Just tests that it runs
         """
@@ -106,7 +109,7 @@ class TestVBQC:
 
         states = [BasicStates.PLUS for _ in pattern.input_nodes]
         secrets = Secrets(r=True, a=True, theta=True)
-        
+
         parameters = TrappifiedSchemeParameters(comp_rounds=50, test_rounds=50, threshold=10)
         client = Client(pattern=pattern, input_state=states, secrets=secrets, parameters=parameters)
 
@@ -116,12 +119,10 @@ class TestVBQC:
         outcomes = client.delegate_canvas(canvas=canvas, backend=backend)
 
         # only for BQP
-        decision, result = client.analyze_outcomes(canvas, outcomes)
+        assert client.analyze_outcomes(canvas, outcomes)
 
-
-
-    @pytest.mark.parametrize('blind', (False, True))
-    def test_BQP_circuit(self, fx_rng: Generator, blind:bool):
+    @pytest.mark.parametrize("blind", (False, True))
+    def test_BQP_circuit(self, fx_rng: Generator, blind: bool):
         bqp_error = 0.3
         with Path("circuits/table.json").open() as f:
             table = json.load(f)
@@ -132,22 +133,24 @@ class TestVBQC:
 
         states = [BasicStates.PLUS for _ in pattern.input_nodes]
         secrets = Secrets(r=blind, a=blind, theta=blind)
-        
+
         parameters = TrappifiedSchemeParameters(comp_rounds=20, test_rounds=20, threshold=5)
         # QCircuit, we keep the first output only
-        desired_outputs=[0]
-        client = Client(pattern=pattern, input_state=states, secrets=secrets, parameters=parameters, desired_outputs=desired_outputs)
+        desired_outputs = [0]
+        client = Client(
+            pattern=pattern, input_state=states, secrets=secrets, parameters=parameters, desired_outputs=desired_outputs
+        )
         backend = StatevectorBackend()
 
         canvas = client.sample_canvas()
         outcomes = client.delegate_canvas(canvas=canvas, backend=backend)
         decision, result = client.analyze_outcomes(canvas, outcomes)
-        assert decision == True
+        assert decision
         assert result != "Abort"
         assert int(result) == find_correct_value(random_circuit_label)
 
-    @pytest.mark.parametrize('blind', (False, True))
-    def test_noiseless(self, fx_rng: Generator, blind:bool):
+    @pytest.mark.parametrize("blind", (False, True))
+    def test_noiseless(self, fx_rng: Generator, blind: bool):
         nqubits = 3
         depth = 3
         circuit = rand_circuit(nqubits, depth, fx_rng)
@@ -172,7 +175,6 @@ class TestVBQC:
         depth = 3
         circuit = rand_circuit(nqubits, depth, fx_rng)
         pattern = circuit.transpile().pattern
-
 
         states = [BasicStates.PLUS for _ in pattern.input_nodes]
 

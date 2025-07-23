@@ -183,9 +183,7 @@ def transpile_to_layers(circuit: Circuit) -> list[Layer]:
         # Use of `if` instead of `match` here for mypy
         if instr.kind == InstructionKind.CNOT:
             if abs(instr.control - instr.target) != 1:
-                raise ValueError(
-                    "Unsupported CNOT: control and target qubits should be consecutive"
-                )
+                raise ValueError("Unsupported CNOT: control and target qubits should be consecutive")
             target = min(instr.control, instr.target)
             min_depth = max(depth[target], depth[target + 1])
             target_depth = min_depth if target % 2 == min_depth % 2 else min_depth + 1
@@ -195,12 +193,10 @@ def transpile_to_layers(circuit: Circuit) -> list[Layer]:
             depth[target] = target_depth + 1
             depth[target + 1] = target_depth + 1
         # Use of `==` here for mypy
-        elif instr.kind == InstructionKind.RX or instr.kind == InstructionKind.RZ:  # noqa: PLR1714
+        elif instr.kind == InstructionKind.RX or instr.kind == InstructionKind.RZ:
             __insert_rotation(circuit.width, layers, depth, instr)
         else:
-            raise ValueError(
-                "Unsupported gate: circuits should contain only CNOT, RX and RZ"
-            )
+            raise ValueError("Unsupported gate: circuits should contain only CNOT, RX and RZ")
     return layers
 
 
@@ -219,9 +215,7 @@ class NodeGenerator:
         return index
 
 
-def j_commands(
-    node_generator: NodeGenerator, node: int, angle: float
-) -> tuple[int, list[command.Command]]:
+def j_commands(node_generator: NodeGenerator, node: int, angle: float) -> tuple[int, list[command.Command]]:
     next_node, command_n = node_generator.fresh_command()
     commands = [
         command_n,
@@ -257,20 +251,14 @@ def layers_to_measurement_table(layers: list[Layer]) -> list[list[float]]:
             column: list[float] = []
             if layer.odd:
                 column.append(0)
-            column.extend(
-                measures[i][column_index]
-                for measures in all_brick_measures
-                for i in (0, 1)
-            )
+            column.extend(measures[i][column_index] for measures in all_brick_measures for i in (0, 1))
             if layer_index % 2 != nqubits % 2:
                 column.append(0)
             table.append(column)
     return table
 
 
-def measurement_table_to_pattern(
-    width: int, table: list[list[float]], order: ConstructionOrder
-) -> Pattern:
+def measurement_table_to_pattern(width: int, table: list[list[float]], order: ConstructionOrder) -> Pattern:
     input_nodes = list(range(width))
     pattern = Pattern(input_nodes)
     nodes = input_nodes
@@ -284,9 +272,7 @@ def measurement_table_to_pattern(
                 match order:
                     case ConstructionOrder.Canonical:
                         if qubit % 2 == brick_layer % 2 and qubit != width - 1:
-                            pattern.add(
-                                command.E(nodes=(nodes[qubit], nodes[qubit + 1]))
-                            )
+                            pattern.add(command.E(nodes=(nodes[qubit], nodes[qubit + 1])))
                         pattern.extend(commands)
                     case ConstructionOrder.DeviantRight:
                         if qubit % 2 == brick_layer % 2 and qubit != width - 1:
@@ -340,16 +326,12 @@ def layers_to_pattern(
     return measurement_table_to_pattern(width, table, order)
 
 
-def transpile(
-    circuit: Circuit, order: ConstructionOrder = ConstructionOrder.Canonical
-) -> Pattern:
+def transpile(circuit: Circuit, order: ConstructionOrder = ConstructionOrder.Canonical) -> Pattern:
     layers = transpile_to_layers(circuit)
     return layers_to_pattern(circuit.width, layers, order)
 
 
-def get_node_positions(
-    pattern: Pattern, scale: float = 1, reverse_qubit_order: bool = False
-) -> dict[int, array[int]]:
+def get_node_positions(pattern: Pattern, scale: float = 1, reverse_qubit_order: bool = False) -> dict[int, array[int]]:
     """Return node positions in a grid layout."""
     width = len(pattern.input_nodes)
     return {
@@ -357,10 +339,7 @@ def get_node_positions(
             "i",
             [
                 int((node // width) * scale),
-                int(
-                    (width - node % width if reverse_qubit_order else node % width)
-                    * scale
-                ),
+                int((width - node % width if reverse_qubit_order else node % width) * scale),
             ],
         )
         for node in range(pattern.n_node)
@@ -388,13 +367,8 @@ def random_pauli_measurement_angle(rng: Generator) -> float:
     return PAULI_ANGLES[index]
 
 
-def generate_random_pauli_measurement_table(
-    nqubits: int, nlayers: int, rng: Generator
-) -> list[list[float]]:
-    return [
-        [random_pauli_measurement_angle(rng) for _ in range(nqubits)]
-        for _ in range(nlayers * 4)
-    ]
+def generate_random_pauli_measurement_table(nqubits: int, nlayers: int, rng: Generator) -> list[list[float]]:
+    return [[random_pauli_measurement_angle(rng) for _ in range(nqubits)] for _ in range(nlayers * 4)]
 
 
 def generate_random_pauli_pattern(

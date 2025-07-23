@@ -6,8 +6,8 @@ import typer
 from veriphix.sampling_circuits import (
     circuit_to_qiskit,
     estimate_circuit_by_expectation_value,
+    read_qasm,
 )
-from veriphix.sampling_circuits import read_qasm
 
 
 def regenerate_table(path: Path) -> None:

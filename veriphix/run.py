@@ -1,35 +1,40 @@
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
-from veriphix.client import Client, ResultAnalysis, Trap, Traps
-from graphix.sim.base_backend import Backend
-from graphix.states import State
-from graphix.pauli import Pauli, IXYZ
-from stim import Tableau, PauliString
+from typing import TYPE_CHECKING, override
+
 from graphix.pattern import PatternSimulator
-from dataclasses import dataclass
-from typing import override
+from graphix.pauli import IXYZ, Pauli
+from stim import PauliString
+
+if TYPE_CHECKING:
+    from graphix.sim.base_backend import Backend
+    from graphix.states import State
+
+    from veriphix.client import Client, ResultAnalysis, Traps
 
 
 class Run(ABC):
-    def __init__(self, client:Client) -> None:
+    def __init__(self, client: Client) -> None:
         self.client = client
 
     @abstractmethod
-    def delegate(self, backend:Backend, **kwargs) -> dict[int,int] :
-        # Delegates using UBQC 
+    def delegate(self, backend: Backend, **kwargs) -> dict[int, int]:
+        # Delegates using UBQC
         pass
-    def analyze(self, result_analysis:ResultAnalysis, round_outcomes) :
+
+    @abstractmethod
+    def analyze(self, result_analysis: ResultAnalysis, round_outcomes):
         # Modifies result_analysis in place
         pass
 
 
-
 class ComputationRun(Run):
-    def __init__(self, client:Client) -> None:
+    def __init__(self, client: Client) -> None:
         super().__init__(client=client)
 
     @override
-    def delegate(self, backend:Backend, **kwargs) -> dict[int, int]:
-
+    def delegate(self, backend: Backend, **kwargs) -> dict[int, int]:
         # Initializes the bank & asks backend to create the input
         self.client.prepare_states(backend, states_dict=self.client.computation_states)
 
@@ -45,20 +50,22 @@ class ComputationRun(Run):
         # If quantum output, decode the state, nothing needs to be returned (backend.state can be accessed by the Client)
         if not self.client.classical_output:
             self.client.decode_output_state(backend)
-            return {} # (to have at least the same signature)
+            return {}  # (to have at least the same signature)
         # If classical output, return the output
         else:
             return {onode: self.client.results[onode] for onode in self.client.output_nodes}
-        
+
     @override
     def analyze(self, result_analysis: ResultAnalysis, round_outcomes):
         if self.client.desired_outputs is None:
-            outcome_string = ''.join([f"{o}" for o in round_outcomes.values()])
-        else: # if we specified which outputs to keep (in particular, for QCircuit, we only keep the first output)
+            outcome_string = "".join([f"{o}" for o in round_outcomes.values()])
+        else:  # if we specified which outputs to keep (in particular, for QCircuit, we only keep the first output)
             outputs = list(round_outcomes.values())
             restricted_outputs = [int(outputs[i]) for i in self.client.desired_outputs]
-            outcome_string = ''.join([f"{o}" for o in restricted_outputs])
-        result_analysis.computation_outcomes_count[outcome_string] = result_analysis.computation_outcomes_count.get(outcome_string, 0) + 1
+            outcome_string = "".join([f"{o}" for o in restricted_outputs])
+        result_analysis.computation_outcomes_count[outcome_string] = (
+            result_analysis.computation_outcomes_count.get(outcome_string, 0) + 1
+        )
 
 
 def merge_pauli_strings(stabilizer_1: PauliString, stabilizer_2: PauliString) -> PauliString:
@@ -68,7 +75,8 @@ def merge_pauli_strings(stabilizer_1: PauliString, stabilizer_2: PauliString) ->
         result[node] = stabilizer_2[node]
     return result
 
-def merge(strings:list[PauliString]):
+
+def merge(strings: list[PauliString]):
     n = len(strings)
     l = len(strings[0])
     common_string = strings[0]
@@ -85,15 +93,14 @@ def merge(strings:list[PauliString]):
     return common_string
 
 
-
-def generate_eigenstate(stabilizer:PauliString) -> list[State]:
+def generate_eigenstate(stabilizer: PauliString) -> list[State]:
     states = []
     for pauli in stabilizer:
         # default coin = 0
         operator = Pauli(IXYZ(pauli))
         states.append(operator.eigenstate())
     return states
-        
+
 
 # Trap=tuple[int] # Better because immutable, so can be used as key in dictionary
 
@@ -102,8 +109,9 @@ def generate_eigenstate(stabilizer:PauliString) -> list[State]:
 ## TODO: Traps pourrait être AbstractSet
 ## L'avoir comme abstractSet en argument de la fonction, le caster en frozenset à chaque fois
 
+
 class TestRun(Run):
-    def __init__(self, client:Client, traps:Traps, meas_basis:str="X") -> None:
+    def __init__(self, client: Client, traps: Traps, meas_basis: str = "X") -> None:
         super().__init__(client=client)
         self.traps = frozenset(traps)
         self.meas_basis = meas_basis
@@ -115,12 +123,7 @@ class TestRun(Run):
     def build_common_stabilizer(self):
         # Build the PauliStrings representing the individual measurement of each trap qubit
         measurement_strings = [
-            PauliString([
-                    self.meas_basis if i in trap else "I"
-                    for i in range(self.nqubits)
-                ]
-            )
-            for trap in self.traps
+            PauliString([self.meas_basis if i in trap else "I" for i in range(self.nqubits)]) for trap in self.traps
         ]
         # Conjugate each measurement
         conjugated_measurements = [self.clifford_structure.inverse()(meas) for meas in measurement_strings]
@@ -133,11 +136,11 @@ class TestRun(Run):
 
     @override
     def analyze(self, result_analysis: ResultAnalysis, round_outcomes):
-        result_analysis.nr_failed_test_rounds += (sum(round_outcomes.values())>0)
+        result_analysis.nr_failed_test_rounds += sum(round_outcomes.values()) > 0
 
     @override
-    def delegate(self, backend:Backend, **kwargs) -> dict[int,int] :
-        states_dict = {node:self.input_state[node] for node in self.client.nodes_list}
+    def delegate(self, backend: Backend, **kwargs) -> dict[int, int]:
+        states_dict = {node: self.input_state[node] for node in self.client.nodes_list}
         self.client.prepare_states(backend=backend, states_dict=states_dict)
         sim = PatternSimulator(
             backend=backend,
@@ -148,17 +151,10 @@ class TestRun(Run):
         )
         sim.run(input_state=None)
 
-
         trap_outcomes = dict()
         for trap in self.traps:
-            
             outcomes = [self.client.results[component] for component in trap]
-            trap_outcome = sum(outcomes) % 2 ^ (self.stabilizer.sign==-1) 
-            trap_outcomes[
-                trap
-                ] = trap_outcome
+            trap_outcome = sum(outcomes) % 2 ^ (self.stabilizer.sign == -1)
+            trap_outcomes[trap] = trap_outcome
             # trap_outcomes.append(trap_outcome)
         return trap_outcomes
-
-
-    

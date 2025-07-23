@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import itertools
+import random
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, List, Optional
+from math import ceil
+from typing import TYPE_CHECKING
 
 import graphix.command
 import graphix.ops
@@ -15,19 +17,15 @@ import networkx as nx
 import numpy as np
 from graphix.clifford import Clifford
 from graphix.command import BaseM, BaseN, CommandKind, MeasureUpdate
+from graphix.fundamentals import Plane
 from graphix.measurements import Measurement
 from graphix.ops import Ops
 from graphix.pattern import Pattern
 from graphix.pauli import Pauli
-from graphix.fundamentals import Plane
 from graphix.sim.statevec import Statevec, StatevectorBackend
-from graphix.simulator import MeasureMethod, PatternSimulator, PrepareMethod
+from graphix.simulator import MeasureMethod, PrepareMethod
 from graphix.states import BasicStates
-from stim import Tableau, Circuit
-from math import ceil
-import random
-
-
+from stim import Circuit
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -37,18 +35,23 @@ if TYPE_CHECKING:
 
 
 from collections.abc import Set as AbstractSet
-Trap=AbstractSet[int]
-Traps=AbstractSet[Trap]
+
+Trap = AbstractSet[int]
+Traps = AbstractSet[Trap]
+
 
 @dataclass
 class TrappifiedScheme:
     params: TrappifiedSchemeParameters
-    test_runs:list
+    test_runs: list
+
+
 @dataclass
 class TrappifiedSchemeParameters:
-    comp_rounds:int # nr of comp rounds
-    test_rounds:int # nr of test rounds
-    threshold:int   # threshold (nr of allowed test rounds failure)
+    comp_rounds: int  # nr of comp rounds
+    test_rounds: int  # nr of test rounds
+    threshold: int  # threshold (nr of allowed test rounds failure)
+
 
 # TODO update docstring
 """
@@ -61,6 +64,7 @@ simulator = PatternSimulator(client.pattern, backend=sv_backend)
 simulator.run()
 
 """
+
 
 ## TODO : implémenter ça, et l'initialiser
 @dataclass
@@ -163,12 +167,14 @@ def remove_flow(pattern):
         clean_pattern.add(new_cmd)
     return clean_pattern
 
-def get_graph_clifford_structure(graph:nx.Graph):
+
+def get_graph_clifford_structure(graph: nx.Graph):
     circuit = Circuit()
     for edge in graph.edges:
         i, j = edge
         circuit.append_from_stim_program_text(f"CZ {i} {j}")
     return circuit.to_tableau()
+
 
 class Client:
     def __init__(
@@ -176,11 +182,11 @@ class Client:
         pattern,
         input_state=None,
         classical_output: bool = True,
-        desired_outputs: Optional[List[int]] = None,
+        desired_outputs: list[int] | None = None,
         measure_method_cls=None,
         test_measure_method_cls=None,
-        secrets: Optional[Secrets] = None,
-        parameters: TrappifiedSchemeParameters = TrappifiedSchemeParameters(20, 20, 5)
+        secrets: Secrets | None = None,
+        parameters: TrappifiedSchemeParameters | None = None,
     ) -> None:
         self.initial_pattern: Pattern = pattern
         self.classical_output = classical_output
@@ -204,12 +210,10 @@ class Client:
 
         self.secrets = secrets or Secrets()
         self.secrets_bool = secrets is not None
-        self.secret_datas = SecretDatas.from_secrets(
-            self.secrets, self.graph, self.input_nodes, self.output_nodes
-        )
+        self.secret_datas = SecretDatas.from_secrets(self.secrets, self.graph, self.input_nodes, self.output_nodes)
 
         self.clean_pattern = remove_flow(self.initial_pattern)
-        if self.classical_output ==  False:
+        if not self.classical_output:
             self.test_pattern = self._add_measurement_commands(remove_flow(self.initial_pattern))
         else:
             self.test_pattern = self.clean_pattern
@@ -219,10 +223,13 @@ class Client:
         self.preparation_bank = {}
         self.prepare_method = ClientPrepareMethod(self.preparation_bank)
 
-        from veriphix.run import TestRun, ComputationRun, Run
+        from veriphix.run import ComputationRun
+
         self.computationRun = ComputationRun(self)
         self.test_runs = self.create_test_runs()
-        self.trappifiedScheme = TrappifiedScheme(params=parameters, test_runs=self.test_runs)
+        self.trappifiedScheme = TrappifiedScheme(
+            params=parameters or TrappifiedSchemeParameters(20, 20, 5), test_runs=self.test_runs
+        )
 
     def _add_measurement_commands(self, pattern):
         for onode in self.output_nodes:
@@ -253,9 +260,8 @@ class Client:
         # refresh only if secrets bool is True; False is no randomness at all.
         if self.secrets is not None:
             self.secret_datas = SecretDatas.from_secrets(self.secrets, self.graph, self.input_nodes, self.output_nodes)
-    
 
-    def get_computation_states(self) :
+    def get_computation_states(self):
         states = dict()
         for node in self.nodes_list:
             if node in self.input_nodes:
@@ -271,15 +277,14 @@ class Client:
                 state = BasicStates.PLUS
             states[node] = state
         return states
-    
-    def prepare_states_virtual(self, states_dict:dict[(int, BasicStates)], backend: Backend) -> None:
+
+    def prepare_states_virtual(self, states_dict: dict[(int, BasicStates)], backend: Backend) -> None:
         """
         The Client creates the qubits and blind them in its preparation_bank
         """
         for node in states_dict:
             blinded_qubit_state = self.blind_qubit(node=node, state=states_dict[node])
             self.preparation_bank[node] = Statevec(blinded_qubit_state)
-
 
     def blind_qubit(self, node: int, state) -> None:
         def z_rotation(theta) -> np.array:
@@ -298,8 +303,7 @@ class Client:
             single_qubit_backend.apply_single(node=0, op=z_rotation(theta))
         return single_qubit_backend.state
 
-
-    def prepare_states(self, backend: Backend, states_dict:dict[(int, BasicStates)]) -> None:
+    def prepare_states(self, backend: Backend, states_dict: dict[(int, BasicStates)]) -> None:
         # Initializes the bank (all the nodes)
         self.prepare_states_virtual(backend=backend, states_dict=states_dict)
         # Server asks the backend to create them
@@ -370,11 +374,11 @@ class Client:
             nodes_by_color = {i: list(c) for i, c in enumerate(manual_colouring)}
 
         # Create the test runs : one per color
-        test_runs:list[TestRun] = []
+        test_runs: list[TestRun] = []
         for color in colors:
             # 1 color = 1 test run = 1 collection of single-qubit traps
             traps_list = [frozenset([colored_node]) for colored_node in nodes_by_color[color]]
-            traps:Traps = frozenset(traps_list)
+            traps: Traps = frozenset(traps_list)
             test_run = TestRun(client=self, traps=traps)
             test_runs.append(test_run)
 
@@ -386,40 +390,43 @@ class Client:
         computation_rounds = set(random.sample(range(N), self.trappifiedScheme.params.comp_rounds))
 
         rounds_run = dict()
-        for round in range(N):
-            if round in computation_rounds:
-                rounds_run[round] = self.computationRun
+        for r in range(N):
+            if r in computation_rounds:
+                rounds_run[r] = self.computationRun
             else:
-                rounds_run[round] = random.choice(self.test_runs)
+                rounds_run[r] = random.choice(self.test_runs)
         return rounds_run
-    
-    def delegate_canvas(self, canvas:dict, backend:Backend, **kwargs):
+
+    def delegate_canvas(self, canvas: dict, backend: Backend, **kwargs):
         outcomes = dict()
-        for round in canvas:
-            round_outcome = canvas[round].delegate(backend=backend, **kwargs)
+        for r in canvas:
+            round_outcome = canvas[r].delegate(backend=backend, **kwargs)
             if round_outcome == {}:
-                outcomes[round] = backend.state
+                outcomes[r] = backend.state
             else:
-                outcomes[round] = round_outcome
+                outcomes[r] = round_outcome
             # Ugly reset of backend. Needed in case of quantum output
             # TODO: how to do that cleaner ?
             backend = backend.__class__()
         return outcomes
 
-    def analyze_outcomes(self, canvas:dict, outcomes:dict):
+    def analyze_outcomes(self, canvas: dict, outcomes: dict):
         result_analysis = ResultAnalysis(nr_failed_test_rounds=0, computation_outcomes_count=dict())
-        for round in canvas:
-            canvas[round].analyze(result_analysis=result_analysis, round_outcomes=outcomes[round])
-                
-        # True if Accept, False if Reject
-        decision = result_analysis.nr_failed_test_rounds <= self.trappifiedScheme.params.threshold    
+        for r in canvas:
+            canvas[r].analyze(result_analysis=result_analysis, round_outcomes=outcomes[r])
 
-        # Compute majority vote        
-        biased_outcome = [k for k, v in result_analysis.computation_outcomes_count.items() if v >= ceil(self.trappifiedScheme.params.comp_rounds/2)]
+        # True if Accept, False if Reject
+        decision = result_analysis.nr_failed_test_rounds <= self.trappifiedScheme.params.threshold
+
+        # Compute majority vote
+        biased_outcome = [
+            k
+            for k, v in result_analysis.computation_outcomes_count.items()
+            if v >= ceil(self.trappifiedScheme.params.comp_rounds / 2)
+        ]
         final_outcome = biased_outcome[0] if biased_outcome else None
 
-        return decision, final_outcome        
-
+        return decision, final_outcome
 
     def decode_output_state(self, backend: Backend):
         for node in self.output_nodes:
@@ -518,9 +525,7 @@ class TestMeasureMethod(MeasureMethod):
         # Extract secrets from Client
         r_value = self.__client.secret_datas.r.get(cmd.node, 0)
         theta_value = self.__client.secret_datas.theta.get(cmd.node, 0)
-        a_value = self.__client.secret_datas.a.a.get(cmd.node, 0)
         a_N_value = self.__client.secret_datas.a.a_N.get(cmd.node, 0)
-
 
         # Blind the angle using the Client's secrets
         angle = theta_value * np.pi / 4 + np.pi * (r_value + a_N_value)
@@ -534,4 +539,5 @@ class TestMeasureMethod(MeasureMethod):
             result ^= self.__client.secret_datas.r[node]
         self.__client.results[node] = result
 
-## TODO: factoriser la measuremethod? 
+
+## TODO: factoriser la measuremethod?

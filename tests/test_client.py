@@ -15,6 +15,7 @@ from stim import PauliString
 from veriphix.client import CircuitUtils, Client, ClientMeasureMethod, Secrets
 from veriphix.run import ComputationRun
 
+
 class TestClient:
     def test_create_test_run_manual_fail(self, fx_rng):
         """testing not all qubits in the manual colouring"""
@@ -26,7 +27,6 @@ class TestClient:
         # transpile to pattern
         pattern = circuit.transpile().pattern
         pattern.standardize()
-
 
         # initialise client
         secrets = Secrets(r=True, a=True, theta=True)
@@ -74,7 +74,7 @@ class TestClient:
         client = Client(pattern=pattern, input_state=states, secrets=secrets)
         ComputationRun(client).delegate(backend=StatevectorBackend())
         # No assertion needed
-        
+
     def test_minimize_space(self, fx_rng: Generator):
         """
         Test to check that the Client-Server delegation works with patterns re-organized with minimize-space
@@ -94,7 +94,6 @@ class TestClient:
         client = Client(pattern=pattern, input_state=states, secrets=secrets)
         ComputationRun(client).delegate(backend=StatevectorBackend())
         # No assertion needed
-
 
     def test_client_input(self, fx_rng: Generator):
         # Generate random pattern
@@ -224,7 +223,6 @@ class TestClient:
         depth = 1
         circuit = rand_circuit(nqubits, depth, fx_rng)
         pattern = circuit.transpile().pattern
-        nodes = pattern.get_graph()[0]
         pattern.standardize()
         secrets = Secrets(a=True, r=True, theta=True)
 
@@ -264,7 +262,7 @@ class TestClient:
             computation = ComputationRun(client=client)
             computation.delegate(backend=backend)
             blinded_simulation = backend.state
-            
+
             # Clear simulation = no secret, just simulate the circuit defined above
             clear_simulation = circuit.simulate_statevector().statevec
             np.testing.assert_almost_equal(
@@ -290,7 +288,6 @@ class TestClient:
 
         assert sum([pattern.results[i] for i in classical_output]) % 2 ^ sign_error == 0
 
-
     def test_delegate_pattern(self, fx_rng: Generator):
         nqubits = 5
         depth = 10
@@ -302,8 +299,8 @@ class TestClient:
         comp_run = ComputationRun(client=client)
         backend = StatevectorBackend()
         outcomes = comp_run.delegate(backend=backend)
+        assert outcomes is not None
         # TODO: assert something ? generate BQP computation for that
-
 
     def test_graph_clifford_structure(self, fx_rng: Generator):
         nqubits = 5
@@ -312,17 +309,14 @@ class TestClient:
         pattern = circuit.transpile().pattern
         client = Client(pattern=pattern)
         for node in client.graph.nodes:
-            x_string = PauliString([
-                    "X" if i == node else "I"
-                for i in client.graph.nodes ] 
-            )
+            x_string = PauliString(["X" if i == node else "I" for i in client.graph.nodes])
             conjugated_string = client.clifford_structure.inverse()(x_string)
             neighbors = set(client.graph.neighbors(node))
-            expected_conjugated_string = PauliString([
-                    "X" if i == node else "Z" if i in neighbors else "I"
-                for i in client.graph.nodes ] 
+            expected_conjugated_string = PauliString(
+                ["X" if i == node else "Z" if i in neighbors else "I" for i in client.graph.nodes]
             )
             assert conjugated_string == expected_conjugated_string
+
 
 if __name__ == "__main__":
     unittest.main()

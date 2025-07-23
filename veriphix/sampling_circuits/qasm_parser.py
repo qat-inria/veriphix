@@ -1,11 +1,15 @@
+from __future__ import annotations
+
 import ast
 import math
 import operator
 import re
-from io import TextIOBase
-from typing import Callable
+from typing import TYPE_CHECKING, Callable
 
 from graphix import Circuit
+
+if TYPE_CHECKING:
+    from io import TextIOBase
 
 command_re = re.compile(r"([a-z]+)(?:\(([^)]*)\))?")
 reg_re = re.compile(r"[a-z0-9]+\[([^]]*)\]")

@@ -1,15 +1,11 @@
-import graphix.command
+import random
+
 import numpy as np
-from numpy.random import Generator
-from graphix.noise_models import DepolarisingNoiseModel
-from graphix.random_objects import Circuit, rand_circuit
-from graphix.sim.density_matrix import DensityMatrixBackend
+from graphix.random_objects import rand_circuit
 from graphix.sim.statevec import StatevectorBackend
-from graphix.states import BasicStates
 
 from veriphix.client import Client, Secrets
 from veriphix.run import TestRun
-import random
 
 
 class TestRunClass:
@@ -31,11 +27,10 @@ class TestRunClass:
             # Only one trap
             traps = (random_multi_qubit_trap,)
 
-            test_run = TestRun(client=client,
-                traps=traps)
-            
+            test_run = TestRun(client=client, traps=traps)
+
             backend = StatevectorBackend()
             outcomes = test_run.delegate(backend=backend)
 
             for trap in traps:
-                assert outcomes[trap]==0
+                assert outcomes[trap] == 0
