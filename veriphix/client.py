@@ -58,7 +58,7 @@ simulator.run()
 
 ## TODO : implémenter ça, et l'initialiser
 @dataclass
-class result_analysis:
+class ResultAnalysis:
     nr_failed_test_rounds: int
     computation_outcomes_count: dict[str, int]
 
@@ -166,6 +166,9 @@ def get_graph_clifford_structure(graph:nx.Graph):
 
 class Client:
     def __init__(self, pattern, input_state=None, classical_output:bool=True, measure_method_cls=None, test_measure_method_cls = None, secrets: None | Secrets = None, parameters:TrappifiedSchemeParameters=TrappifiedSchemeParameters(20, 20, 5)) -> None:
+        """
+        TODO: absolutely clean this constructor... 
+        """
         self.initial_pattern: Pattern = pattern
 
         self.input_nodes = self.initial_pattern.input_nodes.copy()
@@ -391,30 +394,25 @@ class Client:
         from veriphix.run import TestRun
         failed_test_rounds = 0
         computation_outcomes_count = dict()
+        result_analysis = ResultAnalysis(nr_failed_test_rounds=0, computation_outcomes_count=dict())
 
 
         for round in canvas:
-            # canvas[round].analyze(result_analysis)
+            # canvas[round].analyze(result_analysis=result_analysis, round_outcomes=outcomes[round], desired_outputs=desired_outputs)
             ## implémenter ça dans les runs
 
             if isinstance(canvas[round], TestRun):
-                failed_test_rounds += (sum(outcomes[round].values())>0)
+                result_analysis.nr_failed_test_rounds += (sum(outcomes[round].values())>0)
             else:
-                if desired_outputs is None:
-                    outcome_string = ''.join([f"{o}" for o in outcomes[round].values()])
-                else: # if we specified which outputs to keep (in particular, for QCircuit, we only keep the first output)
-                    outputs = list(outcomes[round].values())
-                    restricted_outputs = [int(outputs[i]) for i in desired_outputs]
-                    outcome_string = ''.join([f"{o}" for o in restricted_outputs])
-                computation_outcomes_count[outcome_string] = computation_outcomes_count.get(outcome_string, 0) + 1
-
+                canvas[round].analyze(result_analysis=result_analysis, round_outcomes=outcomes[round], desired_outputs=desired_outputs)
+                pass # done in Computation run
                 
         # True if Accept, False if Reject
-        decision = failed_test_rounds <= self.trappifiedScheme.params.threshold    
+        decision = result_analysis.nr_failed_test_rounds <= self.trappifiedScheme.params.threshold    
 
-        print(computation_outcomes_count)
+        print(result_analysis.computation_outcomes_count)
         # Compute majority vote        
-        biased_outcome = [k for k, v in computation_outcomes_count.items() if v >= ceil(self.trappifiedScheme.params.comp_rounds/2)]
+        biased_outcome = [k for k, v in result_analysis.computation_outcomes_count.items() if v >= ceil(self.trappifiedScheme.params.comp_rounds/2)]
         final_outcome = biased_outcome[0] if biased_outcome else None
 
         return decision, final_outcome        

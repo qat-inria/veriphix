@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from veriphix.client import Client
+from veriphix.client import Client, ResultAnalysis
 from graphix.sim.base_backend import Backend
 from graphix.states import State
 from graphix.pauli import Pauli, IXYZ
@@ -16,6 +16,9 @@ class Run(ABC):
     @abstractmethod
     def delegate(self, backend:Backend, **kwargs) -> dict[int,int] :
         # Delegates using UBQC 
+        pass
+    def analyze(self, result_analysis:ResultAnalysis) :
+        # Modifies result_analysis in place
         pass
 
 
@@ -46,7 +49,16 @@ class ComputationRun(Run):
         # If classical output, return the output
         else:
             return {onode: self.client.results[onode] for onode in self.client.output_nodes}
-    
+        
+    def analyze(self, result_analysis: ResultAnalysis, round_outcomes, desired_outputs):
+        if desired_outputs is None:
+            outcome_string = ''.join([f"{o}" for o in round_outcomes.values()])
+        else: # if we specified which outputs to keep (in particular, for QCircuit, we only keep the first output)
+            outputs = list(round_outcomes.values())
+            restricted_outputs = [int(outputs[i]) for i in desired_outputs]
+            outcome_string = ''.join([f"{o}" for o in restricted_outputs])
+        result_analysis.computation_outcomes_count[outcome_string] = result_analysis.computation_outcomes_count.get(outcome_string, 0) + 1
+
 
 def merge_pauli_strings(stabilizer_1: PauliString, stabilizer_2: PauliString) -> PauliString:
     result = stabilizer_2.sign * stabilizer_1
