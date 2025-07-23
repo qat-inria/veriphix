@@ -4,4 +4,4 @@ __pycache__/
 /veriphix.egg-info/
 .DS_Store
 .vscode/settings.json
-tests/circuits*
+/circuits**

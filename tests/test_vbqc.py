@@ -10,8 +10,8 @@ from graphix.sim.statevec import StatevectorBackend
 from graphix.states import BasicStates
 from pathlib import Path
 
-from veriphix.qasm_parser import read_qasm
-import veriphix.brickwork_state_transpiler
+from veriphix.sampling_circuits.qasm_parser import read_qasm
+import veriphix.sampling_circuits.brickwork_state_transpiler
 
 from veriphix.client import Client, Secrets, TrappifiedSchemeParameters
 from veriphix.run import TestRun, ComputationRun
@@ -23,7 +23,7 @@ import pytest
 def load_pattern_from_circuit(circuit_label: str) -> tuple[Pattern, list[int]]:
     with Path(f"tests/circuits/{circuit_label}").open() as f:
         circuit = read_qasm(f)
-        pattern = veriphix.brickwork_state_transpiler.transpile(circuit)
+        pattern = veriphix.sampling_circuits.brickwork_state_transpiler.transpile(circuit)
 
         
         pattern.minimize_space()
