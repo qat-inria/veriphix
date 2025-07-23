@@ -73,7 +73,7 @@ class TestVBQC:
         states = [BasicStates.PLUS for _ in pattern.input_nodes]
         secrets = Secrets(r=True, a=True, theta=True)
         
-        parameters = TrappifiedSchemeParameters(d=50, s=50, w=10)
+        parameters = TrappifiedSchemeParameters(comp_rounds=50, test_rounds=50, threshold=10)
         client = Client(pattern=pattern, input_state=states, secrets=secrets, parameters=parameters)
 
         backend = StatevectorBackend()
@@ -101,7 +101,7 @@ class TestVBQC:
         states = [BasicStates.PLUS for _ in pattern.input_nodes]
         secrets = Secrets(r=True, a=True, theta=True)
         
-        parameters = TrappifiedSchemeParameters(d=50, s=50, w=10)
+        parameters = TrappifiedSchemeParameters(comp_rounds=50, test_rounds=50, threshold=10)
         client = Client(pattern=pattern, input_state=states, secrets=secrets, parameters=parameters)
 
         backend = StatevectorBackend()
@@ -126,7 +126,7 @@ class TestVBQC:
         states = [BasicStates.PLUS for _ in pattern.input_nodes]
         secrets = Secrets(r=secrets, a=secrets, theta=secrets)
         
-        parameters = TrappifiedSchemeParameters(d=5, s=0, w=0)
+        parameters = TrappifiedSchemeParameters(comp_rounds=10, test_rounds=10, threshold=5)
         client = Client(pattern=pattern, input_state=states, secrets=secrets, parameters=parameters)
         backend = StatevectorBackend()
 

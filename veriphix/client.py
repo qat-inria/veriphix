@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import itertools
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, List
 
 import graphix.command
 import graphix.ops
@@ -27,6 +27,7 @@ from math import ceil
 import random
 
 
+
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
@@ -35,17 +36,13 @@ if TYPE_CHECKING:
 
 @dataclass
 class TrappifiedScheme:
-    d:int
-    s:int
-    w:int
-    ## TODO: factoriser ça
+    params: TrappifiedSchemeParameters
     test_runs:list
 @dataclass
 class TrappifiedSchemeParameters:
-    d:int # nr of comp rounds
-    s:int # nr of test rounds
-    w:int # threshold (nr of allowed test rounds failure)
-    ## TODO: utiliser les noms réels
+    comp_rounds:int # nr of comp rounds
+    test_rounds:int # nr of test rounds
+    threshold:int   # threshold (nr of allowed test rounds failure)
 
 # TODO update docstring
 """
@@ -233,9 +230,7 @@ class Client:
         self.computationRun = ComputationRun(self)
         self.test_runs = self.create_test_runs()
         self.trappifiedScheme = TrappifiedScheme(
-            d=parameters.d,
-            s=parameters.s,
-            w=parameters.w,
+            params=parameters,
             test_runs=self.test_runs
         )
 
