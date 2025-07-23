@@ -120,8 +120,8 @@ class TestVBQC:
 
 
 
-    @pytest.mark.parametrize('secrets', (False, True))
-    def test_BQP_circuit(self, fx_rng: Generator, secrets:bool):
+    @pytest.mark.parametrize('blind', (False, True))
+    def test_BQP_circuit(self, fx_rng: Generator, blind:bool):
         bqp_error = 0.01
         with Path("tests/circuits/table.json").open() as f:
             table = json.load(f)
@@ -132,21 +132,23 @@ class TestVBQC:
         pattern = load_pattern_from_circuit(circuit_label=random_circuit_label)
 
         states = [BasicStates.PLUS for _ in pattern.input_nodes]
-        secrets = Secrets(r=secrets, a=secrets, theta=secrets)
+        secrets = Secrets(r=blind, a=blind, theta=blind)
         
         parameters = TrappifiedSchemeParameters(comp_rounds=10, test_rounds=10, threshold=5)
-        client = Client(pattern=pattern, input_state=states, secrets=secrets, parameters=parameters, desired_outputs=[0])
+        # QCircuit, we keep the first output only
+        desired_outputs=[0]
+        client = Client(pattern=pattern, input_state=states, secrets=secrets, parameters=parameters, desired_outputs=desired_outputs)
         backend = StatevectorBackend()
 
         canvas = client.sample_canvas()
         outcomes = client.delegate_canvas(canvas=canvas, backend=backend)
-        # QCircuit, we keep the first output only
         decision, result = client.analyze_outcomes(canvas, outcomes)
         assert decision == True
         assert result != "Abort"
         assert int(result) == find_correct_value(random_circuit_label)
 
-    def test_noiseless(self, fx_rng: Generator):
+    @pytest.mark.parametrize('blind', (False, True))
+    def test_noiseless(self, fx_rng: Generator, blind:bool):
         nqubits = 3
         depth = 3
         circuit = rand_circuit(nqubits, depth, fx_rng)
@@ -154,7 +156,7 @@ class TestVBQC:
 
         states = [BasicStates.PLUS for _ in pattern.input_nodes]
 
-        secrets = Secrets(a=True, r=True, theta=True)
+        secrets = Secrets(a=blind, r=blind, theta=blind)
 
         client = Client(pattern=pattern, input_state=states, secrets=secrets)
         noise_model = DepolarisingNoiseModel(
@@ -191,7 +193,6 @@ class TestVBQC:
 def find_correct_value(circuit_name):
     with Path("tests/circuits/table.json").open() as f:
         table = json.load(f)
-        print(table[circuit_name])
         # return 1 if yes instance
         # return 0 else (no instance, as circuits are already filtered)
         # print(table[circuit_name])

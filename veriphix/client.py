@@ -35,6 +35,11 @@ if TYPE_CHECKING:
     import stim
     from graphix.sim.base_backend import Backend
 
+
+from collections.abc import Set as AbstractSet
+Trap=AbstractSet[int]
+Traps=AbstractSet[Trap]
+
 @dataclass
 class TrappifiedScheme:
     params: TrappifiedSchemeParameters
@@ -369,7 +374,7 @@ class Client:
         for color in colors:
             # 1 color = 1 test run = 1 collection of single-qubit traps
             traps_list = [frozenset([colored_node]) for colored_node in nodes_by_color[color]]
-            traps = frozenset(traps_list)
+            traps:Traps = frozenset(traps_list)
             test_run = TestRun(client=self, traps=traps)
             test_runs.append(test_run)
 

@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from veriphix.client import Client, ResultAnalysis
+from veriphix.client import Client, ResultAnalysis, Trap, Traps
 from graphix.sim.base_backend import Backend
 from graphix.states import State
 from graphix.pauli import Pauli, IXYZ
@@ -96,17 +96,16 @@ def generate_eigenstate(stabilizer:PauliString) -> list[State]:
         
 
 # Trap=tuple[int] # Better because immutable, so can be used as key in dictionary
-Trap=frozenset[int]
+
 ## TODO: pourquoi pas frozenset ?
 ## collections abstraites: classe set, par défaut immutable
-from collections.abc import Set as AbstractSet
 ## TODO: Traps pourrait être AbstractSet
 ## L'avoir comme abstractSet en argument de la fonction, le caster en frozenset à chaque fois
 
 class TestRun(Run):
-    def __init__(self, client:Client, traps:frozenset[Trap], meas_basis:str="X") -> None:
+    def __init__(self, client:Client, traps:Traps, meas_basis:str="X") -> None:
         super().__init__(client=client)
-        self.traps = traps
+        self.traps = frozenset(traps)
         self.meas_basis = meas_basis
         self.clifford_structure = client.clifford_structure
         self.nqubits = len(self.clifford_structure)
