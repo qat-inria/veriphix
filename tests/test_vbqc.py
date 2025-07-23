@@ -21,7 +21,7 @@ import pytest
 
 
 def load_pattern_from_circuit(circuit_label: str) -> tuple[Pattern, list[int]]:
-    with Path(f"tests/circuits/{circuit_label}").open() as f:
+    with Path(f"circuits/{circuit_label}").open() as f:
         circuit = read_qasm(f)
         pattern = veriphix.sampling_circuits.brickwork_state_transpiler.transpile(circuit)
 
@@ -122,19 +122,18 @@ class TestVBQC:
 
     @pytest.mark.parametrize('blind', (False, True))
     def test_BQP_circuit(self, fx_rng: Generator, blind:bool):
-        bqp_error = 0.01
-        with Path("tests/circuits/table.json").open() as f:
+        bqp_error = 0.3
+        with Path("circuits/table.json").open() as f:
             table = json.load(f)
             circuits = [name for name, prob in table.items() if prob < bqp_error or prob > 1 - bqp_error]
         random_circuit_label = random.choice(circuits)
         # Example of deterministic circuit with output 0
-        random_circuit_label = "circuit677.qasm"
         pattern = load_pattern_from_circuit(circuit_label=random_circuit_label)
 
         states = [BasicStates.PLUS for _ in pattern.input_nodes]
         secrets = Secrets(r=blind, a=blind, theta=blind)
         
-        parameters = TrappifiedSchemeParameters(comp_rounds=10, test_rounds=10, threshold=5)
+        parameters = TrappifiedSchemeParameters(comp_rounds=20, test_rounds=20, threshold=5)
         # QCircuit, we keep the first output only
         desired_outputs=[0]
         client = Client(pattern=pattern, input_state=states, secrets=secrets, parameters=parameters, desired_outputs=desired_outputs)
@@ -191,7 +190,7 @@ class TestVBQC:
 
 
 def find_correct_value(circuit_name):
-    with Path("tests/circuits/table.json").open() as f:
+    with Path("circuits/table.json").open() as f:
         table = json.load(f)
         # return 1 if yes instance
         # return 0 else (no instance, as circuits are already filtered)
