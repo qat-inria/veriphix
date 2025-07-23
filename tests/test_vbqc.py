@@ -14,7 +14,7 @@ from veriphix.qasm_parser import read_qasm
 import veriphix.brickwork_state_transpiler
 
 from veriphix.client import Client, Secrets, TrappifiedSchemeParameters
-from veriphix.run import TestRun
+from veriphix.run import TestRun, ComputationRun
 import json
 import random
 import pytest
@@ -70,26 +70,32 @@ class TestVBQC:
         circuit = rand_circuit(nqubits, depth, fx_rng)
         pattern = circuit.transpile().pattern
 
+        svbackend = StatevectorBackend()
+        simulated_pattern_output = pattern.simulate_pattern(backend=svbackend)
+        simulated_circuit_output = circuit.simulate_statevector().statevec
+
         states = [BasicStates.PLUS for _ in pattern.input_nodes]
         secrets = Secrets(r=True, a=True, theta=True)
         
-        parameters = TrappifiedSchemeParameters(comp_rounds=50, test_rounds=50, threshold=10)
-        client = Client(pattern=pattern, input_state=states, secrets=secrets, parameters=parameters)
+        parameters = TrappifiedSchemeParameters(comp_rounds=10, test_rounds=10, threshold=0)
+        client = Client(pattern=pattern, input_state=states, secrets=secrets, parameters=parameters, classical_output=False)
 
         backend = StatevectorBackend()
 
         canvas = client.sample_canvas()
         outcomes = client.delegate_canvas(canvas=canvas, backend=backend)
+        for round in canvas:
+            if isinstance(canvas[round], ComputationRun):
+                np.testing.assert_almost_equal(
+                    np.abs(np.dot(outcomes[round].psi.flatten().conjugate(), simulated_pattern_output.psi.flatten())), 1
+                )
+                np.testing.assert_almost_equal(
+                    np.abs(np.dot(outcomes[round].psi.flatten().conjugate(), simulated_circuit_output.psi.flatten())), 1
+                )
         # Just tests that it runs
         """
-        TODO, in the Client class:
-        - Compute number of test rounds failures
-        - Compute majority vote (for BQP)
-
         TODO, in the tests:
-        - In noiseless executions, check that we always accept
-        - In noisy executions, reject with high probability
-        - Noiseless, not BQP: check evolution of the state for 1 comp. run
+        - Noiseless, quantum outputs: check evolution of the state for all the comp. runs, and check for no trap failures
         """
 
     def test_analyze_outcomes(self, fx_rng: Generator):
@@ -108,6 +114,8 @@ class TestVBQC:
 
         canvas = client.sample_canvas()
         outcomes = client.delegate_canvas(canvas=canvas, backend=backend)
+
+        # only for BQP
         decision, result = client.analyze_outcomes(canvas, outcomes)
 
 

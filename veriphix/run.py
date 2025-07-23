@@ -45,7 +45,7 @@ class ComputationRun(Run):
         # If quantum output, decode the state, nothing needs to be returned (backend.state can be accessed by the Client)
         if not self.client.classical_output:
             self.client.decode_output_state(backend)
-            return {}
+            return {} # (to have at least the same signature)
         # If classical output, return the output
         else:
             return {onode: self.client.results[onode] for onode in self.client.output_nodes}
@@ -142,7 +142,7 @@ class TestRun(Run):
         self.client.prepare_states(backend=backend, states_dict=states_dict)
         sim = PatternSimulator(
             backend=backend,
-            pattern=self.client.clean_pattern,
+            pattern=self.client.test_pattern,
             prepare_method=self.client.prepare_method,
             measure_method=self.client.test_measure_method,
             **kwargs,

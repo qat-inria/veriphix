@@ -19,6 +19,7 @@ from graphix.measurements import Measurement
 from graphix.ops import Ops
 from graphix.pattern import Pattern
 from graphix.pauli import Pauli
+from graphix.fundamentals import Plane
 from graphix.sim.statevec import Statevec, StatevectorBackend
 from graphix.simulator import MeasureMethod, PatternSimulator, PrepareMethod
 from graphix.states import BasicStates
@@ -183,7 +184,7 @@ class Client:
         self.output_nodes = pattern.output_nodes.copy()
 
         if classical_output:
-            self._add_measurement_commands()
+            self._add_measurement_commands(self.initial_pattern)
 
         self.graph = self._build_graph()
         self.clifford_structure = get_graph_clifford_structure(self.graph)
@@ -203,6 +204,10 @@ class Client:
         )
 
         self.clean_pattern = remove_flow(self.initial_pattern)
+        if self.classical_output ==  False:
+            self.test_pattern = self._add_measurement_commands(remove_flow(self.initial_pattern))
+        else:
+            self.test_pattern = self.clean_pattern
         self.input_state = input_state or [BasicStates.PLUS for _ in self.input_nodes]
         self.computation_states = self.get_computation_states()
 
@@ -214,9 +219,10 @@ class Client:
         self.test_runs = self.create_test_runs()
         self.trappifiedScheme = TrappifiedScheme(params=parameters, test_runs=self.test_runs)
 
-    def _add_measurement_commands(self):
+    def _add_measurement_commands(self, pattern):
         for onode in self.output_nodes:
-            self.initial_pattern.add(graphix.command.M(node=onode))
+            pattern.add(graphix.command.M(node=onode))
+        return pattern
 
     def _build_graph(self):
         raw_graph = self.initial_pattern.get_graph()
@@ -383,10 +389,16 @@ class Client:
         return rounds_run
     
     def delegate_canvas(self, canvas:dict, backend:Backend, **kwargs):
-        outcomes = dict({
-            round: run.delegate(backend=backend, **kwargs)
-            for round, run in canvas.items()
-        })
+        outcomes = dict()
+        for round in canvas:
+            round_outcome = canvas[round].delegate(backend=backend, **kwargs)
+            if round_outcome == {}:
+                outcomes[round] = backend.state
+            else:
+                outcomes[round] = round_outcome
+            # Ugly reset of backend. Needed in case of quantum output
+            # TODO: how to do that cleaner ?
+            backend = backend.__class__()
         return outcomes
 
     def analyze_outcomes(self, canvas:dict, outcomes:dict):
@@ -498,8 +510,6 @@ class TestMeasureMethod(MeasureMethod):
         self.__client = client
 
     def get_measurement_description(self, cmd: BaseM) -> Measurement:
-        parameters = self.__client.measurement_db[cmd.node]
-
         # Extract secrets from Client
         r_value = self.__client.secret_datas.r.get(cmd.node, 0)
         theta_value = self.__client.secret_datas.theta.get(cmd.node, 0)
@@ -509,7 +519,7 @@ class TestMeasureMethod(MeasureMethod):
 
         # Blind the angle using the Client's secrets
         angle = theta_value * np.pi / 4 + np.pi * (r_value + a_N_value)
-        return Measurement(plane=parameters.plane, angle=angle)
+        return Measurement(plane=Plane.XY, angle=angle)
 
     def get_measure_result(self, node: int) -> bool:
         raise ValueError("Server cannot have access to measurement results")
