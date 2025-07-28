@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, override
+from typing import TYPE_CHECKING
 
 from graphix.pattern import PatternSimulator
 from graphix.pauli import IXYZ, Pauli
 from stim import PauliString
+
+# override introduced in Python 3.12
+from typing_extensions import override
 
 if TYPE_CHECKING:
     from graphix.sim.base_backend import Backend
