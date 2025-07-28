@@ -1,0 +1,13 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+  - family-names: Abdul Sater
+    given-names: Sami
+  - family-names: Garnier
+    given-names: Maxime
+  - family-names: Martinez
+    given-names: Thierry
+  - family-names: Ollivier
+    given-names: Harold
+title: Veriphix
+url: https://github.com/qat-inria/veriphix

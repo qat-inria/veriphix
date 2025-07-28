@@ -2,6 +2,4 @@
 __pycache__/
 /.tox/
 /veriphix.egg-info/
-.DS_Store
-.vscode/settings.json
 /circuits**
