@@ -384,9 +384,7 @@ class Client:
         N = self.trappifiedScheme.params.comp_rounds + self.trappifiedScheme.params.test_rounds
         computation_rounds = set(random.sample(range(N), self.trappifiedScheme.params.comp_rounds))
 
-        return {
-            r: self.computationRun if r in computation_rounds else random.choice(self.test_runs) for r in range(N)
-        }
+        return {r: self.computationRun if r in computation_rounds else random.choice(self.test_runs) for r in range(N)}
 
     def delegate_canvas(self, canvas: dict, backend_cls: type[Backend], **kwargs):
         outcomes = dict()
