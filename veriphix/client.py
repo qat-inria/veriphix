@@ -28,7 +28,7 @@ from graphix.states import BasicStates
 from stim import Circuit
 
 
-from veriphix.run import RunResult
+from veriphix.run import RunResult, TestRun
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -306,9 +306,7 @@ class Client:
         for node in self.input_nodes:
             self.prepare_method.prepare_node(backend, node)
 
-    def create_test_runs(self, manual_colouring: Sequence[set[int]] | None = None):
-        from veriphix.run import TestRun
-
+    def create_test_runs(self, manual_colouring: Sequence[set[int]] | None = None) -> list[TestRun]:
         """Creates test runs according to a graph colouring according to [FK12].
         A test run, or a Trappified Canvas, is associated to each color in the colouring.
         For a given test run, the trap nodes are defined as being the nodes belonging to the color the run corresponds to.
