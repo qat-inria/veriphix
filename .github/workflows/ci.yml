@@ -14,7 +14,7 @@ jobs:
       fail-fast: false
       matrix:
         os: ["ubuntu-latest", "windows-2022", "macos-latest"]
-        python: ["3.9", "3.10", "3.11", "3.12"]
+        python: ["3.10", "3.11", "3.12"]
 
     name: "Python ${{ matrix.python }} / ${{ matrix.os }}"
     runs-on: ${{ matrix.os }}
@@ -32,6 +32,12 @@ jobs:
 
       - name: Install tox
         run: pip install tox tox-gh-actions
+
+      - name: Install the dependencies
+        run: pip install -r requirements.txt
+
+      - name: Sample the circuits
+        run: python -m veriphix.sampling_circuits.experiments
 
       - name: Run tox
         run: tox

@@ -1,3 +1,10 @@
+[project]
+name = "veriphix"
+version = "1"
+
+[tool.setuptools.packages.find]
+include = ["veriphix"]
+
 [tool.ruff]
 line-length = 120
 
