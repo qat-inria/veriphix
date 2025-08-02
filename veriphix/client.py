@@ -22,18 +22,16 @@ from graphix.measurements import Measurement
 from graphix.ops import Ops
 from graphix.pattern import Pattern
 from graphix.pauli import Pauli
-from graphix.sim.statevec import Statevec, StatevectorBackend, State
+from graphix.sim.statevec import State, Statevec, StatevectorBackend
 from graphix.simulator import MeasureMethod, PrepareMethod
 from graphix.states import BasicStates
 from stim import Circuit
 
-
-from veriphix.run import RunResult, TestRun
+from veriphix.run import TestRun
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    import stim
     from graphix.sim.base_backend import Backend
 
 

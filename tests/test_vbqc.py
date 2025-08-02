@@ -5,7 +5,6 @@ import random
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import graphix.command
 import numpy as np
 import pytest
 from graphix.noise_models import DepolarisingNoiseModel

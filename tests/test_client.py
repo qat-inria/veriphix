@@ -1,11 +1,7 @@
 import unittest
 
-import graphix.command
 import numpy as np
 import pytest
-import stim
-from graphix.fundamentals import IXYZ
-from graphix.pauli import Pauli
 from graphix.random_objects import rand_circuit
 from graphix.sim.statevec import StatevectorBackend
 from graphix.states import BasicStates
