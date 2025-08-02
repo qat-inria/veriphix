@@ -79,7 +79,6 @@ class TestVBQC:
             pattern=pattern, input_state=states, secrets=secrets, parameters=parameters, classical_output=False
         )
 
-
         canvas = client.sample_canvas()
         outcomes = client.delegate_canvas(canvas=canvas, backend_cls=StatevectorBackend)
         for r in canvas:
@@ -118,7 +117,6 @@ class TestVBQC:
         parameters = TrappifiedSchemeParameters(comp_rounds=50, test_rounds=50, threshold=10)
         client = Client(pattern=pattern, input_state=states, secrets=secrets, parameters=parameters)
 
-
         canvas = client.sample_canvas()
         outcomes = client.delegate_canvas(canvas=canvas, backend_cls=StatevectorBackend)
 
@@ -146,7 +144,7 @@ class TestVBQC:
         )
 
         canvas = client.sample_canvas()
-        outcomes = client.delegate_canvas(canvas=canvas, backend_cls= StatevectorBackend)
+        outcomes = client.delegate_canvas(canvas=canvas, backend_cls=StatevectorBackend)
         decision, result = client.analyze_outcomes(canvas, outcomes)
         assert decision
         assert result != "Abort"
