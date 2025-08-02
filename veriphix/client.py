@@ -386,13 +386,11 @@ class Client:
                 rounds_run[r] = random.choice(self.test_runs)
         return rounds_run
 
-    def delegate_canvas(self, canvas: dict, backend: Backend, **kwargs):
+    def delegate_canvas(self, canvas: dict, backend_cls: type[Backend], **kwargs):
         outcomes = dict()
         for r in canvas:
+            backend = backend_cls()
             outcomes[r] = canvas[r].delegate(backend=backend, **kwargs)
-            # Ugly reset of backend. Needed in case of quantum output
-            # TODO: how to do that cleaner ?
-            backend = backend.__class__()
         return outcomes
 
     def analyze_outcomes(self, canvas, outcomes: dict):

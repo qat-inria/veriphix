@@ -79,10 +79,9 @@ class TestVBQC:
             pattern=pattern, input_state=states, secrets=secrets, parameters=parameters, classical_output=False
         )
 
-        backend = StatevectorBackend()
 
         canvas = client.sample_canvas()
-        outcomes = client.delegate_canvas(canvas=canvas, backend=backend)
+        outcomes = client.delegate_canvas(canvas=canvas, backend_cls=StatevectorBackend)
         for r in canvas:
             if isinstance(canvas[r], ComputationRun):
                 np.testing.assert_almost_equal(
@@ -119,10 +118,9 @@ class TestVBQC:
         parameters = TrappifiedSchemeParameters(comp_rounds=50, test_rounds=50, threshold=10)
         client = Client(pattern=pattern, input_state=states, secrets=secrets, parameters=parameters)
 
-        backend = StatevectorBackend()
 
         canvas = client.sample_canvas()
-        outcomes = client.delegate_canvas(canvas=canvas, backend=backend)
+        outcomes = client.delegate_canvas(canvas=canvas, backend_cls=StatevectorBackend)
 
         # only for BQP
         assert client.analyze_outcomes(canvas, outcomes)
@@ -146,10 +144,9 @@ class TestVBQC:
         client = Client(
             pattern=pattern, input_state=states, secrets=secrets, parameters=parameters, desired_outputs=desired_outputs
         )
-        backend = StatevectorBackend()
 
         canvas = client.sample_canvas()
-        outcomes = client.delegate_canvas(canvas=canvas, backend=backend)
+        outcomes = client.delegate_canvas(canvas=canvas, backend_cls= StatevectorBackend)
         decision, result = client.analyze_outcomes(canvas, outcomes)
         assert decision
         assert result != "Abort"
