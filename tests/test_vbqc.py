@@ -39,17 +39,13 @@ class TestVBQC:
         depth = 5
         circuit = rand_circuit(nqubits, depth, fx_rng)
         pattern = circuit.transpile().pattern
-        # pattern.standardize()
-        # don't forget to add in the output nodes that are not initially measured!
-        for onode in pattern.output_nodes:
-            pattern.add(graphix.command.M(node=onode))
 
         states = [BasicStates.PLUS for _ in pattern.input_nodes]
         secrets = Secrets(r=True, a=True, theta=True)
-        client = Client(pattern=pattern, input_state=states, secrets=secrets)
+        client = Client(pattern=pattern, input_state=states, secrets=secrets, classical_output=True)
         for test_run in client.test_runs:
             backend = StatevectorBackend()
-            trap_outcomes = test_run.delegate(backend=backend)
+            trap_outcomes = test_run.delegate(backend=backend).trap_outcomes
             assert sum(trap_outcomes.values()) == 0
 
     def test_sample_canvas(self, fx_rng: Generator):
@@ -90,10 +86,20 @@ class TestVBQC:
         for r in canvas:
             if isinstance(canvas[r], ComputationRun):
                 np.testing.assert_almost_equal(
-                    np.abs(np.dot(outcomes[r].psi.flatten().conjugate(), simulated_pattern_output.psi.flatten())), 1
+                    np.abs(
+                        np.dot(
+                            outcomes[r].output_state.psi.flatten().conjugate(), simulated_pattern_output.psi.flatten()
+                        )
+                    ),
+                    1,
                 )
                 np.testing.assert_almost_equal(
-                    np.abs(np.dot(outcomes[r].psi.flatten().conjugate(), simulated_circuit_output.psi.flatten())), 1
+                    np.abs(
+                        np.dot(
+                            outcomes[r].output_state.psi.flatten().conjugate(), simulated_circuit_output.psi.flatten()
+                        )
+                    ),
+                    1,
                 )
         # Just tests that it runs
         """
@@ -167,7 +173,7 @@ class TestVBQC:
         for test_run in client.test_runs:
             client.refresh_randomness()
             backend = DensityMatrixBackend(rng=fx_rng)
-            trap_outcomes = test_run.delegate(backend=backend, noise_model=noise_model)
+            trap_outcomes = test_run.delegate(backend=backend, noise_model=noise_model).trap_outcomes
             assert sum(trap_outcomes.values()) == 0
 
     def test_noisy(self, fx_rng: Generator):
@@ -187,7 +193,7 @@ class TestVBQC:
         for test_run in client.test_runs:
             backend = DensityMatrixBackend(rng=fx_rng)
             client.refresh_randomness()
-            trap_outcomes = test_run.delegate(backend=backend, noise_model=noise_model)
+            trap_outcomes = test_run.delegate(backend=backend, noise_model=noise_model).trap_outcomes
             assert sum(trap_outcomes.values()) > 0
 
 

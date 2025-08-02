@@ -12,7 +12,7 @@ from graphix.states import BasicStates
 from numpy.random import Generator
 from stim import PauliString
 
-from veriphix.client import CircuitUtils, Client, ClientMeasureMethod, Secrets
+from veriphix.client import Client, ClientMeasureMethod, Secrets
 from veriphix.run import ComputationRun
 
 
@@ -64,14 +64,12 @@ class TestClient:
         circuit = rand_circuit(nqubits, depth, fx_rng)
         pattern = circuit.transpile().pattern
         pattern.standardize()
-        for o in pattern.output_nodes:
-            pattern.add(graphix.command.M(node=o))
 
         states = [BasicStates.PLUS for _ in pattern.input_nodes]
 
         secrets = Secrets(a=True, r=True, theta=True)
 
-        client = Client(pattern=pattern, input_state=states, secrets=secrets)
+        client = Client(pattern=pattern, input_state=states, secrets=secrets, classical_output=True)
         ComputationRun(client).delegate(backend=StatevectorBackend())
         # No assertion needed
 
@@ -84,18 +82,17 @@ class TestClient:
         circuit = rand_circuit(nqubits, depth, fx_rng)
         pattern = circuit.transpile().pattern
         pattern.minimize_space()
-        for o in pattern.output_nodes:
-            pattern.add(graphix.command.M(node=o))
 
         states = [BasicStates.PLUS for _ in pattern.input_nodes]
 
         secrets = Secrets(a=True, r=True, theta=True)
 
-        client = Client(pattern=pattern, input_state=states, secrets=secrets)
+        client = Client(pattern=pattern, input_state=states, secrets=secrets, classical_output=True)
         ComputationRun(client).delegate(backend=StatevectorBackend())
         # No assertion needed
 
     def test_client_input(self, fx_rng: Generator):
+        """test that the Client can input a custom quantum state."""
         # Generate random pattern
         nqubits = 2
         depth = 1
@@ -115,6 +112,7 @@ class TestClient:
         # Todo ?
 
     def test_r_secret_simulation(self, fx_rng: Generator):
+        """Test for equal output state when Client blinds the computation with only a 'r' secret"""
         # Generate and standardize pattern
         nqubits = 2
         depth = 1
@@ -135,6 +133,7 @@ class TestClient:
             np.testing.assert_almost_equal(np.abs(np.dot(state_mbqc.psi.flatten().conjugate(), state.psi.flatten())), 1)
 
     def test_theta_secret_simulation(self, fx_rng: Generator):
+        """Test for equal output state when Client blinds the computation with only a 'theta' secret"""
         # Generate random pattern
         nqubits = 2
         depth = 1
@@ -163,6 +162,7 @@ class TestClient:
             )
 
     def test_a_secret_simulation(self, fx_rng: Generator):
+        """Test for equal output state when Client blinds the computation with only a 'a' secret"""
         # Generate random pattern
         nqubits = 2
         depth = 1
@@ -190,6 +190,7 @@ class TestClient:
             )
 
     def test_r_secret_results(self, fx_rng: Generator):
+        """Tests that when the Client has a 'r' secret, the measurement outcomes returned by the Server are indeed XORed by 'r' before"""
         # Generate and standardize pattern
         nqubits = 2
         depth = 1
@@ -268,25 +269,6 @@ class TestClient:
             np.testing.assert_almost_equal(
                 np.abs(np.dot(blinded_simulation.psi.flatten().conjugate(), clear_simulation.psi.flatten())), 1
             )
-
-    def test_utils(self):
-        n = 8
-        rd_tableau = stim.Tableau.random(n)
-        pattern = CircuitUtils.tableau_to_pattern(rd_tableau)
-
-        input_string = rd_tableau.inverse()(stim.PauliString("X" * n))
-        sign_error = input_string.sign.real == -1
-        input_state = [Pauli(IXYZ(pauli)).eigenstate() for pauli in input_string]
-
-        pattern.minimize_space()
-        classical_output = pattern.output_nodes
-        for onode in classical_output:
-            pattern.add(graphix.command.M(node=onode))
-
-        backend = StatevectorBackend()
-        pattern.simulate_pattern(backend=backend, input_state=input_state)
-
-        assert sum([pattern.results[i] for i in classical_output]) % 2 ^ sign_error == 0
 
     def test_delegate_pattern(self, fx_rng: Generator):
         nqubits = 5

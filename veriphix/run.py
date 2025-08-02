@@ -22,13 +22,8 @@ class Run(ABC):
         self.client = client
 
     @abstractmethod
-    def delegate(self, backend: Backend, **kwargs) -> dict[int, int]:
+    def delegate(self, backend: Backend, **kwargs) -> RunResult:
         # Delegates using UBQC
-        pass
-
-    @abstractmethod
-    def analyze(self, result_analysis: ResultAnalysis, round_outcomes):
-        # Modifies result_analysis in place
         pass
 
 
@@ -37,7 +32,7 @@ class ComputationRun(Run):
         super().__init__(client=client)
 
     @override
-    def delegate(self, backend: Backend, **kwargs) -> dict[int, int]:
+    def delegate(self, backend: Backend, **kwargs) -> ComputationResult:
         # Initializes the bank & asks backend to create the input
         self.client.prepare_states(backend, states_dict=self.client.computation_states)
 
@@ -53,22 +48,11 @@ class ComputationRun(Run):
         # If quantum output, decode the state, nothing needs to be returned (backend.state can be accessed by the Client)
         if not self.client.classical_output:
             self.client.decode_output_state(backend)
-            return {}  # (to have at least the same signature)
+            return QuantumComputationResult(backend.state)
         # If classical output, return the output
         else:
-            return {onode: self.client.results[onode] for onode in self.client.output_nodes}
-
-    @override
-    def analyze(self, result_analysis: ResultAnalysis, round_outcomes):
-        if self.client.desired_outputs is None:
-            outcome_string = "".join([f"{o}" for o in round_outcomes.values()])
-        else:  # if we specified which outputs to keep (in particular, for QCircuit, we only keep the first output)
-            outputs = list(round_outcomes.values())
-            restricted_outputs = [int(outputs[i]) for i in self.client.desired_outputs]
-            outcome_string = "".join([f"{o}" for o in restricted_outputs])
-        result_analysis.computation_outcomes_count[outcome_string] = (
-            result_analysis.computation_outcomes_count.get(outcome_string, 0) + 1
-        )
+            results = {onode: self.client.results[onode] for onode in self.client.output_nodes}
+            return ClassicalComputationResult(outcomes=results)
 
 
 def merge_pauli_strings(stabilizer_1: PauliString, stabilizer_2: PauliString) -> PauliString:
@@ -138,10 +122,6 @@ class TestRun(Run):
         return input_state
 
     @override
-    def analyze(self, result_analysis: ResultAnalysis, round_outcomes):
-        result_analysis.nr_failed_test_rounds += sum(round_outcomes.values()) > 0
-
-    @override
     def delegate(self, backend: Backend, **kwargs) -> dict[int, int]:
         states_dict = {node: self.input_state[node] for node in self.client.nodes_list}
         self.client.prepare_states(backend=backend, states_dict=states_dict)
@@ -160,4 +140,49 @@ class TestRun(Run):
             trap_outcome = sum(outcomes) % 2 ^ (self.stabilizer.sign == -1)
             trap_outcomes[trap] = trap_outcome
             # trap_outcomes.append(trap_outcome)
-        return trap_outcomes
+        return TestResult(trap_outcomes)
+
+
+class RunResult(ABC):
+    @abstractmethod
+    def analyze(self, result_analysis: ResultAnalysis, client: Client) -> None:
+        pass
+
+
+class ComputationResult(RunResult, ABC):
+    @abstractmethod
+    def analyze(self, result_analysis: ResultAnalysis, client: Client) -> None:
+        pass
+
+
+class ClassicalComputationResult(ComputationResult):
+    def __init__(self, outcomes: dict[int, int]):
+        self.outcomes = outcomes
+
+    def analyze(self, result_analysis: ResultAnalysis, client: Client) -> None:
+        if client.desired_outputs is None:
+            outcome_string = "".join(str(o) for o in self.outcomes.values())
+        else:
+            outputs = list(self.outcomes.values())
+            restricted_outputs = [int(outputs[i]) for i in client.desired_outputs]
+            outcome_string = "".join(str(o) for o in restricted_outputs)
+
+        result_analysis.computation_outcomes_count[outcome_string] = (
+            result_analysis.computation_outcomes_count.get(outcome_string, 0) + 1
+        )
+
+
+class QuantumComputationResult(ComputationResult):
+    def __init__(self, output_state: State):
+        self.output_state = output_state
+
+    def analyze(self, result_analysis: ResultAnalysis, client: Client) -> None:
+        result_analysis.quantum_output_states.append(self.output_state)
+
+
+class TestResult(RunResult):
+    def __init__(self, trap_outcomes: dict[frozenset[int], int]):
+        self.trap_outcomes = trap_outcomes
+
+    def analyze(self, result_analysis: ResultAnalysis, client: Client) -> None:
+        result_analysis.nr_failed_test_rounds += sum(self.trap_outcomes.values()) > 0

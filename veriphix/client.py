@@ -22,10 +22,13 @@ from graphix.measurements import Measurement
 from graphix.ops import Ops
 from graphix.pattern import Pattern
 from graphix.pauli import Pauli
-from graphix.sim.statevec import Statevec, StatevectorBackend
+from graphix.sim.statevec import Statevec, StatevectorBackend, State
 from graphix.simulator import MeasureMethod, PrepareMethod
 from graphix.states import BasicStates
 from stim import Circuit
+
+
+from veriphix.run import RunResult
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -53,24 +56,11 @@ class TrappifiedSchemeParameters:
     threshold: int  # threshold (nr of allowed test rounds failure)
 
 
-# TODO update docstring
-"""
-Usage:
-
-client = Client(pattern:Pattern, blind=False) ## For pure MBQC
-sv_backend = StatevecBackend(client.pattern, meas_op = client.meas_op)
-
-simulator = PatternSimulator(client.pattern, backend=sv_backend)
-simulator.run()
-
-"""
-
-
-## TODO : implémenter ça, et l'initialiser
 @dataclass
 class ResultAnalysis:
     nr_failed_test_rounds: int
     computation_outcomes_count: dict[str, int]
+    quantum_output_states: dict[int, State]
 
 
 @dataclass
@@ -209,7 +199,6 @@ class Client:
         self.byproduct_db = get_byproduct_db(self._copy_pattern())
 
         self.secrets = secrets or Secrets()
-        self.secrets_bool = secrets is not None
         self.secret_datas = SecretDatas.from_secrets(self.secrets, self.graph, self.input_nodes, self.output_nodes)
 
         self.clean_pattern = remove_flow(self.initial_pattern)
@@ -400,20 +389,18 @@ class Client:
     def delegate_canvas(self, canvas: dict, backend: Backend, **kwargs):
         outcomes = dict()
         for r in canvas:
-            round_outcome = canvas[r].delegate(backend=backend, **kwargs)
-            if round_outcome == {}:
-                outcomes[r] = backend.state
-            else:
-                outcomes[r] = round_outcome
+            outcomes[r] = canvas[r].delegate(backend=backend, **kwargs)
             # Ugly reset of backend. Needed in case of quantum output
             # TODO: how to do that cleaner ?
             backend = backend.__class__()
         return outcomes
 
-    def analyze_outcomes(self, canvas: dict, outcomes: dict):
-        result_analysis = ResultAnalysis(nr_failed_test_rounds=0, computation_outcomes_count=dict())
+    def analyze_outcomes(self, canvas, outcomes: dict):
+        result_analysis = ResultAnalysis(
+            nr_failed_test_rounds=0, computation_outcomes_count=dict(), quantum_output_states={}
+        )
         for r in canvas:
-            canvas[r].analyze(result_analysis=result_analysis, round_outcomes=outcomes[r])
+            outcomes[r].analyze(result_analysis=result_analysis, client=self)
 
         # True if Accept, False if Reject
         decision = result_analysis.nr_failed_test_rounds <= self.trappifiedScheme.params.threshold
@@ -448,27 +435,6 @@ class Client:
         x_decoding = sum(self.results[x_dep] for x_dep in self.byproduct_db[node].x_domain) % 2
         x_decoding ^= self.secret_datas.a.a.get(node, 0)
         return z_decoding, x_decoding
-
-
-class CircuitUtils:
-    def tableau_to_pattern(tableau: stim.Tableau) -> graphix.Pattern:
-        n = len(tableau)
-        circuit = tableau.to_circuit()
-        graphix_circuit = graphix.Circuit(n)
-        for i in circuit:
-            if i.name == "H":
-                for t in i.target_groups():
-                    qubit = t[0].value
-                    graphix_circuit.h(qubit)
-            if i.name == "S":
-                for t in i.target_groups():
-                    qubit = t[0].value
-                    graphix_circuit.s(qubit)
-            if i.name == "CX":
-                for t in i.target_groups():
-                    ctrl, targ = t[0].value, t[1].value
-                    graphix_circuit.cnot(control=ctrl, target=targ)
-        return graphix_circuit.transpile().pattern
 
 
 class ClientPrepareMethod(PrepareMethod):

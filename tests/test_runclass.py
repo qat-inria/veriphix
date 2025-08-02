@@ -28,9 +28,8 @@ class TestRunClass:
             traps = (random_multi_qubit_trap,)
 
             test_run = TestRun(client=client, traps=traps)
-
             backend = StatevectorBackend()
-            outcomes = test_run.delegate(backend=backend)
+            outcomes = test_run.delegate(backend=backend).trap_outcomes
 
             for trap in traps:
                 assert outcomes[trap] == 0
