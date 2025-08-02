@@ -122,6 +122,12 @@ class SecretDatas:
 
         return SecretDatas(r, Secret_a(a, a_N), theta)
 
+    def blind_angle(secret_datas: SecretDatas, node: int, output_node: bool, test: bool) -> float:
+        r_value = 0 if (output_node and not test) else secret_datas.r.get(node, 0)
+        theta_value = secret_datas.theta.get(node, 0)
+        a_N_value = secret_datas.a.a_N.get(node, 0)
+        return theta_value * np.pi / 4 + np.pi * (r_value ^ a_N_value)
+
 
 @dataclass
 class ByProduct:
@@ -359,8 +365,8 @@ class Client:
                     "The provided colouring is not a proper colouring i.e the same node belongs to at least two colours."
                 )
 
-            colors = set(range(len(manual_colouring)))
             nodes_by_color = {i: list(c) for i, c in enumerate(manual_colouring)}
+            colors = nodes_by_color.keys()
 
         # Create the test runs : one per color
         test_runs: list[TestRun] = []
@@ -452,10 +458,7 @@ class ClientMeasureMethod(MeasureMethod):
         parameters = self.__client.measurement_db[cmd.node]
 
         # Extract secrets from Client
-        r_value = self.__client.secret_datas.r.get(cmd.node, 0) if cmd.node not in self.__client.output_nodes else 0
-        theta_value = self.__client.secret_datas.theta.get(cmd.node, 0)
         a_value = self.__client.secret_datas.a.a.get(cmd.node, 0)
-        a_N_value = self.__client.secret_datas.a.a_N.get(cmd.node, 0)
 
         # Extract signals and compute the angle for the computation
         s_signal = sum(self.__client.results[j] for j in parameters.s_domain)
@@ -465,7 +468,9 @@ class ClientMeasureMethod(MeasureMethod):
         angle = angle * measure_update.coeff + measure_update.add_term
 
         # Blind the angle using the Client's secrets
-        angle = (-1) ** a_value * angle + theta_value * np.pi / 4 + np.pi * (r_value + a_N_value)
+        angle = (-1) ** a_value * angle + SecretDatas.blind_angle(
+            self.__client.secret_datas, cmd.node, cmd.node in self.__client.output_nodes, test=False
+        )
         return Measurement(plane=measure_update.new_plane, angle=angle)
 
     def get_measure_result(self, node: int) -> bool:
@@ -482,13 +487,11 @@ class TestMeasureMethod(MeasureMethod):
         self.__client = client
 
     def get_measurement_description(self, cmd: BaseM) -> Measurement:
-        # Extract secrets from Client
-        r_value = self.__client.secret_datas.r.get(cmd.node, 0)
-        theta_value = self.__client.secret_datas.theta.get(cmd.node, 0)
-        a_N_value = self.__client.secret_datas.a.a_N.get(cmd.node, 0)
-
         # Blind the angle using the Client's secrets
-        angle = theta_value * np.pi / 4 + np.pi * (r_value + a_N_value)
+        angle = SecretDatas.blind_angle(
+            self.__client.secret_datas, cmd.node, cmd.node in self.__client.output_nodes, test=True
+        )
+
         return Measurement(plane=Plane.XY, angle=angle)
 
     def get_measure_result(self, node: int) -> bool:
@@ -498,6 +501,3 @@ class TestMeasureMethod(MeasureMethod):
         if self.__client.secret_datas.r:
             result ^= self.__client.secret_datas.r[node]
         self.__client.results[node] = result
-
-
-## TODO: factoriser la measuremethod?
