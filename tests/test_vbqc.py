@@ -15,8 +15,8 @@ from graphix.states import BasicStates
 
 import veriphix.sampling_circuits.brickwork_state_transpiler
 from veriphix.client import Client, Secrets, TrappifiedSchemeParameters
-from veriphix.run import ComputationRun
 from veriphix.sampling_circuits.qasm_parser import read_qasm
+from veriphix.verifying import ComputationRun
 
 if TYPE_CHECKING:
     from graphix.pattern import Pattern

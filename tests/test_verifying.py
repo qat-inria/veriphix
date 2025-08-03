@@ -5,10 +5,10 @@ from graphix.random_objects import rand_circuit
 from graphix.sim.statevec import StatevectorBackend
 
 from veriphix.client import Client, Secrets
-from veriphix.run import TestRun
+from veriphix.verifying import TestRun
 
 
-class TestRunClass:
+class TestVerifying:
     def test_delegate_test(self, fx_rng: np.random.Generator):
         nqubits = 3
         depth = 5

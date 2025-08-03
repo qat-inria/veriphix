@@ -9,7 +9,7 @@ from numpy.random import Generator
 from stim import PauliString
 
 from veriphix.client import Client, ClientMeasureMethod, Secrets
-from veriphix.run import ComputationRun
+from veriphix.verifying import ComputationRun, create_test_runs
 
 
 class TestClient:
@@ -29,7 +29,7 @@ class TestClient:
         client = Client(pattern=pattern, secrets=secrets)
 
         with pytest.raises(ValueError):
-            client.create_test_runs(manual_colouring=(set([0]), set()))
+            create_test_runs(client=client, manual_colouring=(set([0]), set()))
 
     def test_create_test_run_manual_fail_improper(self, fx_rng):
         """testing manual colouring not proper"""
@@ -49,7 +49,7 @@ class TestClient:
         client = Client(pattern=pattern, secrets=secrets)
 
         with pytest.raises(ValueError):  # trivially duplicate a node
-            client.create_test_runs(manual_colouring=(set(nodes), set([nodes[0]])))
+            create_test_runs(client=client, manual_colouring=(set(nodes), set([nodes[0]])))
 
     def test_standardize(self, fx_rng: Generator):
         """
