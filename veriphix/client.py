@@ -29,6 +29,8 @@ from veriphix.blinding import SecretDatas, Secrets
 from veriphix.verifying import (
     ComputationRun,
     ResultAnalysis,
+    Run,
+    RunResult,
     TrappifiedScheme,
     TrappifiedSchemeParameters,
     create_test_runs,
@@ -172,7 +174,6 @@ class Client:
             elif node in self.output_nodes:
                 r_value = self.secret_datas.r.get(node, 0)
                 a_N_value = self.secret_datas.a.a_N.get(node, 0)
-                # TODO: here is where the additional decoding happens
                 state = BasicStates.PLUS if r_value ^ a_N_value == 0 else BasicStates.MINUS
 
             else:
@@ -180,7 +181,7 @@ class Client:
             states[node] = state
         return states
 
-    def prepare_states_virtual(self, states_dict: dict[(int, BasicStates)], backend: Backend) -> None:
+    def prepare_states_virtual(self, states_dict: dict[(int, BasicStates)]) -> None:
         """
         The Client creates the qubits and blind them in its preparation_bank
         """
@@ -192,7 +193,7 @@ class Client:
 
     def prepare_states(self, backend: Backend, states_dict: dict[(int, BasicStates)]) -> None:
         # Initializes the bank (all the nodes)
-        self.prepare_states_virtual(backend=backend, states_dict=states_dict)
+        self.prepare_states_virtual(states_dict=states_dict)
         # Server asks the backend to create them
         ## Except for the input! The Client creates them itself
         for node in self.input_nodes:
@@ -204,14 +205,14 @@ class Client:
 
         return {r: self.computationRun if r in computation_rounds else random.choice(self.test_runs) for r in range(N)}
 
-    def delegate_canvas(self, canvas: dict, backend_cls: type[Backend], **kwargs):
+    def delegate_canvas(self, canvas: dict[int, Run], backend_cls: type[Backend], **kwargs):
         outcomes = dict()
         for r in canvas:
             backend = backend_cls()
             outcomes[r] = canvas[r].delegate(backend=backend, **kwargs)
         return outcomes
 
-    def analyze_outcomes(self, canvas, outcomes: dict):
+    def analyze_outcomes(self, canvas, outcomes: dict[int, RunResult]):
         result_analysis = ResultAnalysis(
             nr_failed_test_rounds=0, computation_outcomes_count=dict(), quantum_output_states={}
         )

@@ -97,15 +97,6 @@ def generate_eigenstate(stabilizer: PauliString) -> list[State]:
         states.append(operator.eigenstate())
     return states
 
-
-# Trap=tuple[int] # Better because immutable, so can be used as key in dictionary
-
-## TODO: pourquoi pas frozenset ?
-## collections abstraites: classe set, par défaut immutable
-## TODO: Traps pourrait être AbstractSet
-## L'avoir comme abstractSet en argument de la fonction, le caster en frozenset à chaque fois
-
-
 class TestRun(Run):
     def __init__(self, client: Client, traps: Traps, meas_basis: str = "X") -> None:
         super().__init__(client=client)
@@ -224,7 +215,7 @@ class TrappifiedRun:
     stabilizer: Pauli
 
 
-def create_test_runs(client, manual_colouring: Sequence[set[int]] | None = None) -> list[TestRun]:
+def create_test_runs(client: Client, manual_colouring: Sequence[set[int]] | None = None) -> list[TestRun]:
     """Creates test runs according to a graph colouring according to [FK12].
     A test run, or a Trappified Canvas, is associated to each color in the colouring.
     For a given test run, the trap nodes are defined as being the nodes belonging to the color the run corresponds to.
