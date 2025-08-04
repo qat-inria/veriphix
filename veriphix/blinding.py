@@ -63,21 +63,21 @@ class SecretDatas:
 
         return SecretDatas(r, Secret_a(a, a_N), theta)
 
-    def blind_angle(secret_datas, node: int, output_node: bool, test: bool) -> float:
-        r_value = 0 if (output_node and not test) else secret_datas.r.get(node, 0)
-        theta_value = secret_datas.theta.get(node, 0)
-        a_N_value = secret_datas.a.a_N.get(node, 0)
+    def blind_angle(self, node: int, output_node: bool, test: bool) -> float:
+        r_value = 0 if (output_node and not test) else self.r.get(node, 0)
+        theta_value = self.theta.get(node, 0)
+        a_N_value = self.a.a_N.get(node, 0)
         return theta_value * np.pi / 4 + np.pi * (r_value ^ a_N_value)
 
-    def blind_qubit(secret_datas, node: int, state) -> None:
+    def blind_qubit(self, node: int, state) -> None:
         def z_rotation(theta) -> np.array:
             return np.array([[1, 0], [0, np.exp(1j * theta * np.pi / 4)]])
 
         def x_blind(a) -> Pauli:
             return Pauli.X if (a == 1) else Pauli.I
 
-        theta = secret_datas.theta.get(node, 0)
-        a = secret_datas.a.a.get(node, 0)
+        theta = self.theta.get(node, 0)
+        a = self.a.a.get(node, 0)
         single_qubit_backend = StatevectorBackend()
         single_qubit_backend.add_nodes([0], [state])
         if a:

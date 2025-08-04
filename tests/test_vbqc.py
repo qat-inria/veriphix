@@ -144,7 +144,7 @@ class TestVBQC:
 
         canvas = client.sample_canvas()
         outcomes = client.delegate_canvas(canvas=canvas, backend_cls=StatevectorBackend)
-        decision, result = client.analyze_outcomes(canvas, outcomes)
+        decision, result, _ = client.analyze_outcomes(canvas, outcomes)
         assert decision
         assert result != "Abort"
         assert int(result) == find_correct_value(random_circuit_label)
@@ -182,7 +182,12 @@ class TestVBQC:
 
         client = Client(pattern=pattern, input_state=states, secrets=secrets)
         noise_model = DepolarisingNoiseModel(
-            measure_error_prob=1, entanglement_error_prob=1, x_error_prob=1, z_error_prob=1, measure_channel_prob=1
+            measure_error_prob=1,
+            entanglement_error_prob=1,
+            x_error_prob=1,
+            z_error_prob=1,
+            measure_channel_prob=1,
+            rng=fx_rng,
         )
         for test_run in client.test_runs:
             backend = DensityMatrixBackend(rng=fx_rng)

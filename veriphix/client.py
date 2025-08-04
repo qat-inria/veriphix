@@ -186,9 +186,7 @@ class Client:
         The Client creates the qubits and blind them in its preparation_bank
         """
         for node in states_dict:
-            blinded_qubit_state = SecretDatas.blind_qubit(
-                secret_datas=self.secret_datas, node=node, state=states_dict[node]
-            )
+            blinded_qubit_state = self.secret_datas.blind_qubit(node=node, state=states_dict[node])
             self.preparation_bank[node] = Statevec(blinded_qubit_state)
 
     def prepare_states(self, backend: Backend, states_dict: dict[(int, BasicStates)]) -> None:
@@ -234,8 +232,7 @@ class Client:
         )
         final_outcome = biased_outcome[0] if biased_outcome else None
 
-        self.result_analysis = result_analysis
-        return decision, final_outcome
+        return decision, final_outcome, result_analysis
 
     def decode_output_state(self, backend: Backend):
         for node in self.output_nodes:
@@ -290,8 +287,8 @@ class ClientMeasureMethod(MeasureMethod):
         angle = angle * measure_update.coeff + measure_update.add_term
 
         # Blind the angle using the Client's secrets
-        angle = (-1) ** a_value * angle + SecretDatas.blind_angle(
-            self.__client.secret_datas, cmd.node, cmd.node in self.__client.output_nodes, test=False
+        angle = (-1) ** a_value * angle + self.__client.secret_datas.blind_angle(
+            cmd.node, cmd.node in self.__client.output_nodes, test=False
         )
         return Measurement(plane=measure_update.new_plane, angle=angle)
 
@@ -310,9 +307,7 @@ class TestMeasureMethod(MeasureMethod):
 
     def get_measurement_description(self, cmd: BaseM) -> Measurement:
         # Blind the angle using the Client's secrets
-        angle = SecretDatas.blind_angle(
-            self.__client.secret_datas, cmd.node, cmd.node in self.__client.output_nodes, test=True
-        )
+        angle = self.__client.secret_datas.blind_angle(cmd.node, cmd.node in self.__client.output_nodes, test=True)
 
         return Measurement(plane=Plane.XY, angle=angle)
 
