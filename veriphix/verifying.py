@@ -173,6 +173,7 @@ class ClassicalComputationResult(ComputationResult):
         result_analysis.computation_outcomes_count[self.outcome_string] = (
             result_analysis.computation_outcomes_count.get(self.outcome_string, 0) + 1
         )
+
     def __str__(self) -> str:
         return f"""
         Outcomes of Computation round: {self.outcome_string}
