@@ -97,6 +97,7 @@ def generate_eigenstate(stabilizer: PauliString) -> list[State]:
         states.append(operator.eigenstate())
     return states
 
+
 class TestRun(Run):
     def __init__(self, client: Client, traps: Traps, meas_basis: str = "X") -> None:
         super().__init__(client=client)
@@ -158,6 +159,7 @@ class ComputationResult(RunResult, ABC):
 class ClassicalComputationResult(ComputationResult):
     def __init__(self, outcomes: dict[int, int]):
         self.outcomes = outcomes
+        self.outcome_string = None
 
     def analyze(self, result_analysis: ResultAnalysis, client: Client) -> None:
         if client.desired_outputs is None:
@@ -167,9 +169,14 @@ class ClassicalComputationResult(ComputationResult):
             restricted_outputs = [int(outputs[i]) for i in client.desired_outputs]
             outcome_string = "".join(str(o) for o in restricted_outputs)
 
-        result_analysis.computation_outcomes_count[outcome_string] = (
-            result_analysis.computation_outcomes_count.get(outcome_string, 0) + 1
+        self.outcome_string = outcome_string
+        result_analysis.computation_outcomes_count[self.outcome_string] = (
+            result_analysis.computation_outcomes_count.get(self.outcome_string, 0) + 1
         )
+    def __str__(self) -> str:
+        return f"""
+        Outcomes of Computation round: {self.outcome_string}
+        """
 
 
 class QuantumComputationResult(ComputationResult):
@@ -183,9 +190,18 @@ class QuantumComputationResult(ComputationResult):
 class TestResult(RunResult):
     def __init__(self, trap_outcomes: dict[frozenset[int], int]):
         self.trap_outcomes = trap_outcomes
+        self.failed_round = False
 
     def analyze(self, result_analysis: ResultAnalysis, client: Client) -> None:
-        result_analysis.nr_failed_test_rounds += sum(self.trap_outcomes.values()) > 0
+        self.failed_round = sum(self.trap_outcomes.values()) > 0
+        result_analysis.nr_failed_test_rounds += self.failed_round
+
+    def __str__(self) -> str:
+        return f"""
+        Outcomes of Test round.
+        Trap outcomes: {self.trap_outcomes}
+        Overall outcome for the round: {int(self.failed_round)} ({"failed" if self.failed_round else "passed"})
+        """
 
 
 @dataclass

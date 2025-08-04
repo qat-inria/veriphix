@@ -5,3 +5,4 @@ __pycache__/
 /circuits**
 .DS_Store
 .vscode/settings.json
+*.ipynb

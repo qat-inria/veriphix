@@ -205,7 +205,7 @@ class Client:
 
         return {r: self.computationRun if r in computation_rounds else random.choice(self.test_runs) for r in range(N)}
 
-    def delegate_canvas(self, canvas: dict[int, Run], backend_cls: type[Backend], **kwargs):
+    def delegate_canvas(self, canvas: dict[int, Run], backend_cls: type[Backend], **kwargs) -> dict[int, RunResult]:
         outcomes = dict()
         for r in canvas:
             backend = backend_cls()
@@ -234,6 +234,7 @@ class Client:
         )
         final_outcome = biased_outcome[0] if biased_outcome else None
 
+        self.result_analysis = result_analysis
         return decision, final_outcome
 
     def decode_output_state(self, backend: Backend):
