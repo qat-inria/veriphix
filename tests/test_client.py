@@ -9,48 +9,10 @@ from numpy.random import Generator
 from stim import PauliString
 
 from veriphix.client import Client, ClientMeasureMethod, Secrets
-from veriphix.verifying import ComputationRun, create_test_runs
+from veriphix.verifying import ComputationRun
 
 
 class TestClient:
-    def test_create_test_run_manual_fail(self, fx_rng):
-        """testing not all qubits in the manual colouring"""
-
-        # generate random circuit
-        nqubits = 2
-        depth = 1
-        circuit = rand_circuit(nqubits, depth, fx_rng)
-        # transpile to pattern
-        pattern = circuit.transpile().pattern
-        pattern.standardize()
-
-        # initialise client
-        secrets = Secrets(r=True, a=True, theta=True)
-        client = Client(pattern=pattern, secrets=secrets)
-
-        with pytest.raises(ValueError):
-            create_test_runs(client=client, manual_colouring=(set([0]), set()))
-
-    def test_create_test_run_manual_fail_improper(self, fx_rng):
-        """testing manual colouring not proper"""
-
-        # generate random circuit
-        nqubits = 2
-        depth = 1
-        circuit = rand_circuit(nqubits, depth, fx_rng)
-        # transpile to pattern
-        pattern = circuit.transpile().pattern
-        pattern.standardize()
-
-        nodes, edges = pattern.get_graph()
-
-        # initialise client
-        secrets = Secrets(r=True, a=True, theta=True)
-        client = Client(pattern=pattern, secrets=secrets)
-
-        with pytest.raises(ValueError):  # trivially duplicate a node
-            create_test_runs(client=client, manual_colouring=(set(nodes), set([nodes[0]])))
-
     def test_standardize(self, fx_rng: Generator):
         """
         Test to check that the Client-Server delegation works with standardized patterns

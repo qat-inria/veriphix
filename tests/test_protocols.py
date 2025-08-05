@@ -7,14 +7,14 @@ from itertools import combinations
 
 from veriphix.client import Client, Secrets
 from veriphix.verifying import TestRun
-from veriphix.protocols import FK12, RandomTraps, Dummyless, VerificationProtocol
+from veriphix.protocols import FK12, RandomTraps, Dummyless, VerificationProtocol, gf2_solve, pauli_to_symplectic, generate_graph_stabilizers
 from stim import PauliString
 
 import pytest
 
 class TestProtocols:
 
-    @pytest.mark.parametrize("protocol_class", (FK12, RandomTraps))
+    @pytest.mark.parametrize("protocol_class", (FK12, RandomTraps, Dummyless))
     def test_noiseless_all_protocols(self, fx_rng: np.random.Generator, protocol_class:type[VerificationProtocol]):
         nqubits = 3
         depth = 5
@@ -43,6 +43,46 @@ class TestProtocols:
         # TODO: assert nice coloring
         assert client.test_runs != []
 
+    def test_create_test_run_manual_fail(self, fx_rng):
+        """testing not all qubits in the manual colouring"""
+
+        # generate random circuit
+        nqubits = 2
+        depth = 1
+        circuit = rand_circuit(nqubits, depth, fx_rng)
+        # transpile to pattern
+        pattern = circuit.transpile().pattern
+        pattern.standardize()
+
+        # initialise client
+        secrets = Secrets(r=True, a=True, theta=True)
+        client = Client(pattern=pattern, secrets=secrets, protocol_cls=FK12)
+        protocol = FK12(client=client)
+
+        with pytest.raises(ValueError):  # trivially duplicate a node
+            protocol.create_test_runs(manual_colouring=(set([0]), set()))
+
+    def test_create_test_run_manual_fail_improper(self, fx_rng):
+        """testing manual colouring not proper"""
+
+        # generate random circuit
+        nqubits = 2
+        depth = 1
+        circuit = rand_circuit(nqubits, depth, fx_rng)
+        # transpile to pattern
+        pattern = circuit.transpile().pattern
+        pattern.standardize()
+
+        nodes, edges = pattern.get_graph()
+
+        # initialise client
+        secrets = Secrets(r=True, a=True, theta=True)
+        client = Client(pattern=pattern, secrets=secrets)
+        protocol = FK12(client=client)
+
+        with pytest.raises(ValueError):  # trivially duplicate a node
+            protocol.create_test_runs(manual_colouring=(set(nodes), set([nodes[0]])))
+
     def test_random_traps(self, fx_rng: np.random.Generator):
         """
         Nothing is done more than in 'test_noiseless_all_protocols'
@@ -68,6 +108,28 @@ class TestProtocols:
 
         secrets = Secrets(r=True, a=True, theta=True)
         client = Client(pattern=pattern, secrets=secrets, protocol_cls=Dummyless)
+        nodes = list(client.graph.nodes)
+        idx_map = {v: i for i, v in enumerate(nodes)}
+        n = len(nodes)
+        # Check that they are linearly independent
 
         for run in client.test_runs:
-            print(run.stabilizer)
+            # Check that there are no Z
+            trap_stabilizer = run.stabilizer
+            assert trap_stabilizer.pauli_indices("Z") == []
+
+
+            # Check that they are product of generators
+            trap_stabilizer_bin = pauli_to_symplectic(trap_stabilizer)
+            graph_stabilizers = generate_graph_stabilizers(client.graph)
+            # Construct symplectic matrix: 2n × n
+            graph_stabilizers_bin = np.array([pauli_to_symplectic(p) for p in graph_stabilizers]).T
+
+            coeffs = gf2_solve(graph_stabilizers_bin, trap_stabilizer_bin)
+            support = [nodes[j] for j in range(n) if coeffs[j] == 1]
+            reconstructed = PauliString("I" * n)
+            for v in support:
+                reconstructed *= graph_stabilizers[idx_map[v]]
+                
+            assert reconstructed == trap_stabilizer
+

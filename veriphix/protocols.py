@@ -14,7 +14,8 @@ if TYPE_CHECKING:
     from veriphix.client import Client
 
 class VerificationProtocol(ABC):
-    def __init__(self) -> None:
+    def __init__(self, client) -> None:
+        self.client = client
         pass
 
     @abstractmethod
@@ -22,10 +23,10 @@ class VerificationProtocol(ABC):
         pass
 
 class FK12(VerificationProtocol):
-    def __init__(self) -> None:
-        super().__init__()
+    def __init__(self, client) -> None:
+        super().__init__(client)
     
-    def create_test_runs(self, client, manual_colouring: Sequence[set[int]] | None = None) -> list[TestRun]:
+    def create_test_runs(self, manual_colouring: Sequence[set[int]] | None = None) -> list[TestRun]:
         """Creates test runs according to a graph colouring according to [FK12].
         A test run, or a Trappified Canvas, is associated to each color in the colouring.
         For a given test run, the trap nodes are defined as being the nodes belonging to the color the run corresponds to.
@@ -62,17 +63,17 @@ class FK12(VerificationProtocol):
         # Create the graph coloring
         # Networkx output format: dict[int, int] eg {0: 0, 1: 1, 2: 0, 3: 1}
         if manual_colouring is None:
-            coloring = nx.coloring.greedy_color(client.graph, strategy="largest_first")
+            coloring = nx.coloring.greedy_color(self.client.graph, strategy="largest_first")
             colors = set(coloring.values())
             nodes_by_color: dict[int, list[int]] = {c: [] for c in colors}
-            for node in sorted(client.graph.nodes):
+            for node in sorted(self.client.graph.nodes):
                 color = coloring[node]
                 nodes_by_color[color].append(node)
         else:
             # checks that manual_colouring is a proper colouring
             ## first check uniion is the whole graph
             color_union = set().union(*manual_colouring)
-            if not color_union == set(client.graph.nodes):
+            if not color_union == set(self.client.graph.nodes):
                 raise ValueError("The provided colouring does not include all the nodes of the graph.")
             # check that colors are two by two disjoint
             # if sets are disjoint, empty set from intersection is interpreted as False.
@@ -91,7 +92,7 @@ class FK12(VerificationProtocol):
             # 1 color = 1 test run = 1 collection of single-qubit traps
             traps_list = [frozenset([colored_node]) for colored_node in nodes_by_color[color]]
             traps = frozenset(traps_list)
-            test_run = TestRun(client=client, traps=traps)
+            test_run = TestRun(client=self.client, traps=traps)
             test_runs.append(test_run)
 
         # print(test_runs)
@@ -103,248 +104,33 @@ class RandomTraps(VerificationProtocol):
     """
     A bad and naive way of generating traps, but exposing the modularity of the interface.
     """
-    def __init__(self) -> None:
-        super().__init__()
+    def __init__(self, client) -> None:
+        super().__init__(client)
     
-    def create_test_runs(self, client, **kwargs) -> list[TestRun]:
+    def create_test_runs(self, **kwargs) -> list[TestRun]:
         test_runs = []
         # Create 1 random trap per node
-        n = len(client.graph.nodes)
+        n = len(self.client.graph.nodes)
         for _ in range(n):
             # Choose a random subset of nodes to create a trap (random size, random nodes)
             trap_size = random.choice(range(n))
-            random_nodes = random.sample(client.nodes_list, k=trap_size)
+            random_nodes = random.sample(self.client.nodes_list, k=trap_size)
             # Create a single-trap test round from it. The trap is multi-qubit.
             random_multi_qubit_trap = tuple(random_nodes)
             # Only one trap
             traps = (random_multi_qubit_trap,)
-            test_run = TestRun(client=client, traps=traps)
+            test_run = TestRun(client=self.client, traps=traps)
             test_runs.append(test_run)
 
         return test_runs
 
 class Dummyless(VerificationProtocol):
-    def __init__(self) -> None:
-        super().__init__()
+    def __init__(self, client) -> None:
+        super().__init__(client)
     
-    def create_test_runs(self, client, **kwargs) -> list[TestRun]:
-        graph:nx.Graph = client.graph
-        nodes = graph.nodes
-        n = len(nodes)
-        idx_map = {node: i for i, node in enumerate(nodes)}
-
-
-        def compute_generators(graph) -> dict[int, stim.PauliString]:
-            # Step 0: Define S_v for each node
-            S = {}
-            for v in graph.nodes:
-                pauli = ['I'] * n
-                pauli[idx_map[v]] = 'X'
-                for u in graph.neighbors(v):
-                    pauli[idx_map[u]] = 'Z'
-                S[v] = stim.PauliString(''.join(pauli))
-            return S
-    
-
-        def compute_full_stabilizer(generators:dict[int, stim.PauliString]):
-            # Step 1: Compute R_full
-            R_full = stim.PauliString("I" * len(next(iter(generators.values()))))
-            for stab in generators.values():
-                R_full *= stab  # Stim handles multiplication and phase internally
-            return R_full
-    
-
-        def build_candidate_generators(graph:nx.Graph, generators, R_full):
-            """
-            Constructs candidate generators from stabilizers.
-
-            Parameters:
-            - graph: networkx.Graph
-            - generators: dict of {node: stim.PauliString}
-            - R_full: stim.PauliString
-
-            Returns:
-            - List of stim.PauliString (candidates)
-            """
-            candidates = []
-            nodes = list(graph.nodes)
-
-            # From even-degree nodes: R \ S_v
-            for v in nodes:
-                if graph.degree[v] % 2 == 0:
-                    cand = R_full * generators[v]
-                    if cand.pauli_indices("Z") == []:
-                        candidates.append(cand)
-
-            # From odd-degree pairs and even-internal-node paths
-            odd_nodes = [v for v in nodes if graph.degree[v] % 2 == 1]
-            for u, w in combinations(odd_nodes, 2):
-                try:
-                    path = nx.shortest_path(graph, u, w)
-                except nx.NetworkXNoPath:
-                    continue
-
-                if all(graph.degree[v] % 2 == 0 for v in path[1:-1]):
-                    cand = R_full.copy() # Careful, Stim multiplies in place.
-                    for v in path:
-                        cand *= generators[v]
-                    if cand.pauli_indices("Z") == []:
-                        candidates.append(cand)
-
-            return candidates
-
-
-        def to_binary_XY_support(pstring: stim.PauliString) -> tuple[int]:
-            """
-            Converts a stim.PauliString into a binary vector over GF(2)^n
-            where X and Y are 1, others are 0.
-            """
-            return tuple(1 if p in ['X', 'Y'] else 0 for p in str(pstring))
-
-        def select_independent_generators(candidates: list[stim.PauliString], n: int) -> list[stim.PauliString]:
-            """
-            Selects n - 1 linearly independent Pauli strings over GF(2)^n (ignoring phase)
-            using greedy support-based method.
-
-            Args:
-                candidates: list of stim.PauliString
-                n: number of qubits
-
-            Returns:
-                list of stim.PauliString forming the basis
-            """
-            basis = []
-            basis_bin = []
-
-            for cand in candidates:
-                vec = to_binary_XY_support(cand)
-                if vec not in basis_bin:
-                    basis.append(cand)
-                    basis_bin.append(vec)
-                if len(basis) == n - 1:
-                    break
-
-            assert len(basis) == n - 1, f"Generated only {len(basis)} out of {n-1} stabilizers."
-            return basis
-
-        generators = compute_generators(graph=graph)
-        Rfull = compute_full_stabilizer(generators=generators)
-        candidates = build_candidate_generators(graph=graph, generators=generators, R_full=Rfull)
-        independent_generators = select_independent_generators(candidates=candidates, n=n)
-        print(independent_generators)
-        # for stabilizer in independent_generators:
-        #     test_run = TestRun(client=client)
-        # return super().create_test_runs(client, **kwargs)
-    
-
-
-    def create_test_runs(self, client, **kwargs) -> list[TestRun]:
-
-        # === GF(2) Solver ===
-        def gf2_solve(A, b):
-            A = A.copy() % 2
-            b = b.copy() % 2
-            n_rows, n_cols = A.shape
-            x = np.zeros(n_cols, dtype=int)
-            pivot_rows = [-1] * n_rows
-
-            row = 0
-            for col in range(n_cols):
-                for r in range(row, n_rows):
-                    if A[r, col] == 1:
-                        A[[row, r]] = A[[r, row]]
-                        b[[row, r]] = b[[r, row]]
-                        break
-                else:
-                    continue
-                for r in range(row + 1, n_rows):
-                    if A[r, col] == 1:
-                        A[r] = (A[r] + A[row]) % 2
-                        b[r] = (b[r] + b[row]) % 2
-                pivot_rows[row] = col
-                row += 1
-
-            for r in reversed(range(row)):
-                col = pivot_rows[r]
-                x[col] = b[r]
-                for k in range(r):
-                    if A[k, col] == 1:
-                        b[k] = (b[k] + x[col]) % 2
-            return x
-        
-
-        # === Pauli utility ===
-        def to_binary_XY_support(pstring: stim.PauliString) -> tuple[int]:
-            return tuple(1 if p in ['X', 'Y'] else 0 for p in str(pstring))
-        def pauli_to_symplectic(p: stim.PauliString) -> np.ndarray:
-            # Concatenate Z then X bits (Stim convention)
-            xs, zs = p.to_numpy()
-            return np.concatenate([zs.astype(int), xs.astype(int)])
-        
-        
-        # === Construct graph stabilizers (S_v) ===
-        def generate_graph_stabilizers(G: nx.Graph) -> list[stim.PauliString]:
-            n = G.number_of_nodes()
-            idx_map = {v: i for i, v in enumerate(G.nodes)}
-            S = []
-            for v in G.nodes:
-                pauli = ['I'] * n
-                pauli[idx_map[v]] = 'X'
-                for u in G.neighbors(v):
-                    pauli[idx_map[u]] = 'Z'
-                S.append(stim.PauliString(''.join(pauli)))
-            return S
-
-        # === Generate Z-free stabilizers (candidates) ===
-        def generate_stabilizers_I_X_Y_only(G: nx.Graph) -> list[stim.PauliString]:
-            n = G.number_of_nodes()
-            idx_map = {v: i for i, v in enumerate(G.nodes)}
-            nodes = list(G.nodes)
-
-            S = generate_graph_stabilizers(G)
-
-            R_full = stim.PauliString("I" * n)
-            for stab in S:
-                R_full *= stab
-
-            candidates = []
-
-            # Even-degree node flips
-            even_nodes = [v for v in nodes if G.degree[v] % 2 == 0]
-            for v in even_nodes:
-                Rv = R_full * S[idx_map[v]]
-                if Rv.pauli_indices("Z") == []:
-                    candidates.append(Rv)
-
-            # Odd-degree pairs connected by even-degree interior paths
-            odd_nodes = [v for v in nodes if G.degree[v] % 2 == 1]
-            for u, w in combinations(odd_nodes, 2):
-                try:
-                    path = nx.shortest_path(G, u, w)
-                except:
-                    continue
-                if all(G.degree[v] % 2 == 0 for v in path[1:-1]):
-                    Ruw = R_full.copy()
-                    for v in path:
-                        Ruw *= S[idx_map[v]]
-                    if Ruw.pauli_indices("Z") == []:
-                        candidates.append(Ruw)
-
-            # Greedily pick n - 1 linearly independent (based on XY support)
-            basis = []
-            basis_bin = []
-            for cand in candidates:
-                vec = to_binary_XY_support(cand)
-                if vec not in basis_bin:
-                    basis.append(cand)
-                    basis_bin.append(vec)
-                if len(basis) == n - 1:
-                    break
-            return basis
-        
-        G:nx.Graph = client.graph
+    def create_test_runs(self, **kwargs) -> list[TestRun]:        
+        G:nx.Graph = self.client.graph
         nodes = list(G.nodes)
-        idx_map = {v: i for i, v in enumerate(nodes)}
         n = len(nodes)
 
         S_paulis = generate_graph_stabilizers(G)
@@ -355,22 +141,113 @@ class Dummyless(VerificationProtocol):
         R_gens = generate_stabilizers_I_X_Y_only(G)
 
         test_runs = []
-        for i, R in enumerate(R_gens):
+        for _, R in enumerate(R_gens):
             R_bin = pauli_to_symplectic(R)
             coeffs = gf2_solve(S_bin, R_bin)
             support = [nodes[j] for j in range(n) if coeffs[j] == 1]
-            test_run = TestRun(client=client, traps=(tuple(support),))
+            test_run = TestRun(client=self.client, traps=(tuple(support),))
             test_runs.append(test_run)
 
-            # print(f"Generator {i+1}: {str(R)}")
-            # print(f" → product of S_v for v in: {support}")
-
-            # # Reconstruct using product of S_v for v in support
-            # reconstructed = stim.PauliString("I" * n)
-            # for v in support:
-            #     reconstructed *= S_paulis[idx_map[v]]
-
-            # print(f"Product result is: {str(reconstructed)}")
-            # print(f"✔ Match original: {reconstructed == R}\n")
-
         return test_runs
+    
+# === GF(2) Solver ===
+def gf2_solve(A, b):
+    A = A.copy() % 2
+    b = b.copy() % 2
+    n_rows, n_cols = A.shape
+    x = np.zeros(n_cols, dtype=int)
+    pivot_rows = [-1] * n_rows
+
+    row = 0
+    for col in range(n_cols):
+        for r in range(row, n_rows):
+            if A[r, col] == 1:
+                A[[row, r]] = A[[r, row]]
+                b[[row, r]] = b[[r, row]]
+                break
+        else:
+            continue
+        for r in range(row + 1, n_rows):
+            if A[r, col] == 1:
+                A[r] = (A[r] + A[row]) % 2
+                b[r] = (b[r] + b[row]) % 2
+        pivot_rows[row] = col
+        row += 1
+
+    for r in reversed(range(row)):
+        col = pivot_rows[r]
+        x[col] = b[r]
+        for k in range(r):
+            if A[k, col] == 1:
+                b[k] = (b[k] + x[col]) % 2
+    return x
+
+
+# === Pauli utility ===
+def to_binary_XY_support(pstring: stim.PauliString) -> tuple[int]:
+    return tuple(1 if p in ['X', 'Y'] else 0 for p in str(pstring))
+def pauli_to_symplectic(p: stim.PauliString) -> np.ndarray:
+    # Concatenate Z then X bits (Stim convention)
+    xs, zs = p.to_numpy()
+    return np.concatenate([zs.astype(int), xs.astype(int)])
+
+
+# === Construct graph stabilizers (S_v) ===
+def generate_graph_stabilizers(G: nx.Graph) -> list[stim.PauliString]:
+    n = G.number_of_nodes()
+    idx_map = {v: i for i, v in enumerate(G.nodes)}
+    S = []
+    for v in G.nodes:
+        pauli = ['I'] * n
+        pauli[idx_map[v]] = 'X'
+        for u in G.neighbors(v):
+            pauli[idx_map[u]] = 'Z'
+        S.append(stim.PauliString(''.join(pauli)))
+    return S
+
+# === Generate Z-free stabilizers (candidates) ===
+def generate_stabilizers_I_X_Y_only(G: nx.Graph) -> list[stim.PauliString]:
+    n = G.number_of_nodes()
+    idx_map = {v: i for i, v in enumerate(G.nodes)}
+    nodes = list(G.nodes)
+
+    S = generate_graph_stabilizers(G)
+
+    R_full = stim.PauliString("I" * n)
+    for stab in S:
+        R_full *= stab
+
+    candidates = []
+
+    # Even-degree node flips
+    even_nodes = [v for v in nodes if G.degree[v] % 2 == 0]
+    for v in even_nodes:
+        Rv = R_full * S[idx_map[v]]
+        if Rv.pauli_indices("Z") == []:
+            candidates.append(Rv)
+
+    # Odd-degree pairs connected by even-degree interior paths
+    odd_nodes = [v for v in nodes if G.degree[v] % 2 == 1]
+    for u, w in combinations(odd_nodes, 2):
+        try:
+            path = nx.shortest_path(G, u, w)
+        except:
+            continue
+        if all(G.degree[v] % 2 == 0 for v in path[1:-1]):
+            Ruw = R_full.copy()
+            for v in path:
+                Ruw *= S[idx_map[v]]
+            if Ruw.pauli_indices("Z") == []:
+                candidates.append(Ruw)
+
+    # Greedily pick n - 1 linearly independent (based on XY support)
+    basis = []
+    basis_bin = []
+    for cand in candidates:
+        vec = to_binary_XY_support(cand)
+        if vec not in basis_bin:
+            basis.append(cand)
+            basis_bin.append(vec)
+        if len(basis) == n - 1:
+            break
+    return basis

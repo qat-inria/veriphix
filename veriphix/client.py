@@ -131,8 +131,9 @@ class Client:
         self.prepare_method = ClientPrepareMethod(self.preparation_bank)
 
         self.computationRun = ComputationRun(self)
-        protocol = protocol_cls()
-        self.test_runs = protocol.create_test_runs(client=self)
+        protocol = protocol_cls(client=self)
+        
+        self.test_runs = protocol.create_test_runs()
 
         self.trappifiedScheme = TrappifiedScheme(
             params=parameters or TrappifiedSchemeParameters(20, 20, 5), test_runs=self.test_runs
