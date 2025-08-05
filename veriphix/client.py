@@ -33,8 +33,8 @@ from veriphix.verifying import (
     RunResult,
     TrappifiedScheme,
     TrappifiedSchemeParameters,
-    create_test_runs,
 )
+from veriphix.protocols import FK12
 
 if TYPE_CHECKING:
     from graphix.sim.base_backend import Backend
@@ -130,7 +130,7 @@ class Client:
         self.prepare_method = ClientPrepareMethod(self.preparation_bank)
 
         self.computationRun = ComputationRun(self)
-        self.test_runs = create_test_runs(client=self)
+        self.test_runs = FK12.create_test_runs(client=self)
         self.trappifiedScheme = TrappifiedScheme(
             params=parameters or TrappifiedSchemeParameters(20, 20, 5), test_runs=self.test_runs
         )
