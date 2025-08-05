@@ -5,6 +5,8 @@ import itertools
 from collections.abc import Sequence
 import networkx as nx
 import random
+import stim
+from itertools import combinations
 
 if TYPE_CHECKING:
     from veriphix.client import Client
@@ -124,4 +126,112 @@ class Dummyless(VerificationProtocol):
         super().__init__()
     
     def create_test_runs(self, client, **kwargs) -> list[TestRun]:
-        return super().create_test_runs(client, **kwargs)
+        graph:nx.Graph = client.graph
+        nodes = graph.nodes
+        n = len(nodes)
+        idx_map = {node: i for i, node in enumerate(nodes)}
+
+
+        def compute_generators(graph) -> dict[int, stim.PauliString]:
+            # Step 0: Define S_v for each node
+            S = {}
+            for v in graph.nodes:
+                pauli = ['I'] * n
+                pauli[idx_map[v]] = 'X'
+                for u in graph.neighbors(v):
+                    pauli[idx_map[u]] = 'Z'
+                S[v] = stim.PauliString(''.join(pauli))
+            return S
+    
+
+        def compute_full_stabilizer(generators:dict[int, stim.PauliString]):
+            # Step 1: Compute R_full
+            R_full = stim.PauliString("I" * len(next(iter(generators.values()))))
+            for stab in generators.values():
+                R_full *= stab  # Stim handles multiplication and phase internally
+            return R_full
+    
+
+        def build_candidate_generators(graph:nx.Graph, generators, R_full):
+            """
+            Constructs candidate generators from stabilizers.
+
+            Parameters:
+            - graph: networkx.Graph
+            - generators: dict of {node: stim.PauliString}
+            - R_full: stim.PauliString
+
+            Returns:
+            - List of stim.PauliString (candidates)
+            """
+            candidates = []
+            nodes = list(graph.nodes)
+
+            # From even-degree nodes: R \ S_v
+            for v in nodes:
+                if graph.degree[v] % 2 == 0:
+                    cand = R_full * generators[v]
+                    if cand.pauli_indices("Z") == []:
+                        candidates.append(cand)
+
+            # From odd-degree pairs and even-internal-node paths
+            odd_nodes = [v for v in nodes if graph.degree[v] % 2 == 1]
+            for u, w in combinations(odd_nodes, 2):
+                try:
+                    path = nx.shortest_path(graph, u, w)
+                except nx.NetworkXNoPath:
+                    continue
+
+                if all(graph.degree[v] % 2 == 0 for v in path[1:-1]):
+                    cand = R_full.copy() # Careful, Stim multiplies in place.
+                    for v in path:
+                        cand *= generators[v]
+                    if cand.pauli_indices("Z") == []:
+                        candidates.append(cand)
+
+            return candidates
+
+
+        def to_binary_XY_support(pstring: stim.PauliString) -> tuple[int]:
+            """
+            Converts a stim.PauliString into a binary vector over GF(2)^n
+            where X and Y are 1, others are 0.
+            """
+            return tuple(1 if p in ['X', 'Y'] else 0 for p in str(pstring))
+
+        def select_independent_generators(candidates: list[stim.PauliString], n: int) -> list[stim.PauliString]:
+            """
+            Selects n - 1 linearly independent Pauli strings over GF(2)^n (ignoring phase)
+            using greedy support-based method.
+
+            Args:
+                candidates: list of stim.PauliString
+                n: number of qubits
+
+            Returns:
+                list of stim.PauliString forming the basis
+            """
+            basis = []
+            basis_bin = []
+
+            for cand in candidates:
+                vec = to_binary_XY_support(cand)
+                if vec not in basis_bin:
+                    basis.append(cand)
+                    basis_bin.append(vec)
+                if len(basis) == n - 1:
+                    break
+
+            assert len(basis) == n - 1, f"Generated only {len(basis)} out of {n-1} stabilizers."
+            return basis
+
+        generators = compute_generators(graph=graph)
+        Rfull = compute_full_stabilizer(generators=generators)
+        candidates = build_candidate_generators(graph=graph, generators=generators, R_full=Rfull)
+        independent_generators = select_independent_generators(candidates=candidates, n=n)
+        print(independent_generators)
+        # for stabilizer in independent_generators:
+        #     test_run = TestRun(client=client)
+        # return super().create_test_runs(client, **kwargs)
+    
+

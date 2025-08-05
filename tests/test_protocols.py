@@ -60,3 +60,11 @@ class TestProtocols:
         assert decision == True
         assert result_analysis.nr_failed_test_rounds == 0
 
+    def test_dummyless(self, fx_rng: np.random.Generator):
+        nqubits = 3
+        depth = 5
+        circuit = rand_circuit(nqubits, depth, fx_rng)
+        pattern = circuit.transpile().pattern
+
+        secrets = Secrets(r=True, a=True, theta=True)
+        client = Client(pattern=pattern, secrets=secrets, protocol_cls=Dummyless)

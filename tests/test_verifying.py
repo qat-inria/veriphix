@@ -320,3 +320,164 @@ class TestVerifying:
                         print(len(candidates))
         # print(candidates)
 
+
+
+    def test_dummyless_graph(self, fx_rng:np.random.Generator):
+            import networkx as nx
+            import numpy as np
+            from itertools import combinations
+
+            # === Pauli tools ===
+            def pauli_mult(p1, p2):
+                table = {
+                    ('I', 'I'): 'I', ('I', 'X'): 'X', ('I', 'Y'): 'Y', ('I', 'Z'): 'Z',
+                    ('X', 'I'): 'X', ('X', 'X'): 'I', ('X', 'Y'): 'Z', ('X', 'Z'): 'Y',
+                    ('Y', 'I'): 'Y', ('Y', 'X'): 'Z', ('Y', 'Y'): 'I', ('Y', 'Z'): 'X',
+                    ('Z', 'I'): 'Z', ('Z', 'X'): 'Y', ('Z', 'Y'): 'X', ('Z', 'Z'): 'I'
+                }
+                return table[(p1, p2)]
+
+            def multiply_stabilizers(s1, s2):
+                return [pauli_mult(a, b) for a, b in zip(s1, s2)]
+
+            def is_all_I_X_Y(pauli_string):
+                return all(p in ['I', 'X', 'Y'] for p in pauli_string)
+
+            def pauli_to_symplectic(pauli_str):
+                z = []
+                x = []
+                for p in pauli_str:
+                    if p == 'I': z.append(0); x.append(0)
+                    elif p == 'X': z.append(0); x.append(1)
+                    elif p == 'Y': z.append(1); x.append(1)
+                    elif p == 'Z': z.append(1); x.append(0)
+                return np.array(z + x, dtype=int)
+
+            # === GF(2) Solver ===
+            def gf2_solve(A, b):
+                A = A.copy() % 2
+                b = b.copy() % 2
+                n_rows, n_cols = A.shape
+                x = np.zeros(n_cols, dtype=int)
+                pivot_rows = [-1] * n_rows
+
+                row = 0
+                for col in range(n_cols):
+                    for r in range(row, n_rows):
+                        if A[r, col] == 1:
+                            A[[row, r]] = A[[r, row]]
+                            b[[row, r]] = b[[r, row]]
+                            break
+                    else:
+                        continue
+                    for r in range(row + 1, n_rows):
+                        if A[r, col] == 1:
+                            A[r] = (A[r] + A[row]) % 2
+                            b[r] = (b[r] + b[row]) % 2
+                    pivot_rows[row] = col
+                    row += 1
+
+                # Back substitution
+                for r in reversed(range(row)):
+                    col = pivot_rows[r]
+                    x[col] = b[r]
+                    for k in range(r):
+                        if A[k, col] == 1:
+                            b[k] = (b[k] + x[col]) % 2
+                return x
+
+            # === Construct Graph Stabilizers ===
+            def generate_graph_stabilizers(G):
+                n = G.number_of_nodes()
+                nodes = list(G.nodes())
+                idx_map = {v: i for i, v in enumerate(nodes)}
+                S = []
+                for v in nodes:
+                    pauli = ['I'] * n
+                    pauli[idx_map[v]] = 'X'
+                    for u in G.neighbors(v):
+                        pauli[idx_map[u]] = pauli_mult(pauli[idx_map[u]], 'Z')
+                    S.append(pauli)
+                return S
+
+            # === Generate Z-free stabilizers (from previous step) ===
+            def generate_stabilizers_I_X_Y_only(G):
+                n = G.number_of_nodes()
+                nodes = list(G.nodes())
+                idx_map = {node: i for i, node in enumerate(nodes)}
+                S = generate_graph_stabilizers(G)
+
+                R_full = ['I'] * n
+                for stab in S:
+                    R_full = multiply_stabilizers(R_full, stab)
+
+                candidates = []
+
+                even_nodes = [v for v in nodes if G.degree[v] % 2 == 0]
+                for v in even_nodes:
+                    Rv = multiply_stabilizers(R_full, S[idx_map[v]])
+                    if is_all_I_X_Y(Rv):
+                        candidates.append(Rv)
+
+                odd_nodes = [v for v in nodes if G.degree[v] % 2 == 1]
+                for u, w in combinations(odd_nodes, 2):
+                    try:
+                        path = nx.shortest_path(G, u, w)
+                    except:
+                        continue
+                    if all(G.degree[v] % 2 == 0 for v in path[1:-1]):
+                        Ruw = R_full.copy()
+                        for v in path:
+                            Ruw = multiply_stabilizers(Ruw, S[idx_map[v]])
+                        if is_all_I_X_Y(Ruw):
+                            candidates.append(Ruw)
+
+                # Prune to |V|-1 linearly independent stabilizers
+                def to_binary(pstring): return [1 if p in ['X', 'Y'] else 0 for p in pstring]
+                basis = []
+                basis_bin = []
+                for cand in candidates:
+                    vec = to_binary(cand)
+                    if vec not in basis_bin:
+                        basis.append(cand)
+                        basis_bin.append(vec)
+                    if len(basis) == n - 1:
+                        break
+                return basis
+
+            # === Main Demo ===
+            def explain_stabilizer_generators(G):
+                nodes = list(G.nodes())
+                idx_map = {v: i for i, v in enumerate(nodes)}
+
+                S_paulis = generate_graph_stabilizers(G)
+                S_bin = np.array([pauli_to_symplectic(s) for s in S_paulis]).T  # shape (2n, n)
+
+                R_gens = generate_stabilizers_I_X_Y_only(G)
+
+                for i, R in enumerate(R_gens):
+                    R_bin = pauli_to_symplectic(R)
+                    coeffs = gf2_solve(S_bin, R_bin)
+                    support = [nodes[j] for j in range(len(coeffs)) if coeffs[j] == 1]
+                    print(f"Generator {i+1}: {''.join(R)}")
+                    print(f" → product of S_v for v in: {support}\n")
+                    # Multiply S_v from support to reconstruct R
+                    reconstructed = ['I'] * len(R)
+                    for v in support:
+                        reconstructed = multiply_stabilizers(reconstructed, S_paulis[idx_map[v]])
+
+                    print("Product result is:", ''.join(reconstructed))
+                    match = reconstructed == R
+                    print(f"✔ Match original: {match}\n")
+
+
+            # Example usage:
+            nqubits = 5
+            depth = 1
+            circuit = rand_circuit(nqubits, depth, fx_rng)
+            pattern = circuit.transpile().pattern
+
+            secrets = Secrets(r=True, a=True, theta=True)
+            client = Client(pattern=pattern, secrets=secrets)
+
+            explain_stabilizer_generators(client.graph)
