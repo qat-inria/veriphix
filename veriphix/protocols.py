@@ -7,6 +7,8 @@ import networkx as nx
 import random
 import stim
 from itertools import combinations
+import numpy as np
+
 
 if TYPE_CHECKING:
     from veriphix.client import Client
@@ -235,3 +237,140 @@ class Dummyless(VerificationProtocol):
         # return super().create_test_runs(client, **kwargs)
     
 
+
+    def create_test_runs(self, client, **kwargs) -> list[TestRun]:
+
+        # === GF(2) Solver ===
+        def gf2_solve(A, b):
+            A = A.copy() % 2
+            b = b.copy() % 2
+            n_rows, n_cols = A.shape
+            x = np.zeros(n_cols, dtype=int)
+            pivot_rows = [-1] * n_rows
+
+            row = 0
+            for col in range(n_cols):
+                for r in range(row, n_rows):
+                    if A[r, col] == 1:
+                        A[[row, r]] = A[[r, row]]
+                        b[[row, r]] = b[[r, row]]
+                        break
+                else:
+                    continue
+                for r in range(row + 1, n_rows):
+                    if A[r, col] == 1:
+                        A[r] = (A[r] + A[row]) % 2
+                        b[r] = (b[r] + b[row]) % 2
+                pivot_rows[row] = col
+                row += 1
+
+            for r in reversed(range(row)):
+                col = pivot_rows[r]
+                x[col] = b[r]
+                for k in range(r):
+                    if A[k, col] == 1:
+                        b[k] = (b[k] + x[col]) % 2
+            return x
+        
+
+        # === Pauli utility ===
+        def to_binary_XY_support(pstring: stim.PauliString) -> tuple[int]:
+            return tuple(1 if p in ['X', 'Y'] else 0 for p in str(pstring))
+        def pauli_to_symplectic(p: stim.PauliString) -> np.ndarray:
+            # Concatenate Z then X bits (Stim convention)
+            xs, zs = p.to_numpy()
+            return np.concatenate([zs.astype(int), xs.astype(int)])
+        
+        
+        # === Construct graph stabilizers (S_v) ===
+        def generate_graph_stabilizers(G: nx.Graph) -> list[stim.PauliString]:
+            n = G.number_of_nodes()
+            idx_map = {v: i for i, v in enumerate(G.nodes)}
+            S = []
+            for v in G.nodes:
+                pauli = ['I'] * n
+                pauli[idx_map[v]] = 'X'
+                for u in G.neighbors(v):
+                    pauli[idx_map[u]] = 'Z'
+                S.append(stim.PauliString(''.join(pauli)))
+            return S
+
+        # === Generate Z-free stabilizers (candidates) ===
+        def generate_stabilizers_I_X_Y_only(G: nx.Graph) -> list[stim.PauliString]:
+            n = G.number_of_nodes()
+            idx_map = {v: i for i, v in enumerate(G.nodes)}
+            nodes = list(G.nodes)
+
+            S = generate_graph_stabilizers(G)
+
+            R_full = stim.PauliString("I" * n)
+            for stab in S:
+                R_full *= stab
+
+            candidates = []
+
+            # Even-degree node flips
+            even_nodes = [v for v in nodes if G.degree[v] % 2 == 0]
+            for v in even_nodes:
+                Rv = R_full * S[idx_map[v]]
+                if Rv.pauli_indices("Z") == []:
+                    candidates.append(Rv)
+
+            # Odd-degree pairs connected by even-degree interior paths
+            odd_nodes = [v for v in nodes if G.degree[v] % 2 == 1]
+            for u, w in combinations(odd_nodes, 2):
+                try:
+                    path = nx.shortest_path(G, u, w)
+                except:
+                    continue
+                if all(G.degree[v] % 2 == 0 for v in path[1:-1]):
+                    Ruw = R_full.copy()
+                    for v in path:
+                        Ruw *= S[idx_map[v]]
+                    if Ruw.pauli_indices("Z") == []:
+                        candidates.append(Ruw)
+
+            # Greedily pick n - 1 linearly independent (based on XY support)
+            basis = []
+            basis_bin = []
+            for cand in candidates:
+                vec = to_binary_XY_support(cand)
+                if vec not in basis_bin:
+                    basis.append(cand)
+                    basis_bin.append(vec)
+                if len(basis) == n - 1:
+                    break
+            return basis
+        
+        G:nx.Graph = client.graph
+        nodes = list(G.nodes)
+        idx_map = {v: i for i, v in enumerate(nodes)}
+        n = len(nodes)
+
+        S_paulis = generate_graph_stabilizers(G)
+
+        # Construct symplectic matrix: 2n × n
+        S_bin = np.array([pauli_to_symplectic(p) for p in S_paulis]).T
+
+        R_gens = generate_stabilizers_I_X_Y_only(G)
+
+        test_runs = []
+        for i, R in enumerate(R_gens):
+            R_bin = pauli_to_symplectic(R)
+            coeffs = gf2_solve(S_bin, R_bin)
+            support = [nodes[j] for j in range(n) if coeffs[j] == 1]
+            test_run = TestRun(client=client, traps=(tuple(support),))
+            test_runs.append(test_run)
+
+            # print(f"Generator {i+1}: {str(R)}")
+            # print(f" → product of S_v for v in: {support}")
+
+            # # Reconstruct using product of S_v for v in support
+            # reconstructed = stim.PauliString("I" * n)
+            # for v in support:
+            #     reconstructed *= S_paulis[idx_map[v]]
+
+            # print(f"Product result is: {str(reconstructed)}")
+            # print(f"✔ Match original: {reconstructed == R}\n")
+
+        return test_runs

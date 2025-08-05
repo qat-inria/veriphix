@@ -68,3 +68,6 @@ class TestProtocols:
 
         secrets = Secrets(r=True, a=True, theta=True)
         client = Client(pattern=pattern, secrets=secrets, protocol_cls=Dummyless)
+
+        for run in client.test_runs:
+            print(run.stabilizer)
