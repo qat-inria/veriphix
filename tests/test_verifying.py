@@ -35,6 +35,9 @@ class TestVerifying:
 
             for trap in traps:
                 assert outcomes[trap] == 0
+
+
+
     def test_dummyless_proof(self, fx_rng:np.random.Generator):
 
         import networkx as nx

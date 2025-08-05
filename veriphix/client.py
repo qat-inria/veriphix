@@ -34,7 +34,7 @@ from veriphix.verifying import (
     TrappifiedScheme,
     TrappifiedSchemeParameters,
 )
-from veriphix.protocols import FK12
+from veriphix.protocols import FK12, VerificationProtocol
 
 if TYPE_CHECKING:
     from graphix.sim.base_backend import Backend
@@ -94,6 +94,7 @@ class Client:
         test_measure_method_cls=None,
         secrets: Secrets | None = None,
         parameters: TrappifiedSchemeParameters | None = None,
+        protocol_cls: type[VerificationProtocol]=FK12
     ) -> None:
         self.initial_pattern: Pattern = pattern
         self.classical_output = classical_output
@@ -130,7 +131,9 @@ class Client:
         self.prepare_method = ClientPrepareMethod(self.preparation_bank)
 
         self.computationRun = ComputationRun(self)
-        self.test_runs = FK12.create_test_runs(client=self)
+        protocol = protocol_cls()
+        self.test_runs = protocol.create_test_runs(client=self)
+
         self.trappifiedScheme = TrappifiedScheme(
             params=parameters or TrappifiedSchemeParameters(20, 20, 5), test_runs=self.test_runs
         )
@@ -210,7 +213,7 @@ class Client:
             outcomes[r] = canvas[r].delegate(backend=backend, **kwargs)
         return outcomes
 
-    def analyze_outcomes(self, canvas, outcomes: dict[int, RunResult]):
+    def analyze_outcomes(self, canvas, outcomes: dict[int, RunResult]) -> tuple[bool, str, ResultAnalysis]:
         result_analysis = ResultAnalysis(
             nr_failed_test_rounds=0, computation_outcomes_count=dict(), quantum_output_states={}
         )

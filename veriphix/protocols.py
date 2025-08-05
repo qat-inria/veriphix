@@ -4,6 +4,7 @@ from veriphix.verifying import TestRun
 import itertools
 from collections.abc import Sequence
 import networkx as nx
+import random
 
 if TYPE_CHECKING:
     from veriphix.client import Client
@@ -20,7 +21,7 @@ class FK12(VerificationProtocol):
     def __init__(self) -> None:
         super().__init__()
     
-    def create_test_runs(client, manual_colouring: Sequence[set[int]] | None = None) -> list[TestRun]:
+    def create_test_runs(self, client, manual_colouring: Sequence[set[int]] | None = None) -> list[TestRun]:
         """Creates test runs according to a graph colouring according to [FK12].
         A test run, or a Trappified Canvas, is associated to each color in the colouring.
         For a given test run, the trap nodes are defined as being the nodes belonging to the color the run corresponds to.
@@ -95,11 +96,28 @@ class FK12(VerificationProtocol):
     
 
 class RandomTraps(VerificationProtocol):
+    """
+    A bad and naive way of generating traps, but exposing the modularity of the interface.
+    """
     def __init__(self) -> None:
         super().__init__()
     
     def create_test_runs(self, client, **kwargs) -> list[TestRun]:
-        return super().create_test_runs(client, **kwargs)
+        test_runs = []
+        # Create 1 random trap per node
+        n = len(client.graph.nodes)
+        for _ in range(n):
+            # Choose a random subset of nodes to create a trap (random size, random nodes)
+            trap_size = random.choice(range(n))
+            random_nodes = random.sample(client.nodes_list, k=trap_size)
+            # Create a single-trap test round from it. The trap is multi-qubit.
+            random_multi_qubit_trap = tuple(random_nodes)
+            # Only one trap
+            traps = (random_multi_qubit_trap,)
+            test_run = TestRun(client=client, traps=traps)
+            test_runs.append(test_run)
+
+        return test_runs
 
 class Dummyless(VerificationProtocol):
     def __init__(self) -> None:

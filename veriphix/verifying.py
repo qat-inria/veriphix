@@ -142,6 +142,11 @@ class TestRun(Run):
             trap_outcomes[trap] = trap_outcome
             # trap_outcomes.append(trap_outcome)
         return TestResult(trap_outcomes)
+    
+    def __str__(self) -> str:
+        return f"""
+        Traps: {self.traps}
+        Stabilizer: {self.stabilizer}""" 
 
 
 class RunResult(ABC):
