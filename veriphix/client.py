@@ -94,7 +94,8 @@ class Client:
         test_measure_method_cls=None,
         secrets: Secrets | None = None,
         parameters: TrappifiedSchemeParameters | None = None,
-        protocol_cls: type[VerificationProtocol]=FK12
+        protocol_cls: type[VerificationProtocol]=FK12,
+        **kwargs,
     ) -> None:
         self.initial_pattern: Pattern = pattern
         self.classical_output = classical_output
@@ -133,7 +134,7 @@ class Client:
         self.computationRun = ComputationRun(self)
         protocol = protocol_cls(client=self)
         
-        self.test_runs = protocol.create_test_runs()
+        self.test_runs = protocol.create_test_runs(**kwargs)
 
         self.trappifiedScheme = TrappifiedScheme(
             params=parameters or TrappifiedSchemeParameters(20, 20, 5), test_runs=self.test_runs

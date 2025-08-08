@@ -26,7 +26,7 @@ class FK12(VerificationProtocol):
     def __init__(self, client) -> None:
         super().__init__(client)
     
-    def create_test_runs(self, manual_colouring: Sequence[set[int]] | None = None) -> list[TestRun]:
+    def create_test_runs(self, manual_colouring: Sequence[set[int]] | None = None, **kwargs) -> list[TestRun]:
         """Creates test runs according to a graph colouring according to [FK12].
         A test run, or a Trappified Canvas, is associated to each color in the colouring.
         For a given test run, the trap nodes are defined as being the nodes belonging to the color the run corresponds to.
