@@ -36,6 +36,8 @@ from veriphix.verifying import (
 )
 from veriphix.protocols import FK12, VerificationProtocol
 
+from veriphix.malicious_noise_model import MaliciousNoiseModel
+
 if TYPE_CHECKING:
     from graphix.sim.base_backend import Backend
 
@@ -210,8 +212,11 @@ class Client:
 
     def delegate_canvas(self, canvas: dict[int, Run], backend_cls: type[Backend], **kwargs) -> dict[int, RunResult]:
         outcomes = dict()
+        noise_model = kwargs.get("noise_model")
         for r in canvas:
             backend = backend_cls()
+            if isinstance(noise_model, MaliciousNoiseModel):
+                noise_model.refresh_randomness()
             outcomes[r] = canvas[r].delegate(backend=backend, **kwargs)
         return outcomes
 

@@ -10,6 +10,8 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 from graphix.noise_models import DepolarisingNoiseModel, GlobalNoiseModel
+from veriphix.malicious_noise_model import MaliciousNoiseModel
+
 from graphix.random_objects import rand_circuit
 from graphix.sim.density_matrix import DensityMatrixBackend
 from graphix.sim.statevec import StatevectorBackend
@@ -47,24 +49,27 @@ with Path("demo/sampled_circuits.txt").open() as f:
 
 # === Define noise models ===
 
-depol_param_sweep = [1e-4, 5e-4, 1e-3, 2.7e-3, 5e-3, 1e-2, 5e-2]
-malicious_global_param_sweep = [0.1, 0.2, 0.3, 0.4, 0.5, 0.7]
+malicious_global_param_sweep = np.linspace(0,1, 21)
 
-depol = {
-    f"depolarising-{p}": DepolarisingNoiseModel(entanglement_error_prob=p)
-    for p in depol_param_sweep
-}
+# depol_param_sweep = [1e-4, 5e-4, 1e-3, 2.7e-3, 5e-3, 1e-2, 5e-2]
+# depol = {
+#     f"depolarising-{p}": DepolarisingNoiseModel(entanglement_error_prob=p)
+#     for p in depol_param_sweep
+# }
 
 default_pattern = load_pattern_from_circuit(random.choice(sampled_circuits))
 colors = veriphix.sampling_circuits.brickwork_state_transpiler.get_bipartite_coloring(default_pattern)
 output_node = default_pattern.output_nodes[0]
 
 malicious_global = {
-    f"malicious-{p}": GlobalNoiseModel(nodes=[output_node], prob=p)
+    f"malicious-{p}": MaliciousNoiseModel(nodes=[output_node], prob=p)
     for p in malicious_global_param_sweep
 }
 
-combined_noise_models = {**malicious_global, **depol}
+combined_noise_models = {
+    **malicious_global,
+    # **depol
+    }
 
 # === Setup protocol parameters ===
 
@@ -72,7 +77,7 @@ parameters = TrappifiedSchemeParameters(comp_rounds=100, test_rounds=100, thresh
 
 # === CSV Setup ===
 
-csv_path = "noise_protocol_analysis-big.csv"
+csv_path = "demalicious.csv"
 csv_fields = [
     "protocol", "noise_model", "parameter", "circuit_label", "n_failed_test_rounds",
     "decoded_output", "correct_value", "match", "computation_outcomes_count"
