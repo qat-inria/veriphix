@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import pytest
-from graphix.noise_models import DepolarisingNoiseModel, GlobalNoiseModel
+from graphix.noise_models import DepolarisingNoiseModel
 from graphix.random_objects import rand_circuit
 from graphix.sim.density_matrix import DensityMatrixBackend
 from graphix.sim.statevec import StatevectorBackend
@@ -15,6 +15,7 @@ from graphix.states import BasicStates
 
 import veriphix.sampling_circuits.brickwork_state_transpiler
 from veriphix.client import Client, Secrets, TrappifiedSchemeParameters
+from veriphix.malicious_noise_model import MaliciousNoiseModel
 from veriphix.sampling_circuits.qasm_parser import read_qasm
 from veriphix.verifying import ComputationRun
 from veriphix.protocols import FK12, Dummyless, RandomTraps, VerificationProtocol
@@ -228,7 +229,7 @@ class TestVBQC:
             malicious_global_param_sweep = [0.1, 0.2, 0.3, 0.4, 0.5]
             output_node = client.output_nodes[0]
             malicious_global = {
-                f"malicious-{p}": GlobalNoiseModel(nodes=[output_node], prob=p) for p in malicious_global_param_sweep
+                f"malicious-{p}": MaliciousNoiseModel(nodes=[output_node], prob=p) for p in malicious_global_param_sweep
             }
             combined_noise_models = {**depol, **malicious_global}
 

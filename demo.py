@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import numpy as np
-from graphix.noise_models import DepolarisingNoiseModel, GlobalNoiseModel
+from graphix.noise_models import DepolarisingNoiseModel
 from veriphix.malicious_noise_model import MaliciousNoiseModel
 
 from graphix.random_objects import rand_circuit
