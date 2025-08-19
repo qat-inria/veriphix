@@ -86,6 +86,8 @@ def get_graph_clifford_structure(graph: nx.Graph):
 
 
 class Client:
+    # Généraliser: le client prend un prédicat de 'output' à booleen, par exemple qubit 0 doit renvoyer 0 
+    
     def __init__(
         self,
         pattern,
@@ -220,6 +222,13 @@ class Client:
             outcomes[r] = canvas[r].delegate(backend=backend, **kwargs)
         return outcomes
 
+
+    # TODO: fix bug in case of 'desired_outputs'
+    """
+    TODO: généralisation.
+    Sommer sur les rounds de calcul dont l'output vérifie le prédicat
+    regarder si cette somme est > d/2
+    """
     def analyze_outcomes(self, canvas, outcomes: dict[int, RunResult]) -> tuple[bool, str, ResultAnalysis]:
         result_analysis = ResultAnalysis(
             nr_failed_test_rounds=0, computation_outcomes_count=dict(), quantum_output_states={}

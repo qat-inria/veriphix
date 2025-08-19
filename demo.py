@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import numpy as np
-from graphix.noise_models import DepolarisingNoiseModel, GlobalNoiseModel
+from graphix.noise_models import DepolarisingNoiseModel
 from veriphix.malicious_noise_model import MaliciousNoiseModel
 
 from graphix.random_objects import rand_circuit
@@ -49,18 +49,18 @@ with Path("demo/sampled_circuits.txt").open() as f:
 
 # === Define noise models ===
 
-malicious_global_param_sweep = np.linspace(0,1, 21)
 
-# depol_param_sweep = [1e-4, 5e-4, 1e-3, 2.7e-3, 5e-3, 1e-2, 5e-2]
-# depol = {
-#     f"depolarising-{p}": DepolarisingNoiseModel(entanglement_error_prob=p)
-#     for p in depol_param_sweep
-# }
+depol_param_sweep = [1e-4, 5e-4, 1e-3, 2.7e-3, 5e-3, 1e-2, 5e-2]
+depol = {
+    f"depolarising-{p}": DepolarisingNoiseModel(entanglement_error_prob=p)
+    for p in depol_param_sweep
+}
 
 default_pattern = load_pattern_from_circuit(random.choice(sampled_circuits))
 colors = veriphix.sampling_circuits.brickwork_state_transpiler.get_bipartite_coloring(default_pattern)
 output_node = default_pattern.output_nodes[0]
 
+malicious_global_param_sweep = np.linspace(0,1, 21)
 malicious_global = {
     f"malicious-{p}": MaliciousNoiseModel(nodes=[output_node], prob=p)
     for p in malicious_global_param_sweep
@@ -90,6 +90,12 @@ with open(csv_path, "a", newline="") as csvfile:
     if not csv_exists:
         writer.writeheader()
 
+    """
+    TODO: La boucle doit être homogène. Ici, FK12 doit etre une fonction de: "coloriage ou None" vers une instance de FK12 ;
+    Dummyless doit être une lambda qui ignore son argument et renvoie une instance de Dummyless
+    
+    TODO: ou eventuellement, réordonner les boucles
+    """
     for protocol in [FK12, Dummyless]:
         print("PROTOCOL:", protocol.__name__)
 

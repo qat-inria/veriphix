@@ -14,15 +14,19 @@ if TYPE_CHECKING:
     from veriphix.client import Client
 
 class VerificationProtocol(ABC):
+
+    # TODO: enelver Client
     def __init__(self, client) -> None:
         self.client = client
         pass
 
+    # TODO: enlever kwargs, mettre Client
     @abstractmethod
-    def create_test_runs(self, client, **kwargs) -> list[TestRun]:
+    def create_test_runs(self, **kwargs) -> list[TestRun]:
         pass
 
 class FK12(VerificationProtocol):
+    # TODO: ajouter manual coloring comme attribut pour ce protocole
     def __init__(self, client) -> None:
         super().__init__(client)
     
