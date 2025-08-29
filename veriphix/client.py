@@ -116,7 +116,6 @@ class Client:
 
         self.graph = self._build_graph()
         self.clifford_structure = get_graph_clifford_structure(self.graph)
-        self.nodes_list = list(self.graph.nodes)
 
         self.results = pattern.results.copy()
         self.measure_method = (measure_method_cls or ClientMeasureMethod)(self)
@@ -180,7 +179,7 @@ class Client:
 
     def get_computation_states(self):
         states = dict()
-        for node in self.nodes_list:
+        for node in self.graph.nodes:
             if node in self.input_nodes:
                 state = self.input_state[node]
 
