@@ -35,6 +35,8 @@ from veriphix.verifying import (
     TrappifiedSchemeParameters,
     create_test_runs,
 )
+from veriphix.perceval_backend import PercevalBackend
+import perceval as pcvl
 
 if TYPE_CHECKING:
     from graphix.sim.base_backend import Backend
@@ -189,7 +191,7 @@ class Client:
             blinded_qubit_state = self.secret_datas.blind_qubit(node=node, state=states_dict[node])
             self.preparation_bank[node] = Statevec(blinded_qubit_state)
 
-    def prepare_states(self, backend: Backend, states_dict: dict[(int, BasicStates)]) -> None:
+    def prepare_states(self, backend: Backend | PercevalBackend, states_dict: dict[(int, BasicStates)]) -> None:
         # Initializes the bank (all the nodes)
         self.prepare_states_virtual(states_dict=states_dict)
         # Server asks the backend to create them
@@ -203,10 +205,10 @@ class Client:
 
         return {r: self.computationRun if r in computation_rounds else random.choice(self.test_runs) for r in range(N)}
 
-    def delegate_canvas(self, canvas: dict[int, Run], backend_cls: type[Backend], **kwargs) -> dict[int, RunResult]:
+    def delegate_canvas(self, canvas: dict[int, Run], backend_cls: type[Backend] | PercevalBackend, **kwargs) -> dict[int, RunResult]:
         outcomes = dict()
         for r in canvas:
-            backend = backend_cls()
+            backend = backend_cls
             outcomes[r] = canvas[r].delegate(backend=backend, **kwargs)
         return outcomes
 
