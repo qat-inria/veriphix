@@ -138,10 +138,8 @@ class TestVBQC:
         secrets = Secrets(r=blind, a=blind, theta=blind)
 
         parameters = TrappifiedSchemeParameters(comp_rounds=20, test_rounds=20, threshold=5)
-        # QCircuit, we keep the first output only
-        desired_outputs = [0]
         client = Client(
-            pattern=pattern, input_state=states, secrets=secrets, parameters=parameters, desired_outputs=desired_outputs
+            pattern=pattern, input_state=states, secrets=secrets, parameters=parameters
         )
 
         canvas = client.sample_canvas()

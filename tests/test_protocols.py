@@ -112,6 +112,8 @@ class TestProtocols:
         idx_map = {v: i for i, v in enumerate(nodes)}
         n = len(nodes)
         # Check that they are linearly independent
+        # By construction, the rank of the symplectic matrix (built from symplectic vectors stacked as rows) of the Pauli Strings is $n-1$
+        # so the $n-1$ strings are linearly independent.
 
         for run in client.test_runs:
             # Check that there are no Z

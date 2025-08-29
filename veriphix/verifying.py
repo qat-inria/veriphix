@@ -5,7 +5,7 @@ import itertools
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from collections.abc import Set as AbstractSet
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 import networkx as nx
@@ -167,17 +167,9 @@ class ClassicalComputationResult(ComputationResult):
         self.outcome_string = None
 
     def analyze(self, result_analysis: ResultAnalysis, client: Client) -> None:
-        if client.desired_outputs is None:
-            outcome_string = "".join(str(o) for o in self.outcomes.values())
-        else:
-            outputs = list(self.outcomes.values())
-            restricted_outputs = [int(outputs[i]) for i in client.desired_outputs]
-            outcome_string = "".join(str(o) for o in restricted_outputs)
-
-        self.outcome_string = outcome_string
-        result_analysis.computation_outcomes_count[self.outcome_string] = (
-            result_analysis.computation_outcomes_count.get(self.outcome_string, 0) + 1
-        )
+        output_string = ''.join(str(int(v)) for v in self.outcomes.values())
+        result_analysis.computation_count += client.output_predicate(output_string)
+        return
 
     def __str__(self) -> str:
         return f"""
@@ -225,9 +217,10 @@ class TrappifiedScheme:
 
 @dataclass
 class ResultAnalysis:
-    nr_failed_test_rounds: int
-    computation_outcomes_count: dict[str, int]
-    quantum_output_states: dict[int, State]
+    nr_failed_test_rounds: int=0
+    # number of computation rounds for which the Client's predicate evaluated to True
+    computation_count: int=0
+    quantum_output_states: dict[int, State]=field(default_factory=dict)
 
 
 @dataclass

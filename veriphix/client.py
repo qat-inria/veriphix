@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from math import ceil
 from typing import TYPE_CHECKING
 
+from collections.abc import Callable
 import graphix.command
 import graphix.ops
 import graphix.pattern
@@ -85,6 +86,9 @@ def get_graph_clifford_structure(graph: nx.Graph):
     return circuit.to_tableau()
 
 
+def qCircuit_predicate(output_string:str) -> bool:
+    return int(output_string[0])
+
 class Client:
     # Généraliser: le client prend un prédicat de 'output' à booleen, par exemple qubit 0 doit renvoyer 0 
     
@@ -93,7 +97,7 @@ class Client:
         pattern,
         input_state=None,
         classical_output: bool = True,
-        desired_outputs: list[int] | None = None,
+        output_predicate: Callable[[str], bool] = qCircuit_predicate,
         measure_method_cls=None,
         test_measure_method_cls=None,
         secrets: Secrets | None = None,
@@ -103,7 +107,7 @@ class Client:
     ) -> None:
         self.initial_pattern: Pattern = pattern
         self.classical_output = classical_output
-        self.desired_outputs = desired_outputs
+        self.output_predicate = output_predicate
         self.input_nodes = pattern.input_nodes.copy()
         self.output_nodes = pattern.output_nodes.copy()
 
@@ -223,35 +227,17 @@ class Client:
         return outcomes
 
 
-    # TODO: fix bug in case of 'desired_outputs'
-    """
-    TODO: généralisation.
-    Sommer sur les rounds de calcul dont l'output vérifie le prédicat
-    regarder si cette somme est > d/2
-    """
     def analyze_outcomes(self, canvas, outcomes: dict[int, RunResult]) -> tuple[bool, str, ResultAnalysis]:
-        result_analysis = ResultAnalysis(
-            nr_failed_test_rounds=0, computation_outcomes_count=dict(), quantum_output_states={}
-        )
+        result_analysis = ResultAnalysis()
         for r in canvas:
             outcomes[r].analyze(result_analysis=result_analysis, client=self)
 
         # True if Accept, False if Reject
-        decision = result_analysis.nr_failed_test_rounds <= self.trappifiedScheme.params.threshold
+        traps_decision = result_analysis.nr_failed_test_rounds <= self.trappifiedScheme.params.threshold
+        # The Client decides that the instance passes the predicate if more than half of the test rounds did pass
+        computation_decision = result_analysis.computation_count >= ceil(self.trappifiedScheme.params.comp_rounds/2)
 
-        # Compute majority vote (only if classical output)
-        biased_outcome = (
-            [
-                k
-                for k, v in result_analysis.computation_outcomes_count.items()
-                if v >= ceil(self.trappifiedScheme.params.comp_rounds / 2)
-            ]
-            if self.classical_output
-            else None
-        )
-        final_outcome = biased_outcome[0] if biased_outcome else None
-
-        return decision, final_outcome, result_analysis
+        return traps_decision, computation_decision, result_analysis
 
     def decode_output_state(self, backend: Backend):
         for node in self.output_nodes:
