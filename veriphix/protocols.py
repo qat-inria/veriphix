@@ -1,20 +1,22 @@
-from typing import TYPE_CHECKING
-from abc import ABC, abstractmethod
-from veriphix.verifying import TestRun
-import itertools
-from collections.abc import Sequence
-import networkx as nx
-import random
-import stim
-from itertools import combinations
-import numpy as np
+from __future__ import annotations
 
+import itertools
+import random
+from abc import ABC, abstractmethod
+from itertools import combinations
+from typing import TYPE_CHECKING
+
+import networkx as nx
+import numpy as np
+import stim
+
+from veriphix.verifying import TestRun
 
 if TYPE_CHECKING:
-    from veriphix.client import Client
+    from collections.abc import Sequence
+
 
 class VerificationProtocol(ABC):
-
     # TODO: enelver Client
     def __init__(self, client) -> None:
         self.client = client
@@ -25,11 +27,12 @@ class VerificationProtocol(ABC):
     def create_test_runs(self, **kwargs) -> list[TestRun]:
         pass
 
+
 class FK12(VerificationProtocol):
     # TODO: ajouter manual coloring comme attribut pour ce protocole
     def __init__(self, client) -> None:
         super().__init__(client)
-    
+
     def create_test_runs(self, manual_colouring: Sequence[set[int]] | None = None, **kwargs) -> list[TestRun]:
         """Creates test runs according to a graph colouring according to [FK12].
         A test run, or a Trappified Canvas, is associated to each color in the colouring.
@@ -102,15 +105,15 @@ class FK12(VerificationProtocol):
         # print(test_runs)
         return test_runs
 
-    
 
 class RandomTraps(VerificationProtocol):
     """
     A bad and naive way of generating traps, but exposing the modularity of the interface.
     """
+
     def __init__(self, client) -> None:
         super().__init__(client)
-    
+
     def create_test_runs(self, **kwargs) -> list[TestRun]:
         test_runs = []
         # Create 1 random trap per node
@@ -128,18 +131,19 @@ class RandomTraps(VerificationProtocol):
 
         return test_runs
 
+
 class Dummyless(VerificationProtocol):
     def __init__(self, client) -> None:
         super().__init__(client)
-    
-    def create_test_runs(self, **kwargs) -> list[TestRun]:        
-        G:nx.Graph = self.client.graph
+
+    def create_test_runs(self, **kwargs) -> list[TestRun]:
+        G: nx.Graph = self.client.graph
         nodes = list(G.nodes)
         n = len(nodes)
 
         S_paulis = generate_graph_stabilizers(G)
 
-        # Construct symplectic matrix: 2n × n
+        # Construct symplectic matrix: 2n x n
         S_bin = np.array([pauli_to_symplectic(p) for p in S_paulis]).T
 
         R_gens = generate_stabilizers_I_X_Y_only(G)
@@ -153,7 +157,8 @@ class Dummyless(VerificationProtocol):
             test_runs.append(test_run)
 
         return test_runs
-    
+
+
 # === GF(2) Solver ===
 def gf2_solve(A, b):
     A = A.copy() % 2
@@ -189,7 +194,9 @@ def gf2_solve(A, b):
 
 # === Pauli utility ===
 def to_binary_XY_support(pstring: stim.PauliString) -> tuple[int]:
-    return tuple(1 if p in ['X', 'Y'] else 0 for p in str(pstring))
+    return tuple(1 if p in ["X", "Y"] else 0 for p in str(pstring))
+
+
 def pauli_to_symplectic(p: stim.PauliString) -> np.ndarray:
     # Concatenate Z then X bits (Stim convention)
     xs, zs = p.to_numpy()
@@ -202,12 +209,13 @@ def generate_graph_stabilizers(G: nx.Graph) -> list[stim.PauliString]:
     idx_map = {v: i for i, v in enumerate(G.nodes)}
     S = []
     for v in G.nodes:
-        pauli = ['I'] * n
-        pauli[idx_map[v]] = 'X'
+        pauli = ["I"] * n
+        pauli[idx_map[v]] = "X"
         for u in G.neighbors(v):
-            pauli[idx_map[u]] = 'Z'
-        S.append(stim.PauliString(''.join(pauli)))
+            pauli[idx_map[u]] = "Z"
+        S.append(stim.PauliString("".join(pauli)))
     return S
+
 
 # === Generate Z-free stabilizers (candidates) ===
 def generate_stabilizers_I_X_Y_only(G: nx.Graph) -> list[stim.PauliString]:
@@ -235,7 +243,7 @@ def generate_stabilizers_I_X_Y_only(G: nx.Graph) -> list[stim.PauliString]:
     for u, w in combinations(odd_nodes, 2):
         try:
             path = nx.shortest_path(G, u, w)
-        except:
+        except nx.NetworkXNoPath:
             continue
         if all(G.degree[v] % 2 == 0 for v in path[1:-1]):
             Ruw = R_full.copy()

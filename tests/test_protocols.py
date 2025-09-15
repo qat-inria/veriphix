@@ -1,21 +1,26 @@
-import random
+from __future__ import annotations
 
 import numpy as np
+import pytest
 from graphix.random_objects import rand_circuit
 from graphix.sim.statevec import StatevectorBackend
-from itertools import combinations
-
-from veriphix.client import Client, Secrets
-from veriphix.verifying import TestRun
-from veriphix.protocols import FK12, RandomTraps, Dummyless, VerificationProtocol, gf2_solve, pauli_to_symplectic, generate_graph_stabilizers
 from stim import PauliString
 
-import pytest
+from veriphix.client import Client, Secrets
+from veriphix.protocols import (
+    FK12,
+    Dummyless,
+    RandomTraps,
+    VerificationProtocol,
+    generate_graph_stabilizers,
+    gf2_solve,
+    pauli_to_symplectic,
+)
+
 
 class TestProtocols:
-
     @pytest.mark.parametrize("protocol_class", (FK12, RandomTraps, Dummyless))
-    def test_noiseless_all_protocols(self, fx_rng: np.random.Generator, protocol_class:type[VerificationProtocol]):
+    def test_noiseless_all_protocols(self, fx_rng: np.random.Generator, protocol_class: type[VerificationProtocol]):
         nqubits = 3
         depth = 5
         circuit = rand_circuit(nqubits, depth, fx_rng)
@@ -26,9 +31,8 @@ class TestProtocols:
         canvas = client.sample_canvas()
         run_results = client.delegate_canvas(canvas=canvas, backend_cls=StatevectorBackend)
         decision, outcome, result_analysis = client.analyze_outcomes(canvas=canvas, outcomes=run_results)
-        assert decision == True
+        assert decision
         assert result_analysis.nr_failed_test_rounds == 0
-
 
     def test_FK(self, fx_rng: np.random.Generator):
         nqubits = 3
@@ -38,7 +42,6 @@ class TestProtocols:
 
         secrets = Secrets(r=True, a=True, theta=True)
         client = Client(pattern=pattern, secrets=secrets, protocol_cls=FK12)
-
 
         # TODO: assert nice coloring
         assert client.test_runs != []
@@ -97,7 +100,7 @@ class TestProtocols:
         canvas = client.sample_canvas()
         run_results = client.delegate_canvas(canvas=canvas, backend_cls=StatevectorBackend)
         decision, outcome, result_analysis = client.analyze_outcomes(canvas=canvas, outcomes=run_results)
-        assert decision == True
+        assert decision
         assert result_analysis.nr_failed_test_rounds == 0
 
     def test_dummyless(self, fx_rng: np.random.Generator):
@@ -120,11 +123,10 @@ class TestProtocols:
             trap_stabilizer = run.stabilizer
             assert trap_stabilizer.pauli_indices("Z") == []
 
-
             # Check that they are product of generators
             trap_stabilizer_bin = pauli_to_symplectic(trap_stabilizer)
             graph_stabilizers = generate_graph_stabilizers(client.graph)
-            # Construct symplectic matrix: 2n × n
+            # Construct symplectic matrix: 2n x n
             graph_stabilizers_bin = np.array([pauli_to_symplectic(p) for p in graph_stabilizers]).T
 
             coeffs = gf2_solve(graph_stabilizers_bin, trap_stabilizer_bin)
@@ -132,6 +134,5 @@ class TestProtocols:
             reconstructed = PauliString("I" * n)
             for v in support:
                 reconstructed *= graph_stabilizers[idx_map[v]]
-                
-            assert reconstructed == trap_stabilizer
 
+            assert reconstructed == trap_stabilizer

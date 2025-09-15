@@ -15,10 +15,8 @@ from graphix.states import BasicStates
 
 import veriphix.sampling_circuits.brickwork_state_transpiler
 from veriphix.client import Client, Secrets, TrappifiedSchemeParameters
-from veriphix.malicious_noise_model import MaliciousNoiseModel
 from veriphix.sampling_circuits.qasm_parser import read_qasm
 from veriphix.verifying import ComputationRun
-from veriphix.protocols import FK12, Dummyless, RandomTraps, VerificationProtocol
 
 if TYPE_CHECKING:
     from graphix.pattern import Pattern
@@ -138,9 +136,7 @@ class TestVBQC:
         secrets = Secrets(r=blind, a=blind, theta=blind)
 
         parameters = TrappifiedSchemeParameters(comp_rounds=20, test_rounds=20, threshold=5)
-        client = Client(
-            pattern=pattern, input_state=states, secrets=secrets, parameters=parameters
-        )
+        client = Client(pattern=pattern, input_state=states, secrets=secrets, parameters=parameters)
 
         canvas = client.sample_canvas()
         outcomes = client.delegate_canvas(canvas=canvas, backend_cls=StatevectorBackend)

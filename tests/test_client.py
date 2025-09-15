@@ -1,7 +1,6 @@
 import unittest
 
 import numpy as np
-import pytest
 from graphix.random_objects import rand_circuit
 from graphix.sim.statevec import StatevectorBackend
 from graphix.states import BasicStates

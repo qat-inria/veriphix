@@ -7,12 +7,13 @@ Usage:
     python fix_decoded_output.py input.csv output.csv
 """
 
-import sys
-import csv
 import ast
+import csv
+import sys
 
 CHECK = "✓"
 CROSS = "✗"
+
 
 def majority_leftmost_bit(counts):
     """
@@ -34,6 +35,7 @@ def majority_leftmost_bit(counts):
     if zeros > ones:
         return 0
     return None  # tie
+
 
 def parse_counts(cell):
     """
@@ -57,6 +59,7 @@ def parse_counts(cell):
     except Exception as e:
         raise ValueError(f"Could not parse computation_outcomes_count: {cell!r}") from e
 
+
 def to_int_or_none(x):
     if x is None or x == "" or str(x).lower() == "none":
         return None
@@ -65,10 +68,9 @@ def to_int_or_none(x):
     except Exception:
         return None
 
-def main(inp, out):
-    with open(inp, newline="", encoding="utf-8") as f_in, \
-         open(out, "w", newline="", encoding="utf-8") as f_out:
 
+def main(inp, out):
+    with open(inp, newline="", encoding="utf-8") as f_in, open(out, "w", newline="", encoding="utf-8") as f_out:
         reader = csv.DictReader(f_in)
         fieldnames = reader.fieldnames or []
         # Ensure required columns exist
@@ -91,6 +93,7 @@ def main(inp, out):
             row["match"] = CHECK if (decoded is not None and decoded == correct_value) else CROSS
 
             writer.writerow(row)
+
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:

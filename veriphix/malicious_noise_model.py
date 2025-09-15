@@ -2,16 +2,13 @@
 
 from __future__ import annotations
 
+import random
 from typing import TYPE_CHECKING
-
-import typing_extensions
 
 from graphix.channels import KrausChannel, dephasing_channel
 from graphix.command import Command, CommandKind
 from graphix.noise_models.noise_model import Noise, NoiseModel
 from graphix.rng import ensure_rng
-import random
-
 
 if TYPE_CHECKING:
     from numpy.random import Generator

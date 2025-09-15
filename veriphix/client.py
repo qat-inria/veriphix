@@ -5,7 +5,6 @@ from dataclasses import dataclass
 from math import ceil
 from typing import TYPE_CHECKING
 
-from collections.abc import Callable
 import graphix.command
 import graphix.ops
 import graphix.pattern
@@ -27,6 +26,8 @@ from graphix.states import BasicStates
 from stim import Circuit
 
 from veriphix.blinding import SecretDatas, Secrets
+from veriphix.malicious_noise_model import MaliciousNoiseModel
+from veriphix.protocols import FK12, VerificationProtocol
 from veriphix.verifying import (
     ComputationRun,
     ResultAnalysis,
@@ -35,11 +36,10 @@ from veriphix.verifying import (
     TrappifiedScheme,
     TrappifiedSchemeParameters,
 )
-from veriphix.protocols import FK12, VerificationProtocol
-
-from veriphix.malicious_noise_model import MaliciousNoiseModel
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from graphix.sim.base_backend import Backend
 
 
@@ -86,12 +86,13 @@ def get_graph_clifford_structure(graph: nx.Graph):
     return circuit.to_tableau()
 
 
-def qCircuit_predicate(output_string:str) -> bool:
+def qCircuit_predicate(output_string: str) -> bool:
     return int(output_string[0])
 
+
 class Client:
-    # Généraliser: le client prend un prédicat de 'output' à booleen, par exemple qubit 0 doit renvoyer 0 
-    
+    # Généraliser: le client prend un prédicat de 'output' à booleen, par exemple qubit 0 doit renvoyer 0
+
     def __init__(
         self,
         pattern,
@@ -102,7 +103,7 @@ class Client:
         test_measure_method_cls=None,
         secrets: Secrets | None = None,
         parameters: TrappifiedSchemeParameters | None = None,
-        protocol_cls: type[VerificationProtocol]=FK12,
+        protocol_cls: type[VerificationProtocol] = FK12,
         **kwargs,
     ) -> None:
         self.initial_pattern: Pattern = pattern
@@ -140,7 +141,7 @@ class Client:
 
         self.computationRun = ComputationRun(self)
         protocol = protocol_cls(client=self)
-        
+
         self.test_runs = protocol.create_test_runs(**kwargs)
 
         self.trappifiedScheme = TrappifiedScheme(
@@ -225,7 +226,6 @@ class Client:
             outcomes[r] = canvas[r].delegate(backend=backend, **kwargs)
         return outcomes
 
-
     def analyze_outcomes(self, canvas, outcomes: dict[int, RunResult]) -> tuple[bool, str, ResultAnalysis]:
         result_analysis = ResultAnalysis()
         for r in canvas:
@@ -234,7 +234,7 @@ class Client:
         # True if Accept, False if Reject
         traps_decision = result_analysis.nr_failed_test_rounds <= self.trappifiedScheme.params.threshold
         # The Client decides that the instance passes the predicate if more than half of the test rounds did pass
-        computation_decision = result_analysis.computation_count >= ceil(self.trappifiedScheme.params.comp_rounds/2)
+        computation_decision = result_analysis.computation_count >= ceil(self.trappifiedScheme.params.comp_rounds / 2)
 
         return traps_decision, computation_decision, result_analysis
 

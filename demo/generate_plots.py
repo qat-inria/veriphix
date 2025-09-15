@@ -1,8 +1,6 @@
-import pandas as pd
-
 import matplotlib.pyplot as plt
 import numpy as np
-import ast
+import pandas as pd
 
 df = pd.read_csv("data-5.csv")
 df.head()
@@ -10,33 +8,21 @@ df.head()
 
 protocol = "FK12"
 noise_model = "malicious"
-restricted_df = df[
-    (df["protocol"]==protocol)
-    &
-    (df["noise_model"]==noise_model)
-    ]
+restricted_df = df[(df["protocol"] == protocol) & (df["noise_model"] == noise_model)]
 
 threshold = 0.15
 aborted_df = restricted_df[
-    (restricted_df["n_failed_test_rounds"]>threshold*100)
-    |
-    (restricted_df["decoded_output"].isna())
-    ]
+    (restricted_df["n_failed_test_rounds"] > threshold * 100) | (restricted_df["decoded_output"].isna())
+]
 
 aborted_df.to_csv("aborted.csv", index=False)
 
 accepted_df = restricted_df[
-    (restricted_df["n_failed_test_rounds"]<= threshold*100)
-    &
-    (restricted_df["decoded_output"].notna())
+    (restricted_df["n_failed_test_rounds"] <= threshold * 100) & (restricted_df["decoded_output"].notna())
 ]
 accepted_df.to_csv("accepted.csv", index=False)
 
-corrupted_df = restricted_df[
-    (restricted_df["decoded_output"].notna())
-    &
-    (restricted_df["match"] == "✗")
-]
+corrupted_df = restricted_df[(restricted_df["decoded_output"].notna()) & (restricted_df["match"] == "✗")]
 corrupted_df.to_csv("corrupted.csv", index=False)
 
 # restricted_df[(restricted_df["n_failed_test_rounds"]<threshold*100) & (restricted_df["decoded_output"].notna())]
@@ -45,10 +31,12 @@ corrupted_df.to_csv("corrupted.csv", index=False)
 threshold_values = [0.05, 0.08, 0.10, 0.15, 0.25, 0.5, 1]
 total_test_rounds = 100
 
+
 def not_none(x):
     if pd.isna(x):
         return False
     return str(x).strip().lower() != "none"
+
 
 def plot_failure_and_wrong_accept_filtered(initial_df, thresholds, total_test_rounds):
     df0 = initial_df.copy()
@@ -96,12 +84,10 @@ def plot_failure_and_wrong_accept_filtered(initial_df, thresholds, total_test_ro
         if xs.size == 0:
             continue
 
-        plt.scatter(xs, y_wrong, s=50, color=cmap(i),
-                    label=f"Wrongly-accepted / accepted @ thr={thr:.2f}")
+        plt.scatter(xs, y_wrong, s=50, color=cmap(i), label=f"Wrongly-accepted / accepted @ thr={thr:.2f}")
 
     # Optional: draw threshold lines to give visual reference (for the largest thr only)
-    plt.axhline(max(thresholds), linestyle="--", linewidth=1.2, alpha=0.4,
-                label=f"ref line = {max(thresholds):.0%}")
+    plt.axhline(max(thresholds), linestyle="--", linewidth=1.2, alpha=0.4, label=f"ref line = {max(thresholds):.0%}")
 
     plt.xlabel("Parameter")
     plt.ylabel("Ratio")
@@ -110,6 +96,7 @@ def plot_failure_and_wrong_accept_filtered(initial_df, thresholds, total_test_ro
     plt.grid(True, alpha=0.3)
     plt.legend()
     plt.show()
+
 
 # Example call
 plot_failure_and_wrong_accept_filtered(restricted_df, threshold_values, total_test_rounds)

@@ -1,14 +1,11 @@
 # override introduced in Python 3.12
 from __future__ import annotations
 
-import itertools
 from abc import ABC, abstractmethod
-from collections.abc import Sequence
 from collections.abc import Set as AbstractSet
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-import networkx as nx
 from graphix.pattern import PatternSimulator
 from graphix.pauli import IXYZ, Pauli
 from graphix.sim.statevec import State
@@ -142,11 +139,11 @@ class TestRun(Run):
             trap_outcomes[trap] = trap_outcome
             # trap_outcomes.append(trap_outcome)
         return TestResult(trap_outcomes)
-    
+
     def __str__(self) -> str:
         return f"""
         Traps: {self.traps}
-        Stabilizer: {self.stabilizer}""" 
+        Stabilizer: {self.stabilizer}"""
 
 
 class RunResult(ABC):
@@ -167,7 +164,7 @@ class ClassicalComputationResult(ComputationResult):
         self.outcome_string = None
 
     def analyze(self, result_analysis: ResultAnalysis, client: Client) -> None:
-        output_string = ''.join(str(int(v)) for v in self.outcomes.values())
+        output_string = "".join(str(int(v)) for v in self.outcomes.values())
         result_analysis.computation_count += client.output_predicate(output_string)
         return
 
@@ -217,10 +214,10 @@ class TrappifiedScheme:
 
 @dataclass
 class ResultAnalysis:
-    nr_failed_test_rounds: int=0
+    nr_failed_test_rounds: int = 0
     # number of computation rounds for which the Client's predicate evaluated to True
-    computation_count: int=0
-    quantum_output_states: dict[int, State]=field(default_factory=dict)
+    computation_count: int = 0
+    quantum_output_states: dict[int, State] = field(default_factory=dict)
 
 
 @dataclass
@@ -228,5 +225,3 @@ class TrappifiedRun:
     input_state: list
     tested_qubits: list[int]
     stabilizer: Pauli
-
-
