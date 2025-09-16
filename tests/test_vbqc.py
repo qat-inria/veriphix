@@ -33,15 +33,15 @@ def load_pattern_from_circuit(circuit_label: str) -> tuple[Pattern, list[int]]:
 
 
 class TestVBQC:
-    def test_trap_delegated(self, fx_rng: np.random.Generator):
+    @pytest.mark.parametrize("blind", (False, True))
+    def test_trap_delegated(self, fx_rng: np.random.Generator, blind: bool):
         nqubits = 3
         depth = 5
         circuit = rand_circuit(nqubits, depth, fx_rng)
         pattern = circuit.transpile().pattern
 
-        states = [BasicStates.PLUS for _ in pattern.input_nodes]
-        secrets = Secrets(r=True, a=True, theta=True)
-        client = Client(pattern=pattern, input_state=states, secrets=secrets, classical_output=True)
+        secrets = Secrets(r=blind, a=blind, theta=blind)
+        client = Client(pattern=pattern, secrets=secrets)
         for test_run in client.test_runs:
             backend = StatevectorBackend()
             trap_outcomes = test_run.delegate(backend=backend).trap_outcomes
@@ -53,9 +53,7 @@ class TestVBQC:
         circuit = rand_circuit(nqubits, depth, fx_rng)
         pattern = circuit.transpile().pattern
 
-        states = [BasicStates.PLUS for _ in pattern.input_nodes]
-        secrets = Secrets(r=True, a=True, theta=True)
-        client = Client(pattern=pattern, input_state=states, secrets=secrets)
+        client = Client(pattern=pattern)
 
         assert client.sample_canvas()
         # Just tests that it runs
@@ -70,13 +68,8 @@ class TestVBQC:
         simulated_pattern_output = pattern.simulate_pattern(backend=svbackend)
         simulated_circuit_output = circuit.simulate_statevector().statevec
 
-        states = [BasicStates.PLUS for _ in pattern.input_nodes]
-        secrets = Secrets(r=True, a=True, theta=True)
-
         parameters = TrappifiedSchemeParameters(comp_rounds=10, test_rounds=10, threshold=0)
-        client = Client(
-            pattern=pattern, input_state=states, secrets=secrets, parameters=parameters, classical_output=False
-        )
+        client = Client(pattern=pattern, parameters=parameters, classical_output=False)
 
         canvas = client.sample_canvas()
         outcomes = client.delegate_canvas(canvas=canvas, backend_cls=StatevectorBackend)
@@ -104,17 +97,17 @@ class TestVBQC:
         - Noiseless, quantum outputs: check evolution of the state for all the comp. runs, and check for no trap failures
         """
 
-    def test_analyze_outcomes(self, fx_rng: Generator):
+    @pytest.mark.parametrize("blind", (False, True))
+    def test_analyze_outcomes(self, fx_rng: Generator, blind: bool):
         nqubits = 3
         depth = 3
         circuit = rand_circuit(nqubits, depth, fx_rng)
         pattern = circuit.transpile().pattern
 
-        states = [BasicStates.PLUS for _ in pattern.input_nodes]
-        secrets = Secrets(r=True, a=True, theta=True)
+        secrets = Secrets(r=blind, a=blind, theta=blind)
 
         parameters = TrappifiedSchemeParameters(comp_rounds=50, test_rounds=50, threshold=10)
-        client = Client(pattern=pattern, input_state=states, secrets=secrets, parameters=parameters)
+        client = Client(pattern=pattern, secrets=secrets, parameters=parameters)
 
         canvas = client.sample_canvas()
         outcomes = client.delegate_canvas(canvas=canvas, backend_cls=StatevectorBackend)
@@ -132,15 +125,10 @@ class TestVBQC:
         # Example of deterministic circuit with output 0
         pattern = load_pattern_from_circuit(circuit_label=random_circuit_label)
 
-        states = [BasicStates.PLUS for _ in pattern.input_nodes]
         secrets = Secrets(r=blind, a=blind, theta=blind)
 
         parameters = TrappifiedSchemeParameters(comp_rounds=20, test_rounds=20, threshold=5)
-        # QCircuit, we keep the first output only
-        desired_outputs = [0]
-        client = Client(
-            pattern=pattern, input_state=states, secrets=secrets, parameters=parameters, desired_outputs=desired_outputs
-        )
+        client = Client(pattern=pattern, secrets=secrets, parameters=parameters)
 
         canvas = client.sample_canvas()
         outcomes = client.delegate_canvas(canvas=canvas, backend_cls=StatevectorBackend)
