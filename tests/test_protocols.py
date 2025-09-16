@@ -34,7 +34,7 @@ class TestProtocols:
         client = Client(pattern=pattern, protocol=protocol)
         canvas = client.sample_canvas()
         run_results = client.delegate_canvas(canvas=canvas, backend_cls=StatevectorBackend)
-        decision, outcome, result_analysis = client.analyze_outcomes(canvas=canvas, outcomes=run_results)
+        decision, _, result_analysis = client.analyze_outcomes(canvas=canvas, outcomes=run_results)
         assert decision
         assert result_analysis.nr_failed_test_rounds == 0
 
@@ -92,7 +92,7 @@ class TestProtocols:
         pattern = circuit.transpile().pattern
         pattern.standardize()
 
-        nodes, edges = pattern.get_graph()
+        nodes, _ = pattern.get_graph()
 
         # initialise client
         protocol = FK12(manual_colouring=(set(nodes), set([nodes[0]])))
@@ -116,7 +116,7 @@ class TestProtocols:
         client = Client(pattern=pattern, secrets=secrets, protocol=protocol)
         canvas = client.sample_canvas()
         run_results = client.delegate_canvas(canvas=canvas, backend_cls=StatevectorBackend)
-        decision, outcome, result_analysis = client.analyze_outcomes(canvas=canvas, outcomes=run_results)
+        decision, _, result_analysis = client.analyze_outcomes(canvas=canvas, outcomes=run_results)
         assert decision
         assert result_analysis.nr_failed_test_rounds == 0
 
