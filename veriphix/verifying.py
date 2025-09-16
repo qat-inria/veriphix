@@ -121,7 +121,7 @@ class TestRun(Run):
 
     @override
     def delegate(self, backend: Backend, **kwargs) -> dict[int, int]:
-        states_dict = {node: self.input_state[node] for node in self.client.nodes_list}
+        states_dict = {node: self.input_state[node] for node in self.client.nodes}
         self.client.prepare_states(backend=backend, states_dict=states_dict)
         sim = PatternSimulator(
             backend=backend,

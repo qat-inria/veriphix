@@ -101,9 +101,9 @@ class Client:
         output_predicate: Callable[[str], bool] = qCircuit_predicate,
         measure_method_cls=None,
         test_measure_method_cls=None,
-        secrets: Secrets | None = None,
+        secrets: Secrets | None = Secrets(),
         parameters: TrappifiedSchemeParameters | None = None,
-        protocol_cls: type[VerificationProtocol] = FK12,
+        protocol:VerificationProtocol | None = None,
         **kwargs,
     ) -> None:
         self.initial_pattern: Pattern = pattern
@@ -140,13 +140,17 @@ class Client:
         self.prepare_method = ClientPrepareMethod(self.preparation_bank)
 
         self.computationRun = ComputationRun(self)
-        protocol = protocol_cls(client=self)
-
-        self.test_runs = protocol.create_test_runs(**kwargs)
+        
+        self.protocol = protocol or FK12()
+        self.test_runs = self.protocol.create_test_runs(client=self)
 
         self.trappifiedScheme = TrappifiedScheme(
             params=parameters or TrappifiedSchemeParameters(20, 20, 5), test_runs=self.test_runs
         )
+
+    @property
+    def nodes(self) -> list:
+        return list(self.graph.nodes)
 
     def _add_measurement_commands(self, pattern):
         for onode in self.output_nodes:
@@ -226,7 +230,7 @@ class Client:
             outcomes[r] = canvas[r].delegate(backend=backend, **kwargs)
         return outcomes
 
-    def analyze_outcomes(self, canvas, outcomes: dict[int, RunResult]) -> tuple[bool, str, ResultAnalysis]:
+    def analyze_outcomes(self, canvas, outcomes: dict[int, RunResult]) -> tuple[bool, bool, ResultAnalysis]:
         result_analysis = ResultAnalysis()
         for r in canvas:
             outcomes[r].analyze(result_analysis=result_analysis, client=self)

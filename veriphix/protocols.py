@@ -18,22 +18,22 @@ if TYPE_CHECKING:
 
 class VerificationProtocol(ABC):
     # TODO: enelver Client
-    def __init__(self, client) -> None:
-        self.client = client
+    def __init__(self) -> None:
         pass
 
     # TODO: enlever kwargs, mettre Client
     @abstractmethod
-    def create_test_runs(self, **kwargs) -> list[TestRun]:
+    def create_test_runs(self, client) -> list[TestRun]:
         pass
 
 
 class FK12(VerificationProtocol):
     # TODO: ajouter manual coloring comme attribut pour ce protocole
-    def __init__(self, client) -> None:
-        super().__init__(client)
+    def __init__(self, manual_colouring: Sequence[set[int]] | None = None) -> None:
+        super().__init__()
+        self.manual_colouring = manual_colouring
 
-    def create_test_runs(self, manual_colouring: Sequence[set[int]] | None = None, **kwargs) -> list[TestRun]:
+    def create_test_runs(self, client) -> list[TestRun]:
         """Creates test runs according to a graph colouring according to [FK12].
         A test run, or a Trappified Canvas, is associated to each color in the colouring.
         For a given test run, the trap nodes are defined as being the nodes belonging to the color the run corresponds to.
@@ -69,28 +69,28 @@ class FK12(VerificationProtocol):
 
         # Create the graph coloring
         # Networkx output format: dict[int, int] eg {0: 0, 1: 1, 2: 0, 3: 1}
-        if manual_colouring is None:
-            coloring = nx.coloring.greedy_color(self.client.graph, strategy="largest_first")
+        if self.manual_colouring is None:
+            coloring = nx.coloring.greedy_color(client.graph, strategy="largest_first")
             colors = set(coloring.values())
             nodes_by_color: dict[int, list[int]] = {c: [] for c in colors}
-            for node in sorted(self.client.graph.nodes):
+            for node in sorted(client.nodes):
                 color = coloring[node]
                 nodes_by_color[color].append(node)
         else:
             # checks that manual_colouring is a proper colouring
             ## first check uniion is the whole graph
-            color_union = set().union(*manual_colouring)
-            if not color_union == set(self.client.graph.nodes):
+            color_union = set().union(*self.manual_colouring)
+            if not color_union == set(client.graph.nodes):
                 raise ValueError("The provided colouring does not include all the nodes of the graph.")
             # check that colors are two by two disjoint
             # if sets are disjoint, empty set from intersection is interpreted as False.
             # so one non-empty set -> one True value -> use any()
-            if any([i & j for i, j in itertools.combinations(manual_colouring, 2)]):
+            if any([i & j for i, j in itertools.combinations(self.manual_colouring, 2)]):
                 raise ValueError(
                     "The provided colouring is not a proper colouring i.e the same node belongs to at least two colours."
                 )
 
-            nodes_by_color = {i: list(c) for i, c in enumerate(manual_colouring)}
+            nodes_by_color = {i: list(c) for i, c in enumerate(self.manual_colouring)}
             colors = nodes_by_color.keys()
 
         # Create the test runs : one per color
@@ -99,7 +99,7 @@ class FK12(VerificationProtocol):
             # 1 color = 1 test run = 1 collection of single-qubit traps
             traps_list = [frozenset([colored_node]) for colored_node in nodes_by_color[color]]
             traps = frozenset(traps_list)
-            test_run = TestRun(client=self.client, traps=traps)
+            test_run = TestRun(client=client, traps=traps)
             test_runs.append(test_run)
 
         # print(test_runs)
@@ -121,7 +121,7 @@ class RandomTraps(VerificationProtocol):
         for _ in range(n):
             # Choose a random subset of nodes to create a trap (random size, random nodes)
             trap_size = random.choice(range(n))
-            random_nodes = random.sample(self.client.nodes_list, k=trap_size)
+            random_nodes = random.sample(self.client.nodes, k=trap_size)
             # Create a single-trap test round from it. The trap is multi-qubit.
             random_multi_qubit_trap = tuple(random_nodes)
             # Only one trap

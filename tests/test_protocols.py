@@ -5,7 +5,9 @@ import pytest
 from graphix.random_objects import rand_circuit
 from graphix.sim.statevec import StatevectorBackend
 from stim import PauliString
-
+import json
+import random
+from pathlib import Path
 from veriphix.client import Client, Secrets
 from veriphix.protocols import (
     FK12,
@@ -34,16 +36,28 @@ class TestProtocols:
         assert decision
         assert result_analysis.nr_failed_test_rounds == 0
 
-    def test_FK(self, fx_rng: np.random.Generator):
-        nqubits = 3
-        depth = 5
-        circuit = rand_circuit(nqubits, depth, fx_rng)
-        pattern = circuit.transpile().pattern
 
-        secrets = Secrets(r=True, a=True, theta=True)
-        client = Client(pattern=pattern, secrets=secrets, protocol_cls=FK12)
 
-        # TODO: assert nice coloring
+    @pytest.mark.parametrize("manual", (True, False))
+    def test_FK(self, fx_rng: np.random.Generator, manual:bool):
+        import veriphix.sampling_circuits.brickwork_state_transpiler
+        from veriphix.sampling_circuits.qasm_parser import read_qasm
+        def load_pattern_from_circuit(circuit_label: str):
+            with Path(f"circuits/{circuit_label}").open() as f:
+                circuit = read_qasm(f)
+                pattern = veriphix.sampling_circuits.brickwork_state_transpiler.transpile(circuit)
+
+                pattern.minimize_space()
+            return pattern
+        with Path("circuits/table.json").open() as f:
+            table = json.load(f)
+            circuits = list(table.keys())
+        random_circuit_label = random.choice(circuits)
+        pattern = load_pattern_from_circuit(circuit_label=random_circuit_label)
+        colors = veriphix.sampling_circuits.brickwork_state_transpiler.get_bipartite_coloring(pattern=pattern)
+
+        fk_protocol = FK12(manual_colouring=colors) if manual else FK12()
+        client = Client(pattern=pattern, protocol=fk_protocol)
         assert client.test_runs != []
 
     def test_create_test_run_manual_fail(self, fx_rng):
