@@ -17,18 +17,16 @@ if TYPE_CHECKING:
 
 
 class VerificationProtocol(ABC):
-    # TODO: enelver Client
+    @abstractmethod
     def __init__(self) -> None:
         pass
 
-    # TODO: enlever kwargs, mettre Client
     @abstractmethod
     def create_test_runs(self, client) -> list[TestRun]:
         pass
 
 
 class FK12(VerificationProtocol):
-    # TODO: ajouter manual coloring comme attribut pour ce protocole
     def __init__(self, manual_colouring: Sequence[set[int]] | None = None) -> None:
         super().__init__()
         self.manual_colouring = manual_colouring
@@ -111,33 +109,33 @@ class RandomTraps(VerificationProtocol):
     A bad and naive way of generating traps, but exposing the modularity of the interface.
     """
 
-    def __init__(self, client) -> None:
-        super().__init__(client)
+    def __init__(self) -> None:
+        super().__init__()
 
-    def create_test_runs(self, **kwargs) -> list[TestRun]:
+    def create_test_runs(self, client) -> list[TestRun]:
         test_runs = []
         # Create 1 random trap per node
-        n = len(self.client.graph.nodes)
+        n = len(client.graph.nodes)
         for _ in range(n):
             # Choose a random subset of nodes to create a trap (random size, random nodes)
             trap_size = random.choice(range(n))
-            random_nodes = random.sample(self.client.nodes, k=trap_size)
+            random_nodes = random.sample(client.nodes, k=trap_size)
             # Create a single-trap test round from it. The trap is multi-qubit.
             random_multi_qubit_trap = tuple(random_nodes)
             # Only one trap
             traps = (random_multi_qubit_trap,)
-            test_run = TestRun(client=self.client, traps=traps)
+            test_run = TestRun(client=client, traps=traps)
             test_runs.append(test_run)
 
         return test_runs
 
 
 class Dummyless(VerificationProtocol):
-    def __init__(self, client) -> None:
-        super().__init__(client)
+    def __init__(self) -> None:
+        super().__init__()
 
-    def create_test_runs(self, **kwargs) -> list[TestRun]:
-        G: nx.Graph = self.client.graph
+    def create_test_runs(self, client) -> list[TestRun]:
+        G: nx.Graph = client.graph
         nodes = list(G.nodes)
         n = len(nodes)
 
@@ -153,7 +151,7 @@ class Dummyless(VerificationProtocol):
             R_bin = pauli_to_symplectic(R)
             coeffs = gf2_solve(S_bin, R_bin)
             support = [nodes[j] for j in range(n) if coeffs[j] == 1]
-            test_run = TestRun(client=self.client, traps=(tuple(support),))
+            test_run = TestRun(client=client, traps=(tuple(support),))
             test_runs.append(test_run)
 
         return test_runs

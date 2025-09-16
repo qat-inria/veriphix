@@ -1,13 +1,15 @@
 from __future__ import annotations
 
+import json
+import random
+from pathlib import Path
+
 import numpy as np
 import pytest
 from graphix.random_objects import rand_circuit
 from graphix.sim.statevec import StatevectorBackend
 from stim import PauliString
-import json
-import random
-from pathlib import Path
+
 from veriphix.client import Client, Secrets
 from veriphix.protocols import (
     FK12,
@@ -28,20 +30,19 @@ class TestProtocols:
         circuit = rand_circuit(nqubits, depth, fx_rng)
         pattern = circuit.transpile().pattern
 
-        secrets = Secrets(r=True, a=True, theta=True)
-        client = Client(pattern=pattern, secrets=secrets, protocol_cls=protocol_class)
+        protocol = protocol_class()
+        client = Client(pattern=pattern, protocol=protocol)
         canvas = client.sample_canvas()
         run_results = client.delegate_canvas(canvas=canvas, backend_cls=StatevectorBackend)
         decision, outcome, result_analysis = client.analyze_outcomes(canvas=canvas, outcomes=run_results)
         assert decision
         assert result_analysis.nr_failed_test_rounds == 0
 
-
-
     @pytest.mark.parametrize("manual", (True, False))
-    def test_FK(self, fx_rng: np.random.Generator, manual:bool):
+    def test_FK(self, fx_rng: np.random.Generator, manual: bool):
         import veriphix.sampling_circuits.brickwork_state_transpiler
         from veriphix.sampling_circuits.qasm_parser import read_qasm
+
         def load_pattern_from_circuit(circuit_label: str):
             with Path(f"circuits/{circuit_label}").open() as f:
                 circuit = read_qasm(f)
@@ -49,6 +50,7 @@ class TestProtocols:
 
                 pattern.minimize_space()
             return pattern
+
         with Path("circuits/table.json").open() as f:
             table = json.load(f)
             circuits = list(table.keys())
@@ -72,12 +74,12 @@ class TestProtocols:
         pattern.standardize()
 
         # initialise client
-        secrets = Secrets(r=True, a=True, theta=True)
-        client = Client(pattern=pattern, secrets=secrets, protocol_cls=FK12)
-        protocol = FK12(client=client)
-
+        protocol = FK12(manual_colouring=(set([0]), set()))
+        client = Client(pattern=pattern, protocol=protocol, autogen=False)
+        client.preprocess_pattern()
+        client.create_blind_patterns()
         with pytest.raises(ValueError):  # trivially duplicate a node
-            protocol.create_test_runs(manual_colouring=(set([0]), set()))
+            protocol.create_test_runs(client=client)
 
     def test_create_test_run_manual_fail_improper(self, fx_rng):
         """testing manual colouring not proper"""
@@ -93,12 +95,12 @@ class TestProtocols:
         nodes, edges = pattern.get_graph()
 
         # initialise client
-        secrets = Secrets(r=True, a=True, theta=True)
-        client = Client(pattern=pattern, secrets=secrets)
-        protocol = FK12(client=client)
-
+        protocol = FK12(manual_colouring=(set(nodes), set([nodes[0]])))
+        client = Client(pattern=pattern, autogen=False)
+        client.preprocess_pattern()
+        client.create_blind_patterns()
         with pytest.raises(ValueError):  # trivially duplicate a node
-            protocol.create_test_runs(manual_colouring=(set(nodes), set([nodes[0]])))
+            protocol.create_test_runs(client=client)
 
     def test_random_traps(self, fx_rng: np.random.Generator):
         """
@@ -110,7 +112,8 @@ class TestProtocols:
         pattern = circuit.transpile().pattern
 
         secrets = Secrets(r=True, a=True, theta=True)
-        client = Client(pattern=pattern, secrets=secrets, protocol_cls=RandomTraps)
+        protocol = RandomTraps()
+        client = Client(pattern=pattern, secrets=secrets, protocol=protocol)
         canvas = client.sample_canvas()
         run_results = client.delegate_canvas(canvas=canvas, backend_cls=StatevectorBackend)
         decision, outcome, result_analysis = client.analyze_outcomes(canvas=canvas, outcomes=run_results)
@@ -123,8 +126,8 @@ class TestProtocols:
         circuit = rand_circuit(nqubits, depth, fx_rng)
         pattern = circuit.transpile().pattern
 
-        secrets = Secrets(r=True, a=True, theta=True)
-        client = Client(pattern=pattern, secrets=secrets, protocol_cls=Dummyless)
+        protocol = Dummyless()
+        client = Client(pattern=pattern, protocol=protocol)
         nodes = list(client.graph.nodes)
         idx_map = {v: i for i, v in enumerate(nodes)}
         n = len(nodes)

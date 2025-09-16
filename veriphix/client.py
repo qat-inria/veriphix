@@ -101,24 +101,38 @@ class Client:
         output_predicate: Callable[[str], bool] = qCircuit_predicate,
         measure_method_cls=None,
         test_measure_method_cls=None,
-        secrets: Secrets | None = Secrets(),
+        secrets: Secrets | None = None,
         parameters: TrappifiedSchemeParameters | None = None,
-        protocol:VerificationProtocol | None = None,
-        **kwargs,
+        protocol: VerificationProtocol | None = None,
+        autogen: bool = True,
     ) -> None:
         self.initial_pattern: Pattern = pattern
         self.classical_output = classical_output
         self.output_predicate = output_predicate
         self.input_nodes = pattern.input_nodes.copy()
         self.output_nodes = pattern.output_nodes.copy()
+        self.input_state = input_state or [BasicStates.PLUS for _ in self.input_nodes]
+        self.protocol = protocol or FK12()
+        self.parameters = parameters
+        if autogen:
+            self.preprocess_pattern(classical_output=classical_output)
+            self.create_blind_patterns(
+                measure_method_cls=measure_method_cls, test_measure_method_cls=test_measure_method_cls, secrets=secrets
+            )
+            self.create_trappified_scheme()
 
+    def preprocess_pattern(self, classical_output: bool = True):
         if classical_output:
             self._add_measurement_commands(self.initial_pattern)
 
         self.graph = self._build_graph()
         self.clifford_structure = get_graph_clifford_structure(self.graph)
 
-        self.results = pattern.results.copy()
+        self.results = self.initial_pattern.results.copy()
+
+    def create_blind_patterns(
+        self, measure_method_cls=None, test_measure_method_cls=None, secrets: Secrets | None = None
+    ):
         self.measure_method = (measure_method_cls or ClientMeasureMethod)(self)
         self.test_measure_method = (test_measure_method_cls or TestMeasureMethod)(self)
 
@@ -133,19 +147,16 @@ class Client:
             self.test_pattern = self._add_measurement_commands(remove_flow(self.initial_pattern))
         else:
             self.test_pattern = self.clean_pattern
-        self.input_state = input_state or [BasicStates.PLUS for _ in self.input_nodes]
         self.computation_states = self.get_computation_states()
 
         self.preparation_bank = {}
         self.prepare_method = ClientPrepareMethod(self.preparation_bank)
 
+    def create_trappified_scheme(self) -> TrappifiedScheme:
         self.computationRun = ComputationRun(self)
-        
-        self.protocol = protocol or FK12()
         self.test_runs = self.protocol.create_test_runs(client=self)
-
         self.trappifiedScheme = TrappifiedScheme(
-            params=parameters or TrappifiedSchemeParameters(20, 20, 5), test_runs=self.test_runs
+            params=self.parameters or TrappifiedSchemeParameters(20, 20, 5), test_runs=self.test_runs
         )
 
     @property
