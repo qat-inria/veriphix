@@ -73,9 +73,6 @@ def merge(strings: list[PauliString]):
     n = len(strings)
     l = len(strings[0])
     common_string = strings[0]
-    # if common_string.sign == -1:
-    #     print("Have to change the sign")
-    # common_string.sign = 1
     for i in range(1, n):
         common_string.sign *= strings[i].sign
         for j in range(l):
@@ -137,7 +134,6 @@ class TestRun(Run):
             outcomes = [self.client.results[component] for component in trap]
             trap_outcome = sum(outcomes) % 2 ^ (self.stabilizer.sign == -1)
             trap_outcomes[trap] = trap_outcome
-            # trap_outcomes.append(trap_outcome)
         return TestResult(trap_outcomes)
 
     def __str__(self) -> str:

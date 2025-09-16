@@ -91,8 +91,6 @@ def qCircuit_predicate(output_string: str) -> bool:
 
 
 class Client:
-    # Généraliser: le client prend un prédicat de 'output' à booleen, par exemple qubit 0 doit renvoyer 0
-
     def __init__(
         self,
         pattern,

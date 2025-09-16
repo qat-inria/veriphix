@@ -30,7 +30,6 @@ class SecretDatas:
     a: Secret_a
     theta: dict[int, int]
 
-    # NOTE: not a class method?
     @staticmethod
     def from_secrets(secrets: Secrets, graph: nx.Graph, input_nodes, output_nodes):
         r = {}
