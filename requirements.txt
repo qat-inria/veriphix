@@ -6,3 +6,7 @@ gitpython
 qiskit
 qiskit_aer
 typer
+
+# For cluster
+dask[distributed]
+dask_jobqueue

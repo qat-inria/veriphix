@@ -25,3 +25,12 @@ FK12,malicious,0.0,circuit9941.qasm,0,0,0,✓,39
 FK12,malicious,0.0,circuit8195.qasm,0,1,1,✓,60
 FK12,malicious,0.0,circuit7761.qasm,0,1,1,✓,71
 FK12,malicious,0.0,circuit0453.qasm,0,0,0,✓,40
+FK12,malicious,0.0,circuit7967.qasm,0,0,1,✗,44
+FK12,malicious,0.0,circuit5337.qasm,0,1,1,✓,76
+FK12,malicious,0.0,circuit2994.qasm,0,1,1,✓,55
+FK12,malicious,0.0,circuit6034.qasm,0,1,1,✓,53
+FK12,malicious,0.0,circuit6783.qasm,0,0,0,✓,31
+FK12,malicious,0.0,circuit7967.qasm,0,1,1,✓,50
+FK12,malicious,0.0,circuit9352.qasm,0,0,0,✓,7
+FK12,malicious,0.0,circuit5671.qasm,0,0,0,✓,0
+FK12,malicious,0.0,circuit7404.qasm,0,0,0,✓,33
