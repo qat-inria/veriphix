@@ -8,7 +8,7 @@ from veriphix.sampling_circuits.sampling_circuits import (
     sample_truncated_circuit,
 )
 
-ncircuits = 1000
+ncircuits = 10000
 nqubits = 5
 depth = 30
 p_gate = 0.5

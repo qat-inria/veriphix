@@ -26,6 +26,8 @@ from graphix.states import BasicStates
 from stim import Circuit
 
 from veriphix.blinding import SecretDatas, Secrets
+from veriphix.malicious_noise_model import MaliciousNoiseModel
+from veriphix.protocols import FK12, VerificationProtocol
 from veriphix.verifying import (
     ComputationRun,
     ResultAnalysis,
@@ -33,10 +35,11 @@ from veriphix.verifying import (
     RunResult,
     TrappifiedScheme,
     TrappifiedSchemeParameters,
-    create_test_runs,
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from graphix.sim.base_backend import Backend
 
 
@@ -83,32 +86,51 @@ def get_graph_clifford_structure(graph: nx.Graph):
     return circuit.to_tableau()
 
 
+def qCircuit_predicate(output_string: str) -> bool:
+    return int(output_string[0])
+
+
 class Client:
     def __init__(
         self,
         pattern,
         input_state=None,
         classical_output: bool = True,
-        desired_outputs: list[int] | None = None,
+        output_predicate: Callable[[str], bool] = qCircuit_predicate,
         measure_method_cls=None,
         test_measure_method_cls=None,
         secrets: Secrets | None = None,
         parameters: TrappifiedSchemeParameters | None = None,
+        protocol: VerificationProtocol | None = None,
+        autogen: bool = True,
     ) -> None:
         self.initial_pattern: Pattern = pattern
         self.classical_output = classical_output
-        self.desired_outputs = desired_outputs
+        self.output_predicate = output_predicate
         self.input_nodes = pattern.input_nodes.copy()
         self.output_nodes = pattern.output_nodes.copy()
+        self.input_state = input_state or [BasicStates.PLUS for _ in self.input_nodes]
+        self.protocol = protocol or FK12()
+        self.parameters = parameters
+        if autogen:
+            self.preprocess_pattern(classical_output=classical_output)
+            self.create_blind_patterns(
+                measure_method_cls=measure_method_cls, test_measure_method_cls=test_measure_method_cls, secrets=secrets
+            )
+            self.create_trappified_scheme()
 
+    def preprocess_pattern(self, classical_output: bool = True):
         if classical_output:
             self._add_measurement_commands(self.initial_pattern)
 
         self.graph = self._build_graph()
         self.clifford_structure = get_graph_clifford_structure(self.graph)
-        self.nodes_list = list(self.graph.nodes)
 
-        self.results = pattern.results.copy()
+        self.results = self.initial_pattern.results.copy()
+
+    def create_blind_patterns(
+        self, measure_method_cls=None, test_measure_method_cls=None, secrets: Secrets | None = None
+    ):
         self.measure_method = (measure_method_cls or ClientMeasureMethod)(self)
         self.test_measure_method = (test_measure_method_cls or TestMeasureMethod)(self)
 
@@ -123,17 +145,21 @@ class Client:
             self.test_pattern = self._add_measurement_commands(remove_flow(self.initial_pattern))
         else:
             self.test_pattern = self.clean_pattern
-        self.input_state = input_state or [BasicStates.PLUS for _ in self.input_nodes]
         self.computation_states = self.get_computation_states()
 
         self.preparation_bank = {}
         self.prepare_method = ClientPrepareMethod(self.preparation_bank)
 
+    def create_trappified_scheme(self) -> TrappifiedScheme:
         self.computationRun = ComputationRun(self)
-        self.test_runs = create_test_runs(client=self)
+        self.test_runs = self.protocol.create_test_runs(client=self)
         self.trappifiedScheme = TrappifiedScheme(
-            params=parameters or TrappifiedSchemeParameters(20, 20, 5), test_runs=self.test_runs
+            params=self.parameters or TrappifiedSchemeParameters(20, 20, 5), test_runs=self.test_runs
         )
+
+    @property
+    def nodes(self) -> list:
+        return list(self.graph.nodes)
 
     def _add_measurement_commands(self, pattern):
         for onode in self.output_nodes:
@@ -167,7 +193,7 @@ class Client:
 
     def get_computation_states(self):
         states = dict()
-        for node in self.nodes_list:
+        for node in self.graph.nodes:
             if node in self.input_nodes:
                 state = self.input_state[node]
 
@@ -205,34 +231,25 @@ class Client:
 
     def delegate_canvas(self, canvas: dict[int, Run], backend_cls: type[Backend], **kwargs) -> dict[int, RunResult]:
         outcomes = dict()
+        noise_model = kwargs.get("noise_model")
         for r in canvas:
             backend = backend_cls()
+            if isinstance(noise_model, MaliciousNoiseModel):
+                noise_model.refresh_randomness()
             outcomes[r] = canvas[r].delegate(backend=backend, **kwargs)
         return outcomes
 
-    def analyze_outcomes(self, canvas, outcomes: dict[int, RunResult]):
-        result_analysis = ResultAnalysis(
-            nr_failed_test_rounds=0, computation_outcomes_count=dict(), quantum_output_states={}
-        )
+    def analyze_outcomes(self, canvas, outcomes: dict[int, RunResult]) -> tuple[bool, bool, ResultAnalysis]:
+        result_analysis = ResultAnalysis()
         for r in canvas:
             outcomes[r].analyze(result_analysis=result_analysis, client=self)
 
         # True if Accept, False if Reject
-        decision = result_analysis.nr_failed_test_rounds <= self.trappifiedScheme.params.threshold
+        traps_decision = result_analysis.nr_failed_test_rounds <= self.trappifiedScheme.params.threshold
+        # The Client decides that the instance passes the predicate if more than half of the test rounds did pass
+        computation_decision = result_analysis.computation_count >= ceil(self.trappifiedScheme.params.comp_rounds / 2)
 
-        # Compute majority vote (only if classical output)
-        biased_outcome = (
-            [
-                k
-                for k, v in result_analysis.computation_outcomes_count.items()
-                if v >= ceil(self.trappifiedScheme.params.comp_rounds / 2)
-            ]
-            if self.classical_output
-            else None
-        )
-        final_outcome = biased_outcome[0] if biased_outcome else None
-
-        return decision, final_outcome, result_analysis
+        return traps_decision, computation_decision, result_analysis
 
     def decode_output_state(self, backend: Backend):
         for node in self.output_nodes:
