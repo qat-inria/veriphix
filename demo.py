@@ -217,6 +217,7 @@ def main(
                 report = fut.result()
             except Exception as e:
                 print(f"❌ Error retrieving result: {e}")
+                continue
             print(report)
             if isinstance(report, Result):
                 writer.writerow(dataclasses.asdict(report))
