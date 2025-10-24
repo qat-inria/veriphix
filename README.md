@@ -21,3 +21,4 @@
 Sami Abdul Sater, Maxime Garnier, Thierry Martinez and Harold Ollivier
 
 # Licence
+Apache 2.0
