@@ -12,6 +12,8 @@
   publisher={GitHub},
   journal={GitHub repository},
   howpublished = {\url{https://github.com/qat-inria/veriphix}},
+  doi={10.5281/zenodo.17435726},
+  url={https://doi.org/10.5281/zenodo.17435726},
 }
 ```
 
