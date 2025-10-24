@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/828979817.svg)](https://doi.org/10.5281/zenodo.17435726)
+
 # Veriphix
 
 # How to cite
