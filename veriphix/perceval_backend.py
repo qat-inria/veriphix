@@ -55,14 +55,10 @@ class PercevalBackend(Backend):
             if np.abs(alpha) == 0:
                 init_circ.add(0, comp.PERM([1, 0]))
             else:
-                init_circ.add(0, comp.BS.H())
-                phase = beta*np.sqrt(2)
-                phase_min_pi_4 = np.exp(- np.pi * 1j / 4)
-                k = 0
-                while phase.real != 1:
-                    phase *= phase_min_pi_4
-                    k += 1
-                init_circ.add(1, comp.PS(np.pi*k/4))
+                gamma = np.abs(beta)
+                delta = -np.conjugate(alpha)*gamma/np.conjugate(beta)
+                matrix = pcvl.Matrix(np.asarray([[alpha, gamma], [beta, delta]]))
+                init_circ.add(0, comp.Unitary(U = matrix))
 
         self._sim.set_circuit(init_circ)
 
