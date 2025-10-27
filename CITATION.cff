@@ -11,3 +11,8 @@ authors:
     given-names: Harold
 title: Veriphix
 url: https://github.com/qat-inria/veriphix
+version: 0.1
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.17435726
+date-released: 2025-10-24

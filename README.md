@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/828979817.svg)](https://doi.org/10.5281/zenodo.17435726)
+
 # Veriphix
 
 # How to cite
@@ -10,6 +12,8 @@
   publisher={GitHub},
   journal={GitHub repository},
   howpublished = {\url{https://github.com/qat-inria/veriphix}},
+  doi={10.5281/zenodo.17435726},
+  url={https://doi.org/10.5281/zenodo.17435726},
 }
 ```
 
@@ -17,3 +21,4 @@
 Sami Abdul Sater, Maxime Garnier, Thierry Martinez and Harold Ollivier
 
 # Licence
+Apache 2.0
