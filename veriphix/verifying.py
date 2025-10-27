@@ -15,8 +15,6 @@ from graphix.sim.statevec import State
 from stim import PauliString
 from typing_extensions import override
 
-from veriphix.perceval_backend import PercevalBackend
-
 Trap = AbstractSet[int]
 Traps = AbstractSet[Trap]
 
@@ -43,23 +41,18 @@ class ComputationRun(Run):
         super().__init__(client=client)
 
     @override
-    def delegate(self, backend: Backend | PercevalBackend, **kwargs) -> ComputationResult:
+    def delegate(self, backend: Backend, **kwargs) -> ComputationResult:
         # Initializes the bank & asks backend to create the input
         self.client.prepare_states(backend, states_dict=self.client.computation_states)
 
-        if type(backend) == PercevalBackend:
-            backend.run(self.client.clean_pattern,
-                        self.client.prepare_method,
-                        self.client.measure_method)
-        else:
-            sim = PatternSimulator(
-                backend=backend,
-                pattern=self.client.clean_pattern,
-                prepare_method=self.client.prepare_method,
-                measure_method=self.client.measure_method,
-                **kwargs,
-            )
-            sim.run(input_state=None)
+        sim = PatternSimulator(
+            backend=backend,
+            pattern=self.client.clean_pattern,
+            prepare_method=self.client.prepare_method,
+            measure_method=self.client.measure_method,
+            **kwargs,
+        )
+        sim.run(input_state=None)
 
         # If quantum output, decode the state, nothing needs to be returned (backend.state can be accessed by the Client)
         if not self.client.classical_output:
@@ -130,23 +123,18 @@ class TestRun(Run):
         return input_state
 
     @override
-    def delegate(self, backend: Backend | PercevalBackend, **kwargs) -> dict[int, int]:
+    def delegate(self, backend: Backend, **kwargs) -> dict[int, int]:
         states_dict = {node: self.input_state[node] for node in self.client.nodes_list}
         self.client.prepare_states(backend=backend, states_dict=states_dict)
 
-        if type(backend) == PercevalBackend:
-            backend.run(self.client.test_pattern,
-                        self.client.prepare_method,
-                        self.client.measure_method)
-        else:
-            sim = PatternSimulator(
-                backend=backend,
-                pattern=self.client.test_pattern,
-                prepare_method=self.client.prepare_method,
-                measure_method=self.client.test_measure_method,
-                **kwargs,
-            )
-            sim.run(input_state=None)
+        sim = PatternSimulator(
+            backend=backend,
+            pattern=self.client.test_pattern,
+            prepare_method=self.client.prepare_method,
+            measure_method=self.client.test_measure_method,
+            **kwargs,
+        )
+        sim.run(input_state=None)
 
         trap_outcomes = dict()
         for trap in self.traps:

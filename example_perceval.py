@@ -1,4 +1,3 @@
-from graphix.sim.density_matrix import DensityMatrixBackend
 from graphix.transpiler import Circuit
 from perceval import Source
 
@@ -21,13 +20,13 @@ t = 10
 w = 1
 trap_scheme_param = TrappifiedSchemeParameters(d, t, w)
 client = Client(pattern=pattern, secrets=secrets, parameters=trap_scheme_param)
+protocol_runs = client.sample_canvas()
 
 source = Source(emission_probability = 1, 
                 multiphoton_component = 0, 
                 indistinguishability = 1)
-backend = PercevalBackend(source, client.graph, client.input_nodes)
 
-protocol_runs = client.sample_canvas()
+backend = PercevalBackend(source)
 outcomes = client.delegate_canvas(protocol_runs, backend)
 result = client.analyze_outcomes(protocol_runs, outcomes)
 print(result)

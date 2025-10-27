@@ -2,105 +2,197 @@ import perceval as pcvl
 import perceval.components as comp
 from perceval.components import catalog
 import numpy as np
-import networkx as nx
 
 from graphix.states import BasicStates
-from graphix.simulator import MeasureMethod, PrepareMethod
-from graphix.sim.base_backend import Backend, NodeIndex
+from graphix.measurements import Measurement
+from graphix.sim.base_backend import Backend
 from graphix.command import CommandKind
-from graphix.pattern import Pattern
+from graphix.clifford import Clifford
+from graphix.fundamentals import Plane
+from graphix.sim.density_matrix import DensityMatrix
 
-class PercevalBackend:
+class PercevalBackend(Backend):
 
-    def __init__(self, source: pcvl.Source, graph: nx.Graph, input_nodes):
+    def __init__(
+        self,
+        source: pcvl.Source,
+        perceval_state: pcvl.StateVector = pcvl.BasicState()
+    ):
+
         self._source = source
-        self._graph = graph
-        self._input_nodes = input_nodes
-        self.node_index = NodeIndex()
-        self._proc = pcvl.Processor("SLOS", 2*len(self._graph.nodes))
-        self._count_nodes = 0
+        self._perceval_state = perceval_state
+
+        self._sim = pcvl.simulators.Simulator(pcvl.BackendFactory.get_backend("SLOS"))
+        self._sim.set_min_detected_photons_filter(0)
+        self._sim.keep_heralds(False)
+
+        super().__init__(DensityMatrix(nqubit=0), pr_calc=True, rng=None)
+
+    
+    @property
+    def source(self):
+        return self._source
+    
+    @property
+    def state(self):
+        return self._perceval_state
+    
+    @property
+    def nqubit(self) -> int:
+        return int(self.state.m/2)
+    
+    def copy(self):
+        return PercevalBackend(self._source, self._perceval_state)
 
     def add_nodes(self, nodes, data=BasicStates.PLUS):
 
-        if np.abs(data.psi[0]) != 1:
-            if np.abs(data.psi[1]) == 1:
-                self._proc.add(2*self._count_nodes, comp.PERM([1, 0]))
+        init_circ = pcvl.Circuit(2)
+
+        alpha = data.psi[0]
+        beta = data.psi[1]
+
+        if np.abs(beta) != 0:
+            if np.abs(alpha) == 0:
+                init_circ.add(0, comp.PERM([1, 0]))
             else:
-                self._proc.add(2*self._count_nodes, comp.BS.H())
-                phase = data.psi[1]*np.sqrt(2)
+                init_circ.add(0, comp.BS.H())
+                phase = beta*np.sqrt(2)
                 phase_min_pi_4 = np.exp(- np.pi * 1j / 4)
                 k = 0
                 while phase.real != 1:
                     phase *= phase_min_pi_4
                     k += 1
-                self._proc.add(2*self._count_nodes + 1, comp.PS(np.pi*k/4))
+                init_circ.add(1, comp.PS(np.pi*k/4))
 
-        self._count_nodes += 1
+        self._sim.set_circuit(init_circ)
+
+        zero_mixed_state = self._source.generate_distribution(pcvl.BasicState([1, 0]))
+        sampled_zero_mixed_state = zero_mixed_state.sample(1)[0]
+        init_qubit = self._sim.evolve(sampled_zero_mixed_state)
+        self._perceval_state *= init_qubit
+
         self.node_index.extend(nodes)
 
-    def run(self, pattern: Pattern, prepare_method: PrepareMethod, measure_method: MeasureMethod):
-        nodes = self._graph.nodes
-        edges = self._graph.edges
+    def entangle_nodes(self, edge: tuple[int, int]) -> None:
 
-        for node in nodes:
-            if node not in self._input_nodes:
-                prepare_method.prepare_node(self, node)
+        index_0 = self.node_index.index(edge[0])
+        index_1 = self.node_index.index(edge[1])
+        ctrl = min(index_0, index_1)
+        target = max(index_0, index_1)
+        cz_input_modes = [2*ctrl, 2*ctrl + 1, 2*target, 2*target + 1]
 
-        for edge in edges:
-            ctrl = min(edge)
-            target = max(edge)
-            cz_inp = [2*ctrl, 2*ctrl + 1, 2*target, 2*target + 1]
-            self._proc.add(cz_inp,catalog["heralded cz"].build_processor())
+        ent_proc = pcvl.Processor("SLOS", 2*self.nqubit)
+        ent_proc.add(cz_input_modes, catalog["heralded cz"].build_processor())
+        ent_circ = ent_proc.linear_circuit()
 
-        circ = self._proc.linear_circuit()
+        self._sim.set_circuit(ent_circ)
 
-        sim = pcvl.simulators.Simulator(pcvl.BackendFactory.get_backend("SLOS"))
-        sim.set_min_detected_photons_filter(0)
-        sim.set_circuit(circ)
+        heralds = dict.fromkeys(list(range(2*self.nqubit, ent_circ.m)), 1)
+        self._sim.set_heralds(heralds)
+        herald_state = self._source.generate_distribution(pcvl.BasicState([1, 1]))
+        sampled_herald_state = herald_state.sample(1)[0]
 
-        heralds = dict.fromkeys(list(range(2*len(nodes), circ.m)), 1)
-        sim.set_heralds(heralds)
-        sim.keep_heralds(False)
+        self._perceval_state = self._sim.evolve(self._perceval_state*sampled_herald_state)
 
-        st_0 = pcvl.BasicState([1, 0])
-        st_herald = pcvl.BasicState([1, 1])
-        basic_input = (st_0 ** len(nodes))*(st_herald ** len(edges))
-        input_svd = self._source.generate_distribution(basic_input)
+        self._sim.clear_heralds()
 
-        graph_state = pcvl.DensityMatrix.from_svd(sim.evolve_svd(input_svd)["results"])
+    def measure(self, node: int, measurement: Measurement) -> bool:
+        """Perform measurement of a node and trace out the qubit.
 
+        Parameters
+        ----------
+        node: int
+        measurement: Measurement
+        """
+        index = self.node_index.index(node)
+
+        meas_circ = pcvl.Circuit(2*self.nqubit)
+        match measurement.plane:
+
+            case Plane.XY:
+                # rotation around Z axis by -angle
+                meas_circ.add(2*index + 1, comp.PS(-measurement.angle))
+                # transformation from X basis to Z basis
+                meas_circ.add(2*index, comp.BS.H())
+
+            case Plane.YZ:
+                # rotation around X axis by -angle
+                meas_circ.add(2*index, comp.BS.H())
+                meas_circ.add(2*index + 1, comp.PS(-measurement.angle))
+                meas_circ.add(2*index, comp.BS.H())
+                # transformation from Y basis to Z basis
+                meas_circ.add(2*index + 1, comp.PS(-np.pi/2))
+                meas_circ.add(2*index, comp.BS.H())
+
+            case Plane.XZ:
+                # rotation around Y axis by -angle
+                meas_circ.add(2*index + 1, comp.PS(-np.pi/2))
+                meas_circ.add(2*index, comp.BS.H())
+                meas_circ.add(2*index + 1, comp.PS(-measurement.angle))
+                meas_circ.add(2*index, comp.BS.H())
+                meas_circ.add(2*index + 1, comp.PS(np.pi/2))
+                # transformation from X basis to Z basis
+                meas_circ.add(2*index, comp.BS.H())
+
+        
+        self._sim.set_circuit(meas_circ)
+        self._perceval_state = self._sim.evolve(self._perceval_state)
+
+        all_possible_meas_outcomes = self._perceval_state.measure([2*index, 2*index + 1])
+        outcome_dist = {}
+        for outcome, res in all_possible_meas_outcomes.items():
+            outcome_dist[outcome] = res[0]
+        outcomes = pcvl.BSDistribution(outcome_dist)
         ps = pcvl.PostSelect("([0] > 0 & [1] == 0) | ([0] == 0 & [1] > 0)")
-        position_in_state = list(range(len(nodes)))
+        ps_outcomes = pcvl.utils.postselect.post_select_distribution(outcomes, ps)[0]
+        meas_result = ps_outcomes.sample(1)[0]
+        result = meas_result[0] == 0
 
-        sim.clear_heralds()
+        self._perceval_state = all_possible_meas_outcomes[meas_result][1]
 
-        for cmd in pattern:
+        self.node_index.remove(node)
 
-            if cmd.kind != CommandKind.M:
-                continue
+        return result
 
-            description = measure_method.get_measurement_description(cmd)
-            meas_circ = pcvl.Circuit(graph_state.m, "measurement") 
-            meas_circ.add(2*position_in_state[cmd.node] + 1, comp.PS(-description.angle))
-            meas_circ.add(2*position_in_state[cmd.node], comp.BS.H())
-            sim.set_circuit(meas_circ)
-            graph_state = sim.evolve_density_matrix(graph_state)
+    def correct_byproduct(self, cmd, measure_method) -> None:
+        """Byproduct correction correct for the X or Z byproduct operators, by applying the X or Z gate."""
 
-            all_possible_meas_outcomes = graph_state.measure([2*position_in_state[cmd.node], 2*position_in_state[cmd.node] + 1])
+        if np.mod(sum([measure_method.get_measure_result(j) for j in cmd.domain]), 2) == 1:
 
-            outcome_dist = {}
-            for outcome, res in all_possible_meas_outcomes.items():
-                outcome_dist[outcome] = res[0]
-            outcomes = pcvl.BSDistribution(outcome_dist)
-            ps_outcomes = pcvl.utils.postselect.post_select_distribution(outcomes, ps)[0]
-            meas_result = ps_outcomes.sample(1)[0]
-            bool_result = meas_result[0] == 0
-            measure_method.set_measure_result(cmd.node, bool_result)
+            index = self.node_index.index(cmd.node)
+            correct_circ = pcvl.Circuit(2*self.nqubit)
 
-            graph_state = all_possible_meas_outcomes[meas_result][1]
-            for i in range(cmd.node, len(position_in_state)):
-                position_in_state[i] -= 1
+            if cmd.kind == CommandKind.X:
+                correct_circ.add(2*index, comp.PERM([1, 0]))
+            elif cmd.kind == CommandKind.Z:
+                correct_circ.add(2*index + 1, comp.PS(np.pi))
 
-        self.node_index = NodeIndex()
-        self._proc = pcvl.Processor("SLOS", 2*len(self._graph.nodes))
-        self._count_nodes = 0
+            self._sim.set_circuit(correct_circ)
+            self._perceval_state = self._sim.evolve(self._perceval_state)
+
+    def apply_clifford(self, node: int, clifford: Clifford) -> None:
+        """Apply single-qubit Clifford gate, specified by vop index specified in graphix.clifford.CLIFFORD."""
+
+        index = self.node_index.index(node)
+
+        clifford_circ = pcvl.Circuit(2*self.nqubit).add(2*index, comp.Unitary(U = pcvl.Matrix(clifford.matrix)))
+
+        self._sim.set_circuit(clifford_circ)
+        self._perceval_state = self._sim.evolve(self._perceval_state)
+
+    def sort_qubits(self, output_nodes) -> None:
+        """Sort the qubit order in internal statevector."""
+        if self.nqubit > 0:
+            perm_circ = pcvl.Circuit(2*self.nqubit)
+
+            for i, ind in enumerate(output_nodes):
+                if self.node_index.index(ind) != i:
+                    move_from = self.node_index.index(ind)
+                    self.node_index.swap(i, move_from)
+
+                    low = min(i, move_from)
+                    high = max(i, move_from)
+                    perm_circ.add(2*low, comp.PERM([2*(high - low), 2*(high - low) + 1] + list(range(2, 2*(high - low))) + [0, 1]))
+
+            self._sim.set_circuit(perm_circ)
+            self._perceval_state = self._sim.evolve(self._perceval_state)
