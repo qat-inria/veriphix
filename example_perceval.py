@@ -29,4 +29,5 @@ source = Source(emission_probability = 1,
 backend = PercevalBackend(source)
 outcomes = client.delegate_canvas(protocol_runs, backend)
 result = client.analyze_outcomes(protocol_runs, outcomes)
-print(result)
+
+print(result[2].nr_failed_test_rounds == 0 and result[2].computation_outcomes_count["0"] == d)
