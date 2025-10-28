@@ -14,9 +14,11 @@ from graphix.sim.density_matrix import DensityMatrix
 class PercevalBackend(Backend):
 
 ## possible upgrades:
+## - fix issue with perceval_state (see init)
 ## - choice of PNR or threshold detectors (currently only threshold is implemented)
 ## - other state generation strategies: with fusions, with RUS gates (would probably required standardised pattern)
-## - add option to keep track and return success probability
+## - add option to keep track and return success probability (adapt add_nodes, entangle_nodes and measure to work with mixed states)
+## - add a mode which does not perform the simulation but only constructs the circuit (with the proper feed-forward), to run on QPU
 
     def __init__(
         self,
@@ -34,7 +36,7 @@ class PercevalBackend(Backend):
         ## Ideally we want the state below to be the perceval state,
         ## but this requires creating a new class that inherits from pcvl.StateVector and State
         ## In that case, need to replace all calls to self._perceval_state by self.state
-        super().__init__(DensityMatrix(nqubit=0), pr_calc=True, rng=None)
+        super().__init__(DensityMatrix(nqubit = 0), pr_calc = True, rng = None)
 
     
     @property
@@ -57,16 +59,18 @@ class PercevalBackend(Backend):
 
         # path-encoded |0> state
         zero_mixed_state = self._source.generate_distribution(pcvl.BasicState([1, 0]))
-        ## here we explicitely choose not to deal with mixed states,
-        ## which means we cannot compute the fraction of successful runs.
-        ## This is done for the sake of execution speed
+        ## Here we explicitely choose not to deal with mixed states by sampling a single input state from the distribution above.
+        ## This means we cannot compute the fraction of successful runs and may run into post-selection problems (see measure function).
+        ## This is done because perceval does not (for now) handle measurements on SVDistribution (mixed states).
+        ## Those cannot be translated to DensityMatrix objects (which can be measured) since DensityMatrix does not handle distinguishable photons (yet).
+        ## One solution would be to manually implement measurements on SVDistributions.
         init_qubit = zero_mixed_state.sample(1)[0]
 
         # recover amplitudes of input state
         alpha = data.psi[0]
         beta = data.psi[1]
 
-        if np.abs(beta) != 0: # if beta = 0, the input is |0>
+        if np.abs(beta) != 0: # if beta = 0, the input is already |0>, no need to do anything
 
             # construct unitary matrix taking |0> to the state psi
             gamma = np.abs(beta)
@@ -90,8 +94,9 @@ class PercevalBackend(Backend):
         target = max(index_0, index_1)
         cz_input_modes = [2*ctrl, 2*ctrl + 1, 2*target, 2*target + 1]
 
-        # construct circuit via processor since this class applies 
+        # We construct the circuit via the Processor class since this class applies 
         # the correct permutation before and after to place CZ at correct modes
+        # (while the Circuit class does not and returns an error if the modes are not contiguous)
         ent_proc = pcvl.Processor("SLOS", 2*self.nqubit)
         ent_proc.add(cz_input_modes, catalog["heralded cz"].build_processor())
         ent_circ = ent_proc.linear_circuit()
@@ -101,7 +106,7 @@ class PercevalBackend(Backend):
         heralds = dict.fromkeys(list(range(2*self.nqubit, ent_circ.m)), 1)
         self._sim.set_heralds(heralds)
         herald_state = self._source.generate_distribution(pcvl.BasicState([1, 1]))
-        ## here we again explicitely choose not to deal with mixed states
+        ## Here we again explicitely choose not to deal with mixed states
         sampled_herald_state = herald_state.sample(1)[0]
 
         self._perceval_state = self._sim.evolve(self._perceval_state*sampled_herald_state)
