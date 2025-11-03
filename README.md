@@ -1,5 +1,6 @@
 [![CI](https://github.com/TeamGraphix/graphix/actions/workflows/ci.yml/badge.svg)](https://github.com/TeamGraphix/graphix/actions/workflows/ci.yml)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+![License](https://img.shields.io/github/license/TeamGraphix/graphix)
 [![DOI](https://zenodo.org/badge/828979817.svg)](https://doi.org/10.5281/zenodo.17435726)
 
 
