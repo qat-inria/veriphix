@@ -11,7 +11,6 @@ from typing import TYPE_CHECKING
 import networkx as nx
 from graphix.pattern import PatternSimulator
 from graphix.pauli import IXYZ, Pauli
-from graphix.sim.statevec import State
 from stim import PauliString
 from typing_extensions import override
 
@@ -22,6 +21,7 @@ Traps = AbstractSet[Trap]
 if TYPE_CHECKING:
     from graphix.sim.base_backend import Backend
     from graphix.states import State
+    from numpy.random import Generator
 
     from veriphix.client import Client, ResultAnalysis
 
@@ -93,7 +93,9 @@ def generate_eigenstate(stabilizer: PauliString) -> list[State]:
     states = []
     for pauli in stabilizer:
         # default coin = 0
-        operator = Pauli(IXYZ(pauli))
+        # The convention changed with graphix@7da20956:
+        # I, X, Y, Z are mapped to 1, 2, 3, 4 instead of 0, 1, 2, 3.
+        operator = Pauli(IXYZ(pauli + 1))
         states.append(operator.eigenstate())
     return states
 
@@ -123,7 +125,7 @@ class TestRun(Run):
         return input_state
 
     @override
-    def delegate(self, backend: Backend, **kwargs) -> dict[int, int]:
+    def delegate(self, backend: Backend, rng: Generator | None = None, **kwargs) -> dict[int, int]:
         states_dict = {node: self.input_state[node] for node in self.client.nodes_list}
         self.client.prepare_states(backend=backend, states_dict=states_dict)
         sim = PatternSimulator(
@@ -133,7 +135,7 @@ class TestRun(Run):
             measure_method=self.client.test_measure_method,
             **kwargs,
         )
-        sim.run(input_state=None)
+        sim.run(input_state=None, rng=rng)
 
         trap_outcomes = dict()
         for trap in self.traps:

@@ -166,8 +166,8 @@ class TestVBQC:
         )
         for test_run in client.test_runs:
             client.refresh_randomness()
-            backend = DensityMatrixBackend(rng=fx_rng)
-            trap_outcomes = test_run.delegate(backend=backend, noise_model=noise_model).trap_outcomes
+            backend = DensityMatrixBackend()
+            trap_outcomes = test_run.delegate(backend=backend, noise_model=noise_model, rng=fx_rng).trap_outcomes
             assert sum(trap_outcomes.values()) == 0
 
     def test_noisy(self, fx_rng: Generator):
@@ -190,9 +190,9 @@ class TestVBQC:
             rng=fx_rng,
         )
         for test_run in client.test_runs:
-            backend = DensityMatrixBackend(rng=fx_rng)
+            backend = DensityMatrixBackend()
             client.refresh_randomness()
-            trap_outcomes = test_run.delegate(backend=backend, noise_model=noise_model).trap_outcomes
+            trap_outcomes = test_run.delegate(backend=backend, noise_model=noise_model, rng=fx_rng).trap_outcomes
             assert sum(trap_outcomes.values()) > 0
 
 

@@ -42,14 +42,14 @@ class TestClient:
         pattern = circuit.transpile().pattern
         pattern.standardize()
 
-        nodes, edges = pattern.get_graph()
+        nodes = pattern.extract_nodes()
 
         # initialise client
         secrets = Secrets(r=True, a=True, theta=True)
         client = Client(pattern=pattern, secrets=secrets)
 
         with pytest.raises(ValueError):  # trivially duplicate a node
-            create_test_runs(client=client, manual_colouring=(set(nodes), set([nodes[0]])))
+            create_test_runs(client=client, manual_colouring=(nodes, set([next(iter(nodes))])))
 
     def test_standardize(self, fx_rng: Generator):
         """

@@ -3,7 +3,7 @@ from __future__ import annotations
 import random
 from dataclasses import dataclass
 from math import ceil
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 import graphix.command
 import graphix.ops
@@ -12,7 +12,6 @@ import graphix.pauli
 import graphix.sim.base_backend
 import graphix.sim.statevec
 import graphix.simulator
-import networkx as nx
 import numpy as np
 from graphix.clifford import Clifford
 from graphix.command import BaseM, BaseN, CommandKind, MeasureUpdate
@@ -37,7 +36,9 @@ from veriphix.verifying import (
 )
 
 if TYPE_CHECKING:
+    import networkx as nx
     from graphix.sim.base_backend import Backend
+    from numpy.random import Generator
 
 
 @dataclass
@@ -104,7 +105,7 @@ class Client:
         if classical_output:
             self._add_measurement_commands(self.initial_pattern)
 
-        self.graph = self._build_graph()
+        self.graph = pattern.extract_graph()
         self.clifford_structure = get_graph_clifford_structure(self.graph)
         self.nodes_list = list(self.graph.nodes)
 
@@ -140,13 +141,6 @@ class Client:
             pattern.add(graphix.command.M(node=onode))
         return pattern
 
-    def _build_graph(self):
-        raw_graph = self.initial_pattern.get_graph()
-        graph = nx.Graph()
-        graph.add_nodes_from(raw_graph[0])
-        graph.add_edges_from(raw_graph[1])
-        return graph
-
     def _copy_pattern(self) -> Pattern:
         pattern_copy = Pattern(self.initial_pattern.input_nodes)
         for cmd in self.initial_pattern:
@@ -156,7 +150,7 @@ class Client:
 
     def _get_measurement_db(self):
         copied_pattern = self._copy_pattern()
-        return {m.node: m for m in copied_pattern.get_measurement_commands()}
+        return {m.node: m for m in copied_pattern.extract_measurement_commands()}
 
     def refresh_randomness(self) -> None:
         "method to refresh random randomness using parameters from Clinent instatiation."
@@ -264,7 +258,8 @@ class ClientPrepareMethod(PrepareMethod):
         """Prepare a node."""
         backend.add_nodes(nodes=[node], data=self.__preparation_bank[node])
 
-    def prepare(self, backend: Backend, cmd: BaseN) -> None:
+    @override
+    def prepare(self, backend: Backend, cmd: BaseN, rng: Generator | None = None) -> None:
         """Prepare a node."""
         self.prepare_node(backend, cmd.node)
 
