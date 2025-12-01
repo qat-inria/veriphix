@@ -180,10 +180,8 @@ class TestVBQC:
 
         for test_run in client.test_runs:
             client.refresh_randomness()
-
             # The backend can continue to use fx_rng (fixture) for deterministic behavior
             backend = DensityMatrixBackend(rng=fx_rng)
-
             trap_outcomes = test_run.delegate(backend=backend, noise_model=noise_model, rng=fx_rng).trap_outcomes
             assert sum(trap_outcomes.values()) > 0
 
