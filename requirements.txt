@@ -1,4 +1,4 @@
-graphix @ git+https://github.com/thierry-martinez/graphix@veriphix
+graphix
 stim>=1.13,<2
 
 # For sampling circuits
