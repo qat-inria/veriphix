@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 import networkx as nx
 from graphix.fundamentals import IXYZ_VALUES
 from graphix.pattern import PatternSimulator
-from graphix.pauli import IXYZ, Pauli
+from graphix.pauli import Pauli
 from stim import PauliString
 from typing_extensions import override
 
