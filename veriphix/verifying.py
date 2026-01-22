@@ -6,8 +6,10 @@ from collections.abc import Set as AbstractSet
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+import networkx as nx
+from graphix.fundamentals import IXYZ_VALUES
 from graphix.pattern import PatternSimulator
-from graphix.pauli import IXYZ, Pauli
+from graphix.pauli import Pauli
 from stim import PauliString
 from typing_extensions import override
 
@@ -88,9 +90,7 @@ def generate_eigenstate(stabilizer: PauliString) -> list[State]:
     states = []
     for pauli in stabilizer:
         # default coin = 0
-        # The convention changed with graphix@7da20956:
-        # I, X, Y, Z are mapped to 1, 2, 3, 4 instead of 0, 1, 2, 3.
-        operator = Pauli(IXYZ(pauli + 1))
+        operator = Pauli(IXYZ_VALUES[pauli])
         states.append(operator.eigenstate())
     return states
 
