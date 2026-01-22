@@ -302,7 +302,7 @@ class ClientMeasureMethod(MeasureMethod):
         angle = (-1) ** a_value * angle + self.__client.secret_datas.blind_angle(
             cmd.node, cmd.node in self.__client.output_nodes, test=False
         )
-        return Measurement(plane=measure_update.new_plane, angle=angle)
+        return Measurement(plane=measure_update.new_plane, angle=angle / np.pi)
 
     def get_measure_result(self, node: int) -> bool:
         raise ValueError("Server cannot have access to measurement results")
@@ -321,7 +321,7 @@ class TestMeasureMethod(MeasureMethod):
         # Blind the angle using the Client's secrets
         angle = self.__client.secret_datas.blind_angle(cmd.node, cmd.node in self.__client.output_nodes, test=True)
 
-        return Measurement(plane=Plane.XY, angle=angle)
+        return Measurement(plane=Plane.XY, angle=angle / np.pi)
 
     def get_measure_result(self, node: int) -> bool:
         raise ValueError("Server cannot have access to measurement results")
