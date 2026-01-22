@@ -15,7 +15,7 @@ import graphix.simulator
 import numpy as np
 from graphix.clifford import Clifford
 from graphix.command import BaseM, BaseN, CommandKind, MeasureUpdate
-from graphix.fundamentals import Plane
+from graphix.fundamentals import Plane, rad_to_angle, angle_to_rad, ANGLE_PI
 from graphix.measurements import Measurement
 from graphix.ops import Ops
 from graphix.pattern import Pattern
@@ -295,14 +295,14 @@ class ClientMeasureMethod(MeasureMethod):
         s_signal = sum(self.__client.results[j] for j in parameters.s_domain)
         t_signal = sum(self.__client.results[j] for j in parameters.t_domain)
         measure_update = MeasureUpdate.compute(parameters.plane, s_signal % 2 == 1, t_signal % 2 == 1, Clifford.I)
-        angle = parameters.angle * np.pi
+        angle = parameters.angle
         angle = angle * measure_update.coeff + measure_update.add_term
 
         # Blind the angle using the Client's secrets
         angle = (-1) ** a_value * angle + self.__client.secret_datas.blind_angle(
             cmd.node, cmd.node in self.__client.output_nodes, test=False
         )
-        return Measurement(plane=measure_update.new_plane, angle=angle / np.pi)
+        return Measurement(plane=measure_update.new_plane, angle=angle)
 
     def get_measure_result(self, node: int) -> bool:
         raise ValueError("Server cannot have access to measurement results")
@@ -321,7 +321,7 @@ class TestMeasureMethod(MeasureMethod):
         # Blind the angle using the Client's secrets
         angle = self.__client.secret_datas.blind_angle(cmd.node, cmd.node in self.__client.output_nodes, test=True)
 
-        return Measurement(plane=Plane.XY, angle=angle / np.pi)
+        return Measurement(plane=Plane.XY, angle=angle)
 
     def get_measure_result(self, node: int) -> bool:
         raise ValueError("Server cannot have access to measurement results")
