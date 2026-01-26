@@ -13,17 +13,13 @@ from stim import PauliString
 from veriphix.client import Client, Secrets
 from veriphix.protocols import (
     FK12,
-    Dummyless,
     RandomTraps,
     VerificationProtocol,
-    generate_graph_stabilizers,
-    gf2_solve,
-    pauli_to_symplectic,
 )
 
 
 class TestProtocols:
-    @pytest.mark.parametrize("protocol_class", (FK12, RandomTraps, Dummyless))
+    @pytest.mark.parametrize("protocol_class", (FK12, RandomTraps))
     def test_noiseless_all_protocols(self, fx_rng: np.random.Generator, protocol_class: type[VerificationProtocol]):
         nqubits = 3
         depth = 5
@@ -119,37 +115,3 @@ class TestProtocols:
         decision, _, result_analysis = client.analyze_outcomes(canvas=canvas, outcomes=run_results)
         assert decision
         assert result_analysis.nr_failed_test_rounds == 0
-
-    def test_dummyless(self, fx_rng: np.random.Generator):
-        nqubits = 3
-        depth = 5
-        circuit = rand_circuit(nqubits, depth, fx_rng)
-        pattern = circuit.transpile().pattern
-
-        protocol = Dummyless()
-        client = Client(pattern=pattern, protocol=protocol)
-        nodes = list(client.graph.nodes)
-        idx_map = {v: i for i, v in enumerate(nodes)}
-        n = len(nodes)
-        # Check that they are linearly independent
-        # By construction, the rank of the symplectic matrix (built from symplectic vectors stacked as rows) of the Pauli Strings is $n-1$
-        # so the $n-1$ strings are linearly independent.
-
-        for run in client.test_runs:
-            # Check that there are no Z
-            trap_stabilizer = run.stabilizer
-            assert trap_stabilizer.pauli_indices("Z") == []
-
-            # Check that they are product of generators
-            trap_stabilizer_bin = pauli_to_symplectic(trap_stabilizer)
-            graph_stabilizers = generate_graph_stabilizers(client.graph)
-            # Construct symplectic matrix: 2n x n
-            graph_stabilizers_bin = np.array([pauli_to_symplectic(p) for p in graph_stabilizers]).T
-
-            coeffs = gf2_solve(graph_stabilizers_bin, trap_stabilizer_bin)
-            support = [nodes[j] for j in range(n) if coeffs[j] == 1]
-            reconstructed = PauliString("I" * n)
-            for v in support:
-                reconstructed *= graph_stabilizers[idx_map[v]]
-
-            assert reconstructed == trap_stabilizer
