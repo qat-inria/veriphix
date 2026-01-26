@@ -3,12 +3,11 @@ from __future__ import annotations
 import json
 import random
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-import numpy as np
 import pytest
 from graphix.random_objects import rand_circuit
 from graphix.sim.statevec import StatevectorBackend
-from stim import PauliString
 
 from veriphix.client import Client, Secrets
 from veriphix.protocols import (
@@ -16,6 +15,9 @@ from veriphix.protocols import (
     RandomTraps,
     VerificationProtocol,
 )
+
+if TYPE_CHECKING:
+    import numpy as np
 
 
 class TestProtocols:

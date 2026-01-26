@@ -3,12 +3,9 @@ from __future__ import annotations
 import itertools
 import random
 from abc import ABC, abstractmethod
-from itertools import combinations
 from typing import TYPE_CHECKING
 
 import networkx as nx
-import numpy as np
-import stim
 
 from veriphix.verifying import TestRun
 
@@ -128,4 +125,3 @@ class RandomTraps(VerificationProtocol):
             test_runs.append(test_run)
 
         return test_runs
-
