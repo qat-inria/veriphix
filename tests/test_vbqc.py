@@ -164,24 +164,19 @@ class TestVBQC:
 
         secrets = Secrets(a=True, r=True, theta=True)
 
-        client = Client(pattern=pattern, input_state=states, secrets=secrets)
-
-        # Use an independent RNG for the noise model so it does not share fx_rng
-        # with the backend. This avoids coupling between noise sampling and backend randomness.
-        noise_rng = np.random.default_rng()
+        client = Client(pattern=pattern, input_state=states, secrets=secrets, rng=fx_rng)
         noise_model = DepolarisingNoiseModel(
             measure_error_prob=1,
             entanglement_error_prob=1,
             x_error_prob=1,
             z_error_prob=1,
             measure_channel_prob=1,
-            rng=noise_rng,
+            rng=fx_rng,
         )
 
         for test_run in client.test_runs:
-            client.refresh_randomness()
-            # The backend can continue to use fx_rng (fixture) for deterministic behavior
-            backend = DensityMatrixBackend(rng=fx_rng)
+            backend = DensityMatrixBackend()
+            client.refresh_randomness(rng=fx_rng)
             trap_outcomes = test_run.delegate(backend=backend, noise_model=noise_model, rng=fx_rng).trap_outcomes
             assert sum(trap_outcomes.values()) > 0
 

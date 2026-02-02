@@ -6,10 +6,12 @@ from typing import TYPE_CHECKING
 import numpy as np
 from graphix.fundamentals import ANGLE_PI
 from graphix.pauli import Pauli
+from graphix.rng import ensure_rng
 from graphix.sim.statevec import StatevectorBackend
 
 if TYPE_CHECKING:
     import networkx as nx
+    from numpy.random import Generator
     from graphix.fundamentals import Angle
 
 
@@ -33,7 +35,8 @@ class SecretDatas:
     theta: dict[int, int]
 
     @staticmethod
-    def from_secrets(secrets: Secrets, graph: nx.Graph, input_nodes, output_nodes):
+    def from_secrets(secrets: Secrets, graph: nx.Graph, input_nodes, output_nodes, rng: Generator | None = None):
+        rng = ensure_rng(rng)
         r = {}
         if secrets.r:
             # Need to generate the random bit for each measured qubit, 0 for the rest (output qubits)
@@ -44,7 +47,7 @@ class SecretDatas:
         if secrets.theta:
             # Create theta secret for all non-output nodes (measured qubits)
             for node in graph.nodes:
-                theta[node] = np.random.randint(0, 8) if node not in output_nodes else 0  # Expressed in pi/4 units
+                theta[node] = rng.integers(0, 8) if node not in output_nodes else 0  # Expressed in pi/4 units
                 ## TODO:
         a = {}
         a_N = {}
@@ -52,7 +55,7 @@ class SecretDatas:
             # Create `a` secret for all
             # order is Z(theta) X |+>
             for node in graph.nodes:
-                a[node] = np.random.randint(0, 2) if node in input_nodes else 0
+                a[node] = rng.integers(0, 2) if node in input_nodes else 0
 
             # After all the `a` secrets have been generated, the `a_N` value can be
             # computed from the graph topology

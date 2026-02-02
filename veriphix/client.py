@@ -104,6 +104,7 @@ class Client:
         parameters: TrappifiedSchemeParameters | None = None,
         protocol: VerificationProtocol | None = None,
         autogen: bool = True,
+        rng: Generator | None = None
     ) -> None:
         self.initial_pattern: Pattern = pattern
         self.classical_output = classical_output
@@ -139,7 +140,7 @@ class Client:
         self.byproduct_db = get_byproduct_db(self._copy_pattern())
 
         self.secrets = secrets or Secrets()
-        self.secret_datas = SecretDatas.from_secrets(self.secrets, self.graph, self.input_nodes, self.output_nodes)
+        self.secret_datas = SecretDatas.from_secrets(self.secrets, self.graph, self.input_nodes, self.output_nodes, rng=rng)
 
         self.clean_pattern = remove_flow(self.initial_pattern)
         if not self.classical_output:
@@ -178,12 +179,12 @@ class Client:
         copied_pattern = self._copy_pattern()
         return copied_pattern.extract_measurement_commands()
 
-    def refresh_randomness(self) -> None:
+    def refresh_randomness(self, rng: Generator | None = None) -> None:
         "method to refresh random randomness using parameters from Clinent instatiation."
 
         # refresh only if secrets bool is True; False is no randomness at all.
         if self.secrets is not None:
-            self.secret_datas = SecretDatas.from_secrets(self.secrets, self.graph, self.input_nodes, self.output_nodes)
+            self.secret_datas = SecretDatas.from_secrets(self.secrets, self.graph, self.input_nodes, self.output_nodes, rng=rng)
 
     def get_computation_states(self):
         states = dict()
