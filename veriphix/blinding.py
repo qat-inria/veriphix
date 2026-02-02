@@ -10,7 +10,6 @@ from graphix.sim.statevec import StatevectorBackend
 
 if TYPE_CHECKING:
     import networkx as nx
-
     from graphix.fundamentals import Angle
 
 

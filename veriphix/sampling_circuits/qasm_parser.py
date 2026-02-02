@@ -4,11 +4,12 @@ import ast
 import math
 import operator
 import re
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
 from graphix import Circuit
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from io import TextIOBase
 
 command_re = re.compile(r"([a-z]+)(?:\(([^)]*)\))?")

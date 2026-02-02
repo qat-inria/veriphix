@@ -3,7 +3,7 @@ from __future__ import annotations
 import random
 from dataclasses import dataclass
 from math import ceil
-from typing import TYPE_CHECKING, override
+from typing import TYPE_CHECKING
 
 import graphix.command
 import graphix.ops
@@ -12,10 +12,9 @@ import graphix.pauli
 import graphix.sim.base_backend
 import graphix.sim.statevec
 import graphix.simulator
-import numpy as np
 from graphix.clifford import Clifford
 from graphix.command import BaseM, BaseN, CommandKind, MeasureUpdate
-from graphix.fundamentals import Plane, rad_to_angle, angle_to_rad, ANGLE_PI
+from graphix.fundamentals import Plane
 from graphix.measurements import Measurement
 from graphix.ops import Ops
 from graphix.pattern import Pattern
@@ -23,6 +22,7 @@ from graphix.sim.statevec import Statevec
 from graphix.simulator import MeasureMethod, PrepareMethod
 from graphix.states import BasicStates
 from stim import Circuit
+from typing_extensions import override
 
 from veriphix.blinding import SecretDatas, Secrets
 from veriphix.verifying import (
@@ -150,7 +150,7 @@ class Client:
 
     def _get_measurement_db(self):
         copied_pattern = self._copy_pattern()
-        return {m.node: m for m in copied_pattern.extract_measurement_commands()}
+        return copied_pattern.extract_measurement_commands()
 
     def refresh_randomness(self) -> None:
         "method to refresh random randomness using parameters from Clinent instatiation."
@@ -268,7 +268,8 @@ class ClientMeasureMethod(MeasureMethod):
     def __init__(self, client: Client):
         self.__client = client
 
-    def get_measurement_description(self, cmd: BaseM) -> Measurement:
+    @override
+    def describe_measurement(self, cmd: BaseM) -> Measurement:
         parameters = self.__client.measurement_db[cmd.node]
 
         # Extract secrets from Client
@@ -287,10 +288,12 @@ class ClientMeasureMethod(MeasureMethod):
         )
         return Measurement(plane=measure_update.new_plane, angle=angle)
 
-    def get_measure_result(self, node: int) -> bool:
+    @override
+    def measurement_outcome(self, node: int) -> bool:
         raise ValueError("Server cannot have access to measurement results")
 
-    def set_measure_result(self, node: int, result: bool) -> None:
+    @override
+    def store_measurement_outcome(self, node: int, result: bool) -> None:
         if self.__client.secret_datas.r:
             result ^= self.__client.secret_datas.r[node]
         self.__client.results[node] = result
@@ -300,16 +303,19 @@ class TestMeasureMethod(MeasureMethod):
     def __init__(self, client: Client):
         self.__client = client
 
-    def get_measurement_description(self, cmd: BaseM) -> Measurement:
+    @override
+    def describe_measurement(self, cmd: BaseM) -> Measurement:
         # Blind the angle using the Client's secrets
         angle = self.__client.secret_datas.blind_angle(cmd.node, cmd.node in self.__client.output_nodes, test=True)
 
         return Measurement(plane=Plane.XY, angle=angle)
 
-    def get_measure_result(self, node: int) -> bool:
+    @override
+    def measurement_outcome(self, node: int) -> bool:
         raise ValueError("Server cannot have access to measurement results")
 
-    def set_measure_result(self, node: int, result: bool) -> None:
+    @override
+    def store_measurement_outcome(self, node: int, result: bool) -> None:
         if self.__client.secret_datas.r:
             result ^= self.__client.secret_datas.r[node]
         self.__client.results[node] = result
