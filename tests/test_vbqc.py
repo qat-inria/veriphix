@@ -180,7 +180,7 @@ class TestVBQC:
 
         secrets = Secrets(a=True, r=True, theta=True)
 
-        client = Client(pattern=pattern, input_state=states, secrets=secrets)
+        client = Client(pattern=pattern, input_state=states, secrets=secrets, rng=fx_rng)
         noise_model = DepolarisingNoiseModel(
             measure_error_prob=1,
             entanglement_error_prob=1,
@@ -191,7 +191,7 @@ class TestVBQC:
         )
         for test_run in client.test_runs:
             backend = DensityMatrixBackend()
-            client.refresh_randomness()
+            client.refresh_randomness(rng=fx_rng)
             trap_outcomes = test_run.delegate(backend=backend, noise_model=noise_model, rng=fx_rng).trap_outcomes
             assert sum(trap_outcomes.values()) > 0
 
