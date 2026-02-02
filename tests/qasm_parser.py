@@ -12,6 +12,7 @@ if TYPE_CHECKING:
 from graphix import Circuit
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from io import TextIOBase
 
 command_re = re.compile(r"([a-z]+)(?:\(([^)]*)\))?")

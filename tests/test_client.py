@@ -6,6 +6,7 @@ from graphix.sim.statevec import StatevectorBackend
 from graphix.states import BasicStates
 from numpy.random import Generator
 from stim import PauliString
+from typing_extensions import override
 
 from veriphix.client import Client, ClientMeasureMethod, Secrets
 from veriphix.verifying import ComputationRun
@@ -195,10 +196,11 @@ class TestClient:
         server_results = dict()
 
         class CacheMeasureMethod(ClientMeasureMethod):
-            def set_measure_result(self, node: int, result: bool) -> None:
+            @override
+            def store_measurement_outcome(self, node: int, result: bool) -> None:
                 nonlocal server_results
                 server_results[node] = result
-                super().set_measure_result(node, result)
+                super().store_measurement_outcome(node, result)
 
         # Initialize the client
         secrets = Secrets(r=True)
