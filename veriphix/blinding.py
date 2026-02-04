@@ -11,8 +11,8 @@ from graphix.sim.statevec import StatevectorBackend
 
 if TYPE_CHECKING:
     import networkx as nx
-    from numpy.random import Generator
     from graphix.fundamentals import Angle
+    from numpy.random import Generator
 
 
 @dataclass
