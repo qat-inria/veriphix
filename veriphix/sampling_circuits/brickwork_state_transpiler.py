@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 
 from graphix import Circuit, Pattern, command
 from graphix.instruction import InstructionKind
+from graphix.measurements import Measurement
 from graphix.rng import ensure_rng
 
 if TYPE_CHECKING:
@@ -219,9 +220,9 @@ def j_commands(node_generator: NodeGenerator, node: int, angle: float) -> tuple[
     next_node, command_n = node_generator.fresh_command()
     commands = [
         command_n,
-        command.E(nodes=(node, next_node)),
-        command.M(node=node, angle=angle / math.pi),
-        command.X(node=next_node, domain={node}),
+        command.E((node, next_node)),
+        command.M(node, Measurement.XY(angle / math.pi)),
+        command.X(next_node, {node}),
     ]
     return next_node, commands
 

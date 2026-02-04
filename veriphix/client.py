@@ -13,9 +13,8 @@ import graphix.sim.base_backend
 import graphix.sim.statevec
 import graphix.simulator
 from graphix.clifford import Clifford
-from graphix.command import BaseM, BaseN, CommandKind, MeasureUpdate
-from graphix.fundamentals import Plane
-from graphix.measurements import Measurement
+from graphix.command import BaseM, BaseN, CommandKind
+from graphix.measurements import BlochMeasurement, Measurement
 from graphix.ops import Ops
 from graphix.pattern import Pattern
 from graphix.sim.statevec import Statevec
@@ -95,7 +94,7 @@ class Client:
         test_measure_method_cls=None,
         secrets: Secrets | None = None,
         parameters: TrappifiedSchemeParameters | None = None,
-        rng: Generator | None = None
+        rng: Generator | None = None,
     ) -> None:
         self.initial_pattern: Pattern = pattern
         self.classical_output = classical_output
@@ -118,7 +117,9 @@ class Client:
         self.byproduct_db = get_byproduct_db(self._copy_pattern())
 
         self.secrets = secrets or Secrets()
-        self.secret_datas = SecretDatas.from_secrets(self.secrets, self.graph, self.input_nodes, self.output_nodes, rng=rng)
+        self.secret_datas = SecretDatas.from_secrets(
+            self.secrets, self.graph, self.input_nodes, self.output_nodes, rng=rng
+        )
 
         self.clean_pattern = remove_flow(self.initial_pattern)
         if not self.classical_output:
@@ -158,7 +159,9 @@ class Client:
 
         # refresh only if secrets bool is True; False is no randomness at all.
         if self.secrets is not None:
-            self.secret_datas = SecretDatas.from_secrets(self.secrets, self.graph, self.input_nodes, self.output_nodes, rng=rng)
+            self.secret_datas = SecretDatas.from_secrets(
+                self.secrets, self.graph, self.input_nodes, self.output_nodes, rng=rng
+            )
 
     def get_computation_states(self):
         states = dict()
@@ -270,24 +273,26 @@ class ClientMeasureMethod(MeasureMethod):
         self.__client = client
 
     @override
-    def describe_measurement(self, cmd: BaseM) -> Measurement:
+    def describe_measurement(self, cmd: BaseM) -> BlochMeasurement:
         parameters = self.__client.measurement_db[cmd.node]
 
         # Extract secrets from Client
         a_value = self.__client.secret_datas.a.a.get(cmd.node, 0)
 
         # Extract signals and compute the angle for the computation
-        s_signal = sum(self.__client.results[j] for j in parameters.s_domain)
-        t_signal = sum(self.__client.results[j] for j in parameters.t_domain)
-        measure_update = MeasureUpdate.compute(parameters.plane, s_signal % 2 == 1, t_signal % 2 == 1, Clifford.I)
-        angle = parameters.angle
-        angle = angle * measure_update.coeff + measure_update.add_term
-
+        s_signal = sum(self.__client.results[j] for j in parameters.s_domain) % 2
+        t_signal = sum(self.__client.results[j] for j in parameters.t_domain) % 2
+        measurement = parameters.measurement
+        if s_signal:
+            measurement = measurement.clifford(Clifford.X)
+        if t_signal:
+            measurement = measurement.clifford(Clifford.Z)
+        bloch = measurement.to_bloch()
         # Blind the angle using the Client's secrets
-        angle = (-1) ** a_value * angle + self.__client.secret_datas.blind_angle(
+        angle = (-1) ** a_value * bloch.angle + self.__client.secret_datas.blind_angle(
             cmd.node, cmd.node in self.__client.output_nodes, test=False
         )
-        return Measurement(plane=measure_update.new_plane, angle=angle)
+        return BlochMeasurement(angle, bloch.plane)
 
     @override
     def measurement_outcome(self, node: int) -> bool:
@@ -309,7 +314,7 @@ class TestMeasureMethod(MeasureMethod):
         # Blind the angle using the Client's secrets
         angle = self.__client.secret_datas.blind_angle(cmd.node, cmd.node in self.__client.output_nodes, test=True)
 
-        return Measurement(plane=Plane.XY, angle=angle)
+        return Measurement.XY(angle)
 
     @override
     def measurement_outcome(self, node: int) -> bool:
