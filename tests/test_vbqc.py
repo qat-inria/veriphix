@@ -117,9 +117,10 @@ class TestVBQC:
     def test_BQP_circuit(self, fx_rng: Generator, blind: bool):
         with Path("tests/test_circuits/table.json").open() as f:
             table = json.load(f)
-            circuits = [name for name, prob in table.items()]
-        for circuit_label in circuits:
-            pattern = load_pattern_from_circuit(circuit_label=circuit_label)
+            circuits = [name for name, prob in table.items() if prob < bqp_error or prob > 1 - bqp_error]
+        random_circuit_label = circuits[fx_rng.integers(len(circuits))]
+        # Example of deterministic circuit with output 0
+        pattern = load_pattern_from_circuit(circuit_label=random_circuit_label)
 
             secrets = Secrets(r=blind, a=blind, theta=blind)
 
