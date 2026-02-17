@@ -32,7 +32,7 @@ class Run(ABC):
         self.client = client
 
     @abstractmethod
-    def delegate(self, backend: Backend, **kwargs) -> RunResult:
+    def delegate(self, backend: Backend, rng: Generator | None = None, **kwargs) -> RunResult:
         # Delegates using UBQC
         pass
 
@@ -42,7 +42,7 @@ class ComputationRun(Run):
         super().__init__(client=client)
 
     @override
-    def delegate(self, backend: Backend, **kwargs) -> ComputationResult:
+    def delegate(self, backend: Backend, rng: Generator | None = None, **kwargs) -> ComputationResult:
         # Initializes the bank & asks backend to create the input
         self.client.prepare_states(backend, states_dict=self.client.computation_states)
 
@@ -53,7 +53,7 @@ class ComputationRun(Run):
             measure_method=self.client.measure_method,
             **kwargs,
         )
-        sim.run(input_state=None)
+        sim.run(input_state=None, rng=rng)
 
         # If quantum output, decode the state, nothing needs to be returned (backend.state can be accessed by the Client)
         if not self.client.classical_output:
