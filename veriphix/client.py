@@ -17,6 +17,7 @@ from graphix.command import BaseM, BaseN, CommandKind
 from graphix.measurements import BlochMeasurement, Measurement
 from graphix.ops import Ops
 from graphix.pattern import Pattern
+from graphix.rng import ensure_rng
 from graphix.sim.statevec import Statevec
 from graphix.simulator import MeasureMethod, PrepareMethod
 from graphix.states import BasicStates
@@ -222,6 +223,7 @@ class Client:
             self.prepare_method.prepare_node(backend, node)
 
     def sample_canvas(self, rng: Generator | None = None):
+        rng = ensure_rng(rng)
         N = self.trappifiedScheme.params.comp_rounds + self.trappifiedScheme.params.test_rounds
         computation_rounds = set(rng.integers(N, size=self.trappifiedScheme.params.comp_rounds))
 
