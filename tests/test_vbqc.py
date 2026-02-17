@@ -165,7 +165,7 @@ class TestVBQC:
             measure_error_prob=0, entanglement_error_prob=0, x_error_prob=0, z_error_prob=0, measure_channel_prob=0
         )
         for test_run in client.test_runs:
-            client.refresh_randomness()
+            client.refresh_randomness(rng=fx_rng)
             backend = DensityMatrixBackend()
             trap_outcomes = test_run.delegate(backend=backend, noise_model=noise_model, rng=fx_rng).trap_outcomes
             assert sum(trap_outcomes.values()) == 0
