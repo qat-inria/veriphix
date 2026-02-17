@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import random
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -57,7 +56,7 @@ class TestVBQC:
         secrets = Secrets(r=True, a=True, theta=True)
         client = Client(pattern=pattern, input_state=states, secrets=secrets)
 
-        assert client.sample_canvas()
+        assert client.sample_canvas(rng=fx_rng)
         # Just tests that it runs
 
     def test_delegate_canvas(self, fx_rng: Generator):
@@ -78,7 +77,7 @@ class TestVBQC:
             pattern=pattern, input_state=states, secrets=secrets, parameters=parameters, classical_output=False
         )
 
-        canvas = client.sample_canvas()
+        canvas = client.sample_canvas(rng=fx_rng)
         outcomes = client.delegate_canvas(canvas=canvas, backend_cls=StatevectorBackend)
         for r in canvas:
             if isinstance(canvas[r], ComputationRun):
@@ -116,7 +115,7 @@ class TestVBQC:
         parameters = TrappifiedSchemeParameters(comp_rounds=50, test_rounds=50, threshold=10)
         client = Client(pattern=pattern, input_state=states, secrets=secrets, parameters=parameters)
 
-        canvas = client.sample_canvas()
+        canvas = client.sample_canvas(rng=fx_rng)
         outcomes = client.delegate_canvas(canvas=canvas, backend_cls=StatevectorBackend)
 
         # only for BQP
