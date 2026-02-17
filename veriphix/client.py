@@ -195,9 +195,9 @@ class Client:
         for node in self.input_nodes:
             self.prepare_method.prepare_node(backend, node)
 
-    def sample_canvas(self):
+    def sample_canvas(self, rng: Generator | None = None):
         N = self.trappifiedScheme.params.comp_rounds + self.trappifiedScheme.params.test_rounds
-        computation_rounds = set(random.sample(range(N), self.trappifiedScheme.params.comp_rounds))
+        computation_rounds = set(rng.integers(N, size=self.trappifiedScheme.params.comp_rounds))
 
         return {r: self.computationRun if r in computation_rounds else random.choice(self.test_runs) for r in range(N)}
 

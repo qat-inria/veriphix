@@ -142,7 +142,7 @@ class TestVBQC:
             pattern=pattern, input_state=states, secrets=secrets, parameters=parameters, desired_outputs=desired_outputs
         )
 
-        canvas = client.sample_canvas()
+        canvas = client.sample_canvas(rng=fx_rng)
         outcomes = client.delegate_canvas(canvas=canvas, backend_cls=StatevectorBackend)
         decision, result, _ = client.analyze_outcomes(canvas, outcomes)
         assert decision
