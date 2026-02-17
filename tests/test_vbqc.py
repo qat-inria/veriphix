@@ -124,14 +124,19 @@ class TestVBQC:
 
         secrets = Secrets(r=blind, a=blind, theta=blind)
 
-        parameters = TrappifiedSchemeParameters(comp_rounds=20, test_rounds=20, threshold=5)
-        client = Client(pattern=pattern, secrets=secrets, parameters=parameters)
+        parameters = TrappifiedSchemeParameters(comp_rounds=21, test_rounds=21, threshold=5)
+        # QCircuit, we keep the first output only
+        desired_outputs = [0]
+        client = Client(
+            pattern=pattern, input_state=states, secrets=secrets, parameters=parameters, desired_outputs=desired_outputs
+        )
 
         canvas = client.sample_canvas(rng=fx_rng)
         outcomes = client.delegate_canvas(canvas=canvas, backend_cls=StatevectorBackend)
         decision, result, _ = client.analyze_outcomes(canvas, outcomes)
         assert decision
         assert result != "Abort"
+        assert result is not None
         assert int(result) == find_correct_value(random_circuit_label)
 
     @pytest.mark.parametrize("blind", (False, True))
