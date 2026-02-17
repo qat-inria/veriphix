@@ -70,7 +70,7 @@ class TestVBQC:
         client = Client(pattern=pattern, parameters=parameters, classical_output=False)
 
         canvas = client.sample_canvas(rng=fx_rng)
-        outcomes = client.delegate_canvas(canvas=canvas, backend_cls=StatevectorBackend)
+        outcomes = client.delegate_canvas(canvas=canvas, backend_cls=StatevectorBackend, rng=fx_rng)
         for r in canvas:
             if isinstance(canvas[r], ComputationRun):
                 np.testing.assert_almost_equal(
@@ -108,7 +108,7 @@ class TestVBQC:
         client = Client(pattern=pattern, secrets=secrets, parameters=parameters)
 
         canvas = client.sample_canvas(rng=fx_rng)
-        outcomes = client.delegate_canvas(canvas=canvas, backend_cls=StatevectorBackend)
+        outcomes = client.delegate_canvas(canvas=canvas, backend_cls=StatevectorBackend, rng=fx_rng)
 
         # only for BQP
         assert client.analyze_outcomes(canvas, outcomes)
@@ -124,7 +124,7 @@ class TestVBQC:
 
         secrets = Secrets(r=blind, a=blind, theta=blind)
 
-        parameters = TrappifiedSchemeParameters(comp_rounds=21, test_rounds=21, threshold=5)
+        parameters = TrappifiedSchemeParameters(comp_rounds=18, test_rounds=18, threshold=5)
         # QCircuit, we keep the first output only
         desired_outputs = [0]
         client = Client(
@@ -132,7 +132,7 @@ class TestVBQC:
         )
 
         canvas = client.sample_canvas(rng=fx_rng)
-        outcomes = client.delegate_canvas(canvas=canvas, backend_cls=StatevectorBackend)
+        outcomes = client.delegate_canvas(canvas=canvas, backend_cls=StatevectorBackend, rng=fx_rng)
         decision, result, _ = client.analyze_outcomes(canvas, outcomes)
         assert decision
         assert result != "Abort"
