@@ -134,7 +134,7 @@ class TestVBQC:
         states = [BasicStates.PLUS for _ in pattern.input_nodes]
         secrets = Secrets(r=blind, a=blind, theta=blind)
 
-        parameters = TrappifiedSchemeParameters(comp_rounds=20, test_rounds=20, threshold=5)
+        parameters = TrappifiedSchemeParameters(comp_rounds=21, test_rounds=21, threshold=5)
         # QCircuit, we keep the first output only
         desired_outputs = [0]
         client = Client(
@@ -146,6 +146,7 @@ class TestVBQC:
         decision, result, _ = client.analyze_outcomes(canvas, outcomes)
         assert decision
         assert result != "Abort"
+        assert result is not None
         assert int(result) == find_correct_value(random_circuit_label)
 
     @pytest.mark.parametrize("blind", (False, True))
