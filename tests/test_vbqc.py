@@ -122,17 +122,17 @@ class TestVBQC:
         # Example of deterministic circuit with output 0
         pattern = load_pattern_from_circuit(circuit_label=random_circuit_label)
 
-            secrets = Secrets(r=blind, a=blind, theta=blind)
+        secrets = Secrets(r=blind, a=blind, theta=blind)
 
-            parameters = TrappifiedSchemeParameters(comp_rounds=20, test_rounds=20, threshold=5)
-            client = Client(pattern=pattern, secrets=secrets, parameters=parameters)
+        parameters = TrappifiedSchemeParameters(comp_rounds=20, test_rounds=20, threshold=5)
+        client = Client(pattern=pattern, secrets=secrets, parameters=parameters)
 
-            canvas = client.sample_canvas()
-            outcomes = client.delegate_canvas(canvas=canvas, backend_cls=StatevectorBackend)
-            decision, result, _ = client.analyze_outcomes(canvas, outcomes)
-            assert decision
-            assert result != "Abort"
-            assert int(result) == find_correct_value(circuit_label)
+        canvas = client.sample_canvas(rng=fx_rng)
+        outcomes = client.delegate_canvas(canvas=canvas, backend_cls=StatevectorBackend)
+        decision, result, _ = client.analyze_outcomes(canvas, outcomes)
+        assert decision
+        assert result != "Abort"
+        assert int(result) == find_correct_value(random_circuit_label)
 
     @pytest.mark.parametrize("blind", (False, True))
     def test_noiseless(self, fx_rng: Generator, blind: bool):
