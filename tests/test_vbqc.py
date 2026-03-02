@@ -11,8 +11,9 @@ from graphix.random_objects import rand_circuit
 from graphix.sim.density_matrix import DensityMatrixBackend
 from graphix.sim.statevec import StatevectorBackend
 from graphix.states import BasicStates
-from veriphix.client import Client, Secrets, TrappifiedSchemeParameters
+
 from tests.qasm_parser import read_qasm
+from veriphix.client import Client, Secrets, TrappifiedSchemeParameters
 from veriphix.verifying import ComputationRun
 
 if TYPE_CHECKING:
@@ -112,14 +113,13 @@ class TestVBQC:
         # only for BQP
         assert client.analyze_outcomes(canvas, outcomes)
 
-    @pytest.mark.parametrize("blind", (False,True))
+    @pytest.mark.parametrize("blind", (False, True))
     def test_BQP_circuit(self, fx_rng: Generator, blind: bool):
         with Path("tests/test_circuits/table.json").open() as f:
             table = json.load(f)
             circuits = [name for name, prob in table.items()]
         for circuit_label in circuits:
             pattern = load_pattern_from_circuit(circuit_label=circuit_label)
-            
 
             secrets = Secrets(r=blind, a=blind, theta=blind)
 

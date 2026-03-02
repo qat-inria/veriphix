@@ -3,9 +3,8 @@ from __future__ import annotations
 import itertools
 import random
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING
 from array import array
-from graphix import Pattern
+from typing import TYPE_CHECKING
 
 import networkx as nx
 
@@ -13,6 +12,8 @@ from veriphix.verifying import TestRun
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
+
+    from graphix import Pattern
 
 
 class VerificationProtocol(ABC):
@@ -102,6 +103,7 @@ class FK12(VerificationProtocol):
         # print(test_runs)
         return test_runs
 
+
 def get_bipartite_coloring(pattern: Pattern) -> tuple[set[int], set[int]]:
     """Return a bipartite coloring for the given pattern."""
     positions = get_node_positions(pattern)
@@ -113,6 +115,8 @@ def get_bipartite_coloring(pattern: Pattern) -> tuple[set[int], set[int]]:
         else:
             blue.add(node)
     return (red, blue)
+
+
 def get_node_positions(pattern: Pattern, scale: float = 1, reverse_qubit_order: bool = False) -> dict[int, array[int]]:
     """Return node positions in a grid layout."""
     width = len(pattern.input_nodes)
@@ -126,6 +130,7 @@ def get_node_positions(pattern: Pattern, scale: float = 1, reverse_qubit_order: 
         )
         for node in range(pattern.n_node)
     }
+
 
 class RandomTraps(VerificationProtocol):
     """
