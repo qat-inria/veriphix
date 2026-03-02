@@ -4,6 +4,8 @@ import itertools
 import random
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
+from array import array
+from graphix import Pattern
 
 import networkx as nx
 
@@ -100,6 +102,30 @@ class FK12(VerificationProtocol):
         # print(test_runs)
         return test_runs
 
+def get_bipartite_coloring(pattern: Pattern) -> tuple[set[int], set[int]]:
+    """Return a bipartite coloring for the given pattern."""
+    positions = get_node_positions(pattern)
+    red = set()
+    blue = set()
+    for node, position in positions.items():
+        if (position[0] + position[1]) % 2:
+            red.add(node)
+        else:
+            blue.add(node)
+    return (red, blue)
+def get_node_positions(pattern: Pattern, scale: float = 1, reverse_qubit_order: bool = False) -> dict[int, array[int]]:
+    """Return node positions in a grid layout."""
+    width = len(pattern.input_nodes)
+    return {
+        node: array(
+            "i",
+            [
+                int((node // width) * scale),
+                int((width - node % width if reverse_qubit_order else node % width) * scale),
+            ],
+        )
+        for node in range(pattern.n_node)
+    }
 
 class RandomTraps(VerificationProtocol):
     """

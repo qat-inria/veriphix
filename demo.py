@@ -16,7 +16,7 @@ import veriphix.sampling_circuits.brickwork_state_transpiler
 from veriphix.client import Client, TrappifiedSchemeParameters
 from veriphix.malicious_noise_model import MaliciousNoiseModel
 from veriphix.protocols import FK12, Dummyless
-from veriphix.sampling_circuits.qasm_parser import read_qasm
+from tests.qasm_parser import read_qasm
 
 if TYPE_CHECKING:
     from graphix.pattern import Pattern

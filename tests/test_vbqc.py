@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import random
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -12,10 +11,8 @@ from graphix.random_objects import rand_circuit
 from graphix.sim.density_matrix import DensityMatrixBackend
 from graphix.sim.statevec import StatevectorBackend
 from graphix.states import BasicStates
-
-import veriphix.sampling_circuits.brickwork_state_transpiler
 from veriphix.client import Client, Secrets, TrappifiedSchemeParameters
-from veriphix.sampling_circuits.qasm_parser import read_qasm
+from tests.qasm_parser import read_qasm
 from veriphix.verifying import ComputationRun
 
 if TYPE_CHECKING:
@@ -24,9 +21,9 @@ if TYPE_CHECKING:
 
 
 def load_pattern_from_circuit(circuit_label: str) -> tuple[Pattern, list[int]]:
-    with Path(f"circuits/{circuit_label}").open() as f:
+    with Path(f"tests/test_circuits/{circuit_label}").open() as f:
         circuit = read_qasm(f)
-        pattern = veriphix.sampling_circuits.brickwork_state_transpiler.transpile(circuit)
+        pattern = circuit.transpile().pattern
 
         pattern.minimize_space()
     return pattern
@@ -115,27 +112,26 @@ class TestVBQC:
         # only for BQP
         assert client.analyze_outcomes(canvas, outcomes)
 
-    @pytest.mark.parametrize("blind", (False, True))
+    @pytest.mark.parametrize("blind", (False,True))
     def test_BQP_circuit(self, fx_rng: Generator, blind: bool):
-        bqp_error = 0.3
-        with Path("circuits/table.json").open() as f:
+        with Path("tests/test_circuits/table.json").open() as f:
             table = json.load(f)
-            circuits = [name for name, prob in table.items() if prob < bqp_error or prob > 1 - bqp_error]
-        random_circuit_label = random.choice(circuits)
-        # Example of deterministic circuit with output 0
-        pattern = load_pattern_from_circuit(circuit_label=random_circuit_label)
+            circuits = [name for name, prob in table.items()]
+        for circuit_label in circuits:
+            pattern = load_pattern_from_circuit(circuit_label=circuit_label)
+            
 
-        secrets = Secrets(r=blind, a=blind, theta=blind)
+            secrets = Secrets(r=blind, a=blind, theta=blind)
 
-        parameters = TrappifiedSchemeParameters(comp_rounds=20, test_rounds=20, threshold=5)
-        client = Client(pattern=pattern, secrets=secrets, parameters=parameters)
+            parameters = TrappifiedSchemeParameters(comp_rounds=20, test_rounds=20, threshold=5)
+            client = Client(pattern=pattern, secrets=secrets, parameters=parameters)
 
-        canvas = client.sample_canvas()
-        outcomes = client.delegate_canvas(canvas=canvas, backend_cls=StatevectorBackend)
-        decision, result, _ = client.analyze_outcomes(canvas, outcomes)
-        assert decision
-        assert result != "Abort"
-        assert int(result) == find_correct_value(random_circuit_label)
+            canvas = client.sample_canvas()
+            outcomes = client.delegate_canvas(canvas=canvas, backend_cls=StatevectorBackend)
+            decision, result, _ = client.analyze_outcomes(canvas, outcomes)
+            assert decision
+            assert result != "Abort"
+            assert int(result) == find_correct_value(circuit_label)
 
     @pytest.mark.parametrize("blind", (False, True))
     def test_noiseless(self, fx_rng: Generator, blind: bool):
@@ -195,7 +191,7 @@ class TestVBQC:
 
 
 def find_correct_value(circuit_name):
-    with Path("circuits/table.json").open() as f:
+    with Path("tests/test_circuits/table.json").open() as f:
         table = json.load(f)
         # return 1 if yes instance
         # return 0 else (no instance, as circuits are already filtered)

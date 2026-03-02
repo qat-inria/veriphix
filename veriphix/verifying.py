@@ -39,6 +39,7 @@ class ComputationRun(Run):
 
     @override
     def delegate(self, backend: Backend, **kwargs) -> ComputationResult:
+        self.client.refresh_randomness()
         # Initializes the bank & asks backend to create the input
         self.client.prepare_states(backend, states_dict=self.client.computation_states)
 
@@ -118,6 +119,7 @@ class TestRun(Run):
 
     @override
     def delegate(self, backend: Backend, **kwargs) -> dict[int, int]:
+        self.client.refresh_randomness()
         states_dict = {node: self.input_state[node] for node in self.client.nodes}
         self.client.prepare_states(backend=backend, states_dict=states_dict)
         sim = PatternSimulator(

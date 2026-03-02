@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import random
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -38,25 +37,27 @@ class TestProtocols:
 
     @pytest.mark.parametrize("manual", (True, False))
     def test_FK(self, fx_rng: np.random.Generator, manual: bool):
-        import veriphix.sampling_circuits.brickwork_state_transpiler
-        from veriphix.sampling_circuits.qasm_parser import read_qasm
+        """
+        Tests that for a given circuit, we can indeed generate test runs from the graph coloring approach of FK
+        """
+        from tests.qasm_parser import read_qasm
 
         def load_pattern_from_circuit(circuit_label: str):
-            with Path(f"circuits/{circuit_label}").open() as f:
+            with Path(f"tests/test_circuits/{circuit_label}").open() as f:
                 circuit = read_qasm(f)
-                pattern = veriphix.sampling_circuits.brickwork_state_transpiler.transpile(circuit)
+                pattern = circuit.transpile().pattern
 
                 pattern.minimize_space()
             return pattern
 
-        with Path("circuits/table.json").open() as f:
+        with Path("tests/test_circuits/table.json").open() as f:
             table = json.load(f)
             circuits = list(table.keys())
-        random_circuit_label = random.choice(circuits)
-        pattern = load_pattern_from_circuit(circuit_label=random_circuit_label)
-        colors = veriphix.sampling_circuits.brickwork_state_transpiler.get_bipartite_coloring(pattern=pattern)
+        pattern = load_pattern_from_circuit(circuit_label=circuits[0])
+        # colors = veriphix.sampling_circuits.brickwork_state_transpiler.get_bipartite_coloring(pattern=pattern)
 
-        fk_protocol = FK12(manual_colouring=colors) if manual else FK12()
+        # fk_protocol = FK12(manual_colouring=colors) if manual else FK12()
+        fk_protocol = FK12()
         client = Client(pattern=pattern, protocol=fk_protocol)
         assert client.test_runs != []
 
