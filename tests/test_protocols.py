@@ -76,7 +76,7 @@ class TestProtocols:
         protocol = FK12(manual_colouring=(set([0]), set()))
         client = Client(pattern=pattern, protocol=protocol, autogen=False)
         client.preprocess_pattern()
-        client.create_blind_patterns()
+        client.create_blind_patterns(rng=fx_rng)
         with pytest.raises(ValueError):  # trivially duplicate a node
             protocol.create_test_runs(client=client)
 
@@ -91,13 +91,13 @@ class TestProtocols:
         pattern = circuit.transpile().pattern
         pattern.standardize()
 
-        nodes, _ = pattern.get_graph()
+        nodes = pattern.extract_nodes()
 
         # initialise client
-        protocol = FK12(manual_colouring=(set(nodes), set([nodes[0]])))
+        protocol = FK12(manual_colouring=(set(nodes), set([next(iter(nodes))])))
         client = Client(pattern=pattern, autogen=False)
         client.preprocess_pattern()
-        client.create_blind_patterns()
+        client.create_blind_patterns(rng=fx_rng)
         with pytest.raises(ValueError):  # trivially duplicate a node
             protocol.create_test_runs(client=client)
 

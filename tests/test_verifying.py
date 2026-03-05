@@ -19,9 +19,9 @@ class TestVerifying:
 
         for _ in range(10):
             # Test noiseless trap delegation
-            trap_size = fx_rng.integers(len(client.nodes_list))
+            trap_size = fx_rng.integers(len(client.nodes))
             random_nodes = [
-                client.nodes_list[i] for i in fx_rng.choice(len(client.nodes_list), size=trap_size, replace=False)
+                client.nodes[i] for i in fx_rng.choice(len(client.nodes), size=trap_size, replace=False)
             ]
 
             random_multi_qubit_trap = tuple(random_nodes)

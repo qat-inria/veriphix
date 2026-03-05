@@ -117,7 +117,7 @@ class Client:
         if autogen:
             self.preprocess_pattern(classical_output=classical_output)
             self.create_blind_patterns(
-                measure_method_cls=measure_method_cls, test_measure_method_cls=test_measure_method_cls, secrets=secrets
+                measure_method_cls=measure_method_cls, test_measure_method_cls=test_measure_method_cls, secrets=secrets, rng=rng
             )
             self.create_trappified_scheme()
 
@@ -125,14 +125,16 @@ class Client:
         if classical_output:
             self._add_measurement_commands(self.initial_pattern)
 
-        self.graph = pattern.extract_graph()
+        self.graph = self.initial_pattern.extract_graph()
         self.clifford_structure = get_graph_clifford_structure(self.graph)
 
         self.results = self.initial_pattern.results.copy()
 
     def create_blind_patterns(
-        self, measure_method_cls=None, test_measure_method_cls=None, secrets: Secrets | None = None
+        self, measure_method_cls=None, test_measure_method_cls=None, secrets: Secrets | None = None,
+        rng: Generator | None = None
     ):
+        rng = ensure_rng(rng)
         self.measure_method = (measure_method_cls or ClientMeasureMethod)(self)
         self.test_measure_method = (test_measure_method_cls or TestMeasureMethod)(self)
 
