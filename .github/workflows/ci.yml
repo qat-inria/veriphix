@@ -36,6 +36,5 @@ jobs:
       - name: Install the dependencies
         run: pip install -r requirements.txt
 
-
       - name: Run tox
         run: tox

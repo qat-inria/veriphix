@@ -13,15 +13,17 @@ from graphix.sim.statevec import StatevectorBackend
 from graphix.states import BasicStates
 
 from tests.qasm_parser import read_qasm
-from veriphix.client import Client, Secrets, TrappifiedSchemeParameters
-from veriphix.verifying import ComputationRun
+from veriphix.blinding import Secrets
+from veriphix.client import Client
+from veriphix.verifying import QuantumComputationResult, TrappifiedSchemeParameters
 
 if TYPE_CHECKING:
+    from graphix.measurements import Outcome
     from graphix.pattern import Pattern
     from numpy.random import Generator
 
 
-def load_pattern_from_circuit(circuit_label: str) -> tuple[Pattern, list[int]]:
+def load_pattern_from_circuit(circuit_label: str) -> Pattern:
     with Path(f"tests/test_circuits/{circuit_label}").open() as f:
         circuit = read_qasm(f)
         pattern = circuit.transpile().pattern
@@ -32,7 +34,7 @@ def load_pattern_from_circuit(circuit_label: str) -> tuple[Pattern, list[int]]:
 
 class TestVBQC:
     @pytest.mark.parametrize("blind", (False, True))
-    def test_trap_delegated(self, fx_rng: np.random.Generator, blind: bool):
+    def test_trap_delegated(self, fx_rng: np.random.Generator, blind: bool) -> None:
         nqubits = 3
         depth = 5
         circuit = rand_circuit(nqubits, depth, fx_rng)
@@ -45,7 +47,7 @@ class TestVBQC:
             trap_outcomes = test_run.delegate(backend=backend).trap_outcomes
             assert sum(trap_outcomes.values()) == 0
 
-    def test_sample_canvas(self, fx_rng: Generator):
+    def test_sample_canvas(self, fx_rng: Generator) -> None:
         nqubits = 3
         depth = 5
         circuit = rand_circuit(nqubits, depth, fx_rng)
@@ -56,7 +58,7 @@ class TestVBQC:
         assert client.sample_canvas(rng=fx_rng)
         # Just tests that it runs
 
-    def test_delegate_canvas(self, fx_rng: Generator):
+    def test_delegate_canvas(self, fx_rng: Generator) -> None:
         nqubits = 3
         depth = 5
         circuit = rand_circuit(nqubits, depth, fx_rng)
@@ -71,21 +73,17 @@ class TestVBQC:
 
         canvas = client.sample_canvas(rng=fx_rng)
         outcomes = client.delegate_canvas(canvas=canvas, backend_cls=StatevectorBackend, rng=fx_rng)
-        for r in canvas:
-            if isinstance(canvas[r], ComputationRun):
+        for result in outcomes.values():
+            if isinstance(result, QuantumComputationResult):
                 np.testing.assert_almost_equal(
                     np.abs(
-                        np.dot(
-                            outcomes[r].output_state.psi.flatten().conjugate(), simulated_pattern_output.psi.flatten()
-                        )
+                        np.dot(result.output_state.psi.flatten().conjugate(), simulated_pattern_output.psi.flatten())
                     ),
                     1,
                 )
                 np.testing.assert_almost_equal(
                     np.abs(
-                        np.dot(
-                            outcomes[r].output_state.psi.flatten().conjugate(), simulated_circuit_output.psi.flatten()
-                        )
+                        np.dot(result.output_state.psi.flatten().conjugate(), simulated_circuit_output.psi.flatten())
                     ),
                     1,
                 )
@@ -96,7 +94,7 @@ class TestVBQC:
         """
 
     @pytest.mark.parametrize("blind", (False, True))
-    def test_analyze_outcomes(self, fx_rng: Generator, blind: bool):
+    def test_analyze_outcomes(self, fx_rng: Generator, blind: bool) -> None:
         nqubits = 3
         depth = 3
         circuit = rand_circuit(nqubits, depth, fx_rng)
@@ -114,8 +112,8 @@ class TestVBQC:
         assert client.analyze_outcomes(canvas, outcomes)
 
     @pytest.mark.parametrize("blind", (False, True))
-    @pytest.mark.xfail("Incorrect value")
-    def test_BQP_circuit(self, fx_rng: Generator, blind: bool):
+    @pytest.mark.xfail(reason="Incorrect value")
+    def test_BQP_circuit(self, fx_rng: Generator, blind: bool) -> None:
         with Path("tests/test_circuits/table.json").open() as f:
             table = json.load(f)
             circuits = [name for name, prob in table.items()]
@@ -131,12 +129,11 @@ class TestVBQC:
             outcomes = client.delegate_canvas(canvas=canvas, backend_cls=StatevectorBackend, rng=fx_rng)
             decision, result, _ = client.analyze_outcomes(canvas, outcomes)
             assert decision
-            assert result != "Abort"
             assert result is not None
             assert int(result) == find_correct_value(circuit_label)
 
     @pytest.mark.parametrize("blind", (False, True))
-    def test_noiseless(self, fx_rng: Generator, blind: bool):
+    def test_noiseless(self, fx_rng: Generator, blind: bool) -> None:
         nqubits = 3
         depth = 3
         circuit = rand_circuit(nqubits, depth, fx_rng)
@@ -156,7 +153,7 @@ class TestVBQC:
             trap_outcomes = test_run.delegate(backend=backend, noise_model=noise_model, rng=fx_rng).trap_outcomes
             assert sum(trap_outcomes.values()) == 0
 
-    def test_noisy(self, fx_rng: Generator):
+    def test_noisy(self, fx_rng: Generator) -> None:
         nqubits = 3
         depth = 3
         circuit = rand_circuit(nqubits, depth, fx_rng)
@@ -183,7 +180,7 @@ class TestVBQC:
             assert sum(trap_outcomes.values()) > 0
 
 
-def find_correct_value(circuit_name):
+def find_correct_value(circuit_name: str) -> Outcome:
     with Path("tests/test_circuits/table.json").open() as f:
         table = json.load(f)
         # return 1 if yes instance

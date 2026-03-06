@@ -8,7 +8,8 @@ import pytest
 from graphix.random_objects import rand_circuit
 from graphix.sim.statevec import StatevectorBackend
 
-from veriphix.client import Client, Secrets
+from veriphix.blinding import Secrets
+from veriphix.client import Client
 from veriphix.protocols import (
     FK12,
     RandomTraps,
@@ -17,11 +18,15 @@ from veriphix.protocols import (
 
 if TYPE_CHECKING:
     import numpy as np
+    from graphix import Pattern
+    from numpy.random import Generator
 
 
 class TestProtocols:
     @pytest.mark.parametrize("protocol_class", (FK12, RandomTraps))
-    def test_noiseless_all_protocols(self, fx_rng: np.random.Generator, protocol_class: type[VerificationProtocol]):
+    def test_noiseless_all_protocols(
+        self, fx_rng: np.random.Generator, protocol_class: type[VerificationProtocol]
+    ) -> None:
         nqubits = 3
         depth = 5
         circuit = rand_circuit(nqubits, depth, fx_rng)
@@ -36,18 +41,17 @@ class TestProtocols:
         assert result_analysis.nr_failed_test_rounds == 0
 
     @pytest.mark.parametrize("manual", (True, False))
-    def test_FK(self, fx_rng: np.random.Generator, manual: bool):
+    def test_FK(self, fx_rng: np.random.Generator, manual: bool) -> None:
         """
         Tests that for a given circuit, we can indeed generate test runs from the graph coloring approach of FK
         """
         from tests.qasm_parser import read_qasm
 
-        def load_pattern_from_circuit(circuit_label: str):
+        def load_pattern_from_circuit(circuit_label: str) -> Pattern:
             with Path(f"tests/test_circuits/{circuit_label}").open() as f:
                 circuit = read_qasm(f)
-                pattern = circuit.transpile().pattern
-
-                pattern.minimize_space()
+            pattern = circuit.transpile().pattern
+            pattern.minimize_space()
             return pattern
 
         with Path("tests/test_circuits/table.json").open() as f:
@@ -61,7 +65,7 @@ class TestProtocols:
         client = Client(pattern=pattern, protocol=fk_protocol)
         assert client.test_runs != []
 
-    def test_create_test_run_manual_fail(self, fx_rng):
+    def test_create_test_run_manual_fail(self, fx_rng: Generator) -> None:
         """testing not all qubits in the manual colouring"""
 
         # generate random circuit
@@ -80,7 +84,7 @@ class TestProtocols:
         with pytest.raises(ValueError):  # trivially duplicate a node
             protocol.create_test_runs(client=client)
 
-    def test_create_test_run_manual_fail_improper(self, fx_rng):
+    def test_create_test_run_manual_fail_improper(self, fx_rng: Generator) -> None:
         """testing manual colouring not proper"""
 
         # generate random circuit
@@ -101,7 +105,7 @@ class TestProtocols:
         with pytest.raises(ValueError):  # trivially duplicate a node
             protocol.create_test_runs(client=client)
 
-    def test_random_traps(self, fx_rng: np.random.Generator):
+    def test_random_traps(self, fx_rng: np.random.Generator) -> None:
         """
         Nothing is done more than in 'test_noiseless_all_protocols'
         """
