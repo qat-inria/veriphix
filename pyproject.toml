@@ -1,10 +1,13 @@
 [project]
 name = "veriphix"
 version = "1"
-dynamic = ["dependencies"]
+dynamic = ["dependencies", "optional-dependencies"]
 
 [tool.setuptools.dynamic]
 dependencies = { file = ["requirements.txt"] }
+
+[tool.setuptools.dynamic.optional-dependencies]
+dev = { file = ["requirements-dev.txt"] }
 
 [tool.setuptools.packages.find]
 include = ["veriphix"]
