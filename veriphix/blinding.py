@@ -51,7 +51,7 @@ class SecretDatas:
         *,
         stacklevel: int = 1,
     ) -> SecretDatas:
-        rng = ensure_rng(rng, stacklevel=stacklevel + 1)
+        rng = ensure_rng(rng)
         r = {}
         if secrets.r:
             # Need to generate the random bit for each measured qubit, 0 for the rest (output qubits)

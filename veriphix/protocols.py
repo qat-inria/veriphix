@@ -146,7 +146,7 @@ class RandomTraps(VerificationProtocol):
 
     @override
     def create_test_runs(self, client: Client, rng: Generator | None = None, *, stacklevel: int = 1) -> list[TestRun]:
-        rng = ensure_rng(rng, stacklevel=stacklevel + 1)
+        rng = ensure_rng(rng)
         test_runs = []
         # Create 1 random trap per node
         n = len(client.graph.nodes)
