@@ -41,10 +41,10 @@ class TestVBQC:
         pattern = circuit.transpile().pattern
 
         secrets = Secrets(r=blind, a=blind, theta=blind)
-        client = Client(pattern=pattern, secrets=secrets)
+        client = Client(pattern=pattern, secrets=secrets, rng=fx_rng)
         for test_run in client.test_runs:
             backend = StatevectorBackend()
-            trap_outcomes = test_run.delegate(backend=backend).trap_outcomes
+            trap_outcomes = test_run.delegate(backend=backend, rng=fx_rng).trap_outcomes
             assert sum(trap_outcomes.values()) == 0
 
     def test_sample_canvas(self, fx_rng: Generator) -> None:
@@ -53,7 +53,7 @@ class TestVBQC:
         circuit = rand_circuit(nqubits, depth, fx_rng)
         pattern = circuit.transpile().pattern
 
-        client = Client(pattern=pattern)
+        client = Client(pattern=pattern, rng=fx_rng)
 
         assert client.sample_canvas(rng=fx_rng)
         # Just tests that it runs
@@ -65,11 +65,11 @@ class TestVBQC:
         pattern = circuit.transpile().pattern
 
         svbackend = StatevectorBackend()
-        simulated_pattern_output = pattern.simulate_pattern(backend=svbackend)
+        simulated_pattern_output = pattern.simulate_pattern(backend=svbackend, rng=fx_rng)
         simulated_circuit_output = circuit.simulate_statevector().statevec
 
         parameters = TrappifiedSchemeParameters(comp_rounds=10, test_rounds=10, threshold=0)
-        client = Client(pattern=pattern, parameters=parameters, classical_output=False)
+        client = Client(pattern=pattern, parameters=parameters, classical_output=False, rng=fx_rng)
 
         canvas = client.sample_canvas(rng=fx_rng)
         outcomes = client.delegate_canvas(canvas=canvas, backend_cls=StatevectorBackend, rng=fx_rng)
@@ -103,7 +103,7 @@ class TestVBQC:
         secrets = Secrets(r=blind, a=blind, theta=blind)
 
         parameters = TrappifiedSchemeParameters(comp_rounds=50, test_rounds=50, threshold=10)
-        client = Client(pattern=pattern, secrets=secrets, parameters=parameters)
+        client = Client(pattern=pattern, secrets=secrets, parameters=parameters, rng=fx_rng)
 
         canvas = client.sample_canvas(rng=fx_rng)
         outcomes = client.delegate_canvas(canvas=canvas, backend_cls=StatevectorBackend, rng=fx_rng)
@@ -123,7 +123,7 @@ class TestVBQC:
             secrets = Secrets(r=blind, a=blind, theta=blind)
 
             parameters = TrappifiedSchemeParameters(comp_rounds=18, test_rounds=18, threshold=5)
-            client = Client(pattern=pattern, secrets=secrets, parameters=parameters)
+            client = Client(pattern=pattern, secrets=secrets, parameters=parameters, rng=fx_rng)
 
             canvas = client.sample_canvas(rng=fx_rng)
             outcomes = client.delegate_canvas(canvas=canvas, backend_cls=StatevectorBackend, rng=fx_rng)
@@ -143,9 +143,14 @@ class TestVBQC:
 
         secrets = Secrets(a=blind, r=blind, theta=blind)
 
-        client = Client(pattern=pattern, input_state=states, secrets=secrets)
+        client = Client(pattern=pattern, input_state=states, secrets=secrets, rng=fx_rng)
         noise_model = DepolarisingNoiseModel(
-            measure_error_prob=0, entanglement_error_prob=0, x_error_prob=0, z_error_prob=0, measure_channel_prob=0
+            measure_error_prob=0,
+            entanglement_error_prob=0,
+            x_error_prob=0,
+            z_error_prob=0,
+            measure_channel_prob=0,
+            rng=fx_rng,
         )
         for test_run in client.test_runs:
             client.refresh_randomness(rng=fx_rng)

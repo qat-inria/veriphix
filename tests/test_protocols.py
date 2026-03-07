@@ -33,9 +33,9 @@ class TestProtocols:
         pattern = circuit.transpile().pattern
 
         protocol = protocol_class()
-        client = Client(pattern=pattern, protocol=protocol)
-        canvas = client.sample_canvas()
-        run_results = client.delegate_canvas(canvas=canvas, backend_cls=StatevectorBackend)
+        client = Client(pattern=pattern, protocol=protocol, rng=fx_rng)
+        canvas = client.sample_canvas(rng=fx_rng)
+        run_results = client.delegate_canvas(canvas=canvas, backend_cls=StatevectorBackend, rng=fx_rng)
         decision, _, result_analysis = client.analyze_outcomes(canvas=canvas, outcomes=run_results)
         assert decision
         assert result_analysis.nr_failed_test_rounds == 0
@@ -62,7 +62,7 @@ class TestProtocols:
 
         # fk_protocol = FK12(manual_colouring=colors) if manual else FK12()
         fk_protocol = FK12()
-        client = Client(pattern=pattern, protocol=fk_protocol)
+        client = Client(pattern=pattern, protocol=fk_protocol, rng=fx_rng)
         assert client.test_runs != []
 
     def test_create_test_run_manual_fail(self, fx_rng: Generator) -> None:
@@ -78,7 +78,7 @@ class TestProtocols:
 
         # initialise client
         protocol = FK12(manual_colouring=(set([0]), set()))
-        client = Client(pattern=pattern, protocol=protocol, autogen=False)
+        client = Client(pattern=pattern, protocol=protocol, autogen=False, rng=fx_rng)
         client.preprocess_pattern()
         client.create_blind_patterns(rng=fx_rng)
         with pytest.raises(ValueError):  # trivially duplicate a node
@@ -99,7 +99,7 @@ class TestProtocols:
 
         # initialise client
         protocol = FK12(manual_colouring=(set(nodes), set([next(iter(nodes))])))
-        client = Client(pattern=pattern, autogen=False)
+        client = Client(pattern=pattern, autogen=False, rng=fx_rng)
         client.preprocess_pattern()
         client.create_blind_patterns(rng=fx_rng)
         with pytest.raises(ValueError):  # trivially duplicate a node
@@ -116,9 +116,9 @@ class TestProtocols:
 
         secrets = Secrets(r=True, a=True, theta=True)
         protocol = RandomTraps()
-        client = Client(pattern=pattern, secrets=secrets, protocol=protocol)
-        canvas = client.sample_canvas()
-        run_results = client.delegate_canvas(canvas=canvas, backend_cls=StatevectorBackend)
+        client = Client(pattern=pattern, secrets=secrets, protocol=protocol, rng=fx_rng)
+        canvas = client.sample_canvas(rng=fx_rng)
+        run_results = client.delegate_canvas(canvas=canvas, backend_cls=StatevectorBackend, rng=fx_rng)
         decision, _, result_analysis = client.analyze_outcomes(canvas=canvas, outcomes=run_results)
         assert decision
         assert result_analysis.nr_failed_test_rounds == 0

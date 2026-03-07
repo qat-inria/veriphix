@@ -29,8 +29,8 @@ class TestClient:
 
         secrets = Secrets(a=True, r=True, theta=True)
 
-        client = Client(pattern=pattern, input_state=states, secrets=secrets, classical_output=True)
-        ComputationRun(client).delegate(backend=StatevectorBackend())
+        client = Client(pattern=pattern, input_state=states, secrets=secrets, classical_output=True, rng=fx_rng)
+        ComputationRun(client).delegate(backend=StatevectorBackend(), rng=fx_rng)
         # No assertion needed
 
     def test_minimize_space(self, fx_rng: Generator) -> None:
@@ -47,8 +47,8 @@ class TestClient:
 
         secrets = Secrets(a=True, r=True, theta=True)
 
-        client = Client(pattern=pattern, input_state=states, secrets=secrets, classical_output=True)
-        ComputationRun(client).delegate(backend=StatevectorBackend())
+        client = Client(pattern=pattern, input_state=states, secrets=secrets, classical_output=True, rng=fx_rng)
+        ComputationRun(client).delegate(backend=StatevectorBackend(), rng=fx_rng)
         # No assertion needed
 
     def test_client_input(self, fx_rng: Generator) -> None:
@@ -66,7 +66,7 @@ class TestClient:
         states = [BasicStates.PLUS for node in pattern.input_nodes]
 
         # Create the client with the input state
-        _client = Client(pattern=pattern, input_state=states, secrets=secrets)
+        _client = Client(pattern=pattern, input_state=states, secrets=secrets, rng=fx_rng)
 
         # Assert something...
         # Todo ?
@@ -87,8 +87,8 @@ class TestClient:
             # Initialize the client
             secrets = Secrets(r=True)
             # Giving it empty will create a random secret
-            client = Client(pattern=pattern, secrets=secrets, classical_output=False)
-            ComputationRun(client).delegate(backend)
+            client = Client(pattern=pattern, secrets=secrets, classical_output=False, rng=fx_rng)
+            ComputationRun(client).delegate(backend, rng=fx_rng)
             state_mbqc = backend.state
             np.testing.assert_almost_equal(np.abs(np.dot(state_mbqc.psi.flatten().conjugate(), state.psi.flatten())), 1)
 
@@ -108,10 +108,10 @@ class TestClient:
             states = [BasicStates.PLUS for node in pattern.input_nodes]
 
             # Create the client with the input state
-            client = Client(pattern=pattern, input_state=states, secrets=secrets, classical_output=False)
+            client = Client(pattern=pattern, input_state=states, secrets=secrets, classical_output=False, rng=fx_rng)
             backend = StatevectorBackend()
             # Blinded simulation, between the client and the server
-            ComputationRun(client).delegate(backend)
+            ComputationRun(client).delegate(backend, rng=fx_rng)
             blinded_simulation = backend.state
 
             # Clear simulation = no secret, just simulate the circuit defined above
@@ -137,10 +137,10 @@ class TestClient:
             states = [BasicStates.PLUS for __ in pattern.input_nodes]
 
             # Create the client with the input state
-            client = Client(pattern=pattern, input_state=states, secrets=secrets, classical_output=False)
+            client = Client(pattern=pattern, input_state=states, secrets=secrets, classical_output=False, rng=fx_rng)
             backend = StatevectorBackend()
             # Blinded simulation, between the client and the server
-            ComputationRun(client).delegate(backend)
+            ComputationRun(client).delegate(backend, rng=fx_rng)
             blinded_simulation = backend.state
 
             # Clear simulation = no secret, just simulate the circuit defined above
@@ -169,9 +169,9 @@ class TestClient:
         # Initialize the client
         secrets = Secrets(r=True)
         # Giving it empty will create a random secret
-        client = Client(pattern=pattern, measure_method_cls=CacheMeasureMethod, secrets=secrets)
+        client = Client(pattern=pattern, measure_method_cls=CacheMeasureMethod, secrets=secrets, rng=fx_rng)
         backend = StatevectorBackend()
-        ComputationRun(client).delegate(backend)
+        ComputationRun(client).delegate(backend, rng=fx_rng)
 
         for measured_node in client.measurement_db:
             # Compare results on the client side and on the server side : should differ by r[node]
@@ -192,7 +192,7 @@ class TestClient:
         states = [BasicStates.PLUS for node in pattern.input_nodes]
 
         # Create the client with the input state
-        client = Client(pattern=pattern, input_state=states, secrets=secrets)
+        client = Client(pattern=pattern, input_state=states, secrets=secrets, rng=fx_rng)
 
         backend = StatevectorBackend()
         # Blinded simulation, between the client and the server
@@ -216,13 +216,13 @@ class TestClient:
             states = [BasicStates.PLUS for _ in pattern.input_nodes]
 
             # Create the client with the input state
-            client = Client(pattern=pattern, input_state=states, secrets=secrets, classical_output=False)
+            client = Client(pattern=pattern, input_state=states, secrets=secrets, classical_output=False, rng=fx_rng)
 
             backend = StatevectorBackend()
             # Blinded simulation, between the client and the server
             # ComputationRun(client).delegate(backend)
             computation = ComputationRun(client=client)
-            computation.delegate(backend=backend)
+            computation.delegate(backend=backend, rng=fx_rng)
             blinded_simulation = backend.state
 
             # Clear simulation = no secret, just simulate the circuit defined above
@@ -237,11 +237,11 @@ class TestClient:
         circuit = rand_circuit(nqubits, depth, fx_rng)
         pattern = circuit.transpile().pattern
 
-        client = Client(pattern=pattern)
+        client = Client(pattern=pattern, rng=fx_rng)
 
         comp_run = ComputationRun(client=client)
         backend = StatevectorBackend()
-        outcomes = comp_run.delegate(backend=backend)
+        outcomes = comp_run.delegate(backend=backend, rng=fx_rng)
         assert outcomes is not None
         # TODO: assert something ? generate BQP computation for that
 
@@ -250,7 +250,7 @@ class TestClient:
         depth = 10
         circuit = rand_circuit(nqubits, depth, fx_rng)
         pattern = circuit.transpile().pattern
-        client = Client(pattern=pattern)
+        client = Client(pattern=pattern, rng=fx_rng)
         for node in client.graph.nodes:
             x_string = PauliString(["X" if i == node else "I" for i in client.graph.nodes])
             conjugated_string = client.clifford_structure.inverse()(x_string)

@@ -13,7 +13,7 @@ class TestVerifying:
         circuit = rand_circuit(nqubits, depth, fx_rng)
         pattern = circuit.transpile().pattern
 
-        client = Client(pattern=pattern)
+        client = Client(pattern=pattern, rng=fx_rng)
 
         for _ in range(10):
             # Test noiseless trap delegation
@@ -26,7 +26,7 @@ class TestVerifying:
 
             test_run = TestRun(client=client, traps=traps)
             backend = StatevectorBackend()
-            outcomes = test_run.delegate(backend=backend).trap_outcomes
+            outcomes = test_run.delegate(backend=backend, rng=fx_rng).trap_outcomes
 
             for trap in traps:
                 assert outcomes[trap] == 0

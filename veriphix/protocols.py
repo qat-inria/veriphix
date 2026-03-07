@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 
 class VerificationProtocol(ABC):
     @abstractmethod
-    def create_test_runs(self, client: Client, rng: Generator | None = None) -> list[TestRun]:
+    def create_test_runs(self, client: Client, rng: Generator | None = None, *, stacklevel: int = 1) -> list[TestRun]:
         pass
 
 
@@ -35,7 +35,7 @@ class FK12(VerificationProtocol):
         self.manual_colouring = manual_colouring
 
     @override
-    def create_test_runs(self, client: Client, rng: Generator | None = None) -> list[TestRun]:
+    def create_test_runs(self, client: Client, rng: Generator | None = None, *, stacklevel: int = 1) -> list[TestRun]:
         """Creates test runs according to a graph colouring according to [FK12].
         A test run, or a Trappified Canvas, is associated to each color in the colouring.
         For a given test run, the trap nodes are defined as being the nodes belonging to the color the run corresponds to.
@@ -145,8 +145,8 @@ class RandomTraps(VerificationProtocol):
         super().__init__()
 
     @override
-    def create_test_runs(self, client: Client, rng: Generator | None = None) -> list[TestRun]:
-        rng = ensure_rng(rng)
+    def create_test_runs(self, client: Client, rng: Generator | None = None, *, stacklevel: int = 1) -> list[TestRun]:
+        rng = ensure_rng(rng, stacklevel=stacklevel + 1)
         test_runs = []
         # Create 1 random trap per node
         n = len(client.graph.nodes)

@@ -46,9 +46,14 @@ class ComputationRun(Run):
 
     @override
     def delegate(
-        self, backend: Backend[_StateT], noise_model: NoiseModel | None = None, rng: Generator | None = None
+        self,
+        backend: Backend[_StateT],
+        noise_model: NoiseModel | None = None,
+        rng: Generator | None = None,
+        *,
+        stacklevel: int = 1,
     ) -> ComputationResult[_StateT]:
-        self.client.refresh_randomness(rng=rng)
+        self.client.refresh_randomness(rng=rng, stacklevel=stacklevel + 1)
         # Initializes the bank & asks backend to create the input
         self.client.prepare_states(backend, states_dict=self.client.computation_states)
 
@@ -107,6 +112,8 @@ def generate_eigenstate(stabilizer: PauliString) -> list[PlanarState]:
 
 
 class TestRun(Run):
+    __test__ = False  # this is not a pytest test-suite
+
     def __init__(self, client: Client, traps: Traps, meas_basis: str = "X") -> None:
         super().__init__(client=client)
         self.traps = frozenset(traps)
@@ -128,9 +135,14 @@ class TestRun(Run):
 
     @override
     def delegate(
-        self, backend: Backend[_StateT], noise_model: NoiseModel | None = None, rng: Generator | None = None
+        self,
+        backend: Backend[_StateT],
+        noise_model: NoiseModel | None = None,
+        rng: Generator | None = None,
+        *,
+        stacklevel: int = 1,
     ) -> TestResult[_StateT]:
-        self.client.refresh_randomness()
+        self.client.refresh_randomness(rng=rng, stacklevel=stacklevel + 1)
         states_dict = {node: self.input_state[node] for node in self.client.nodes}
         self.client.prepare_states(backend=backend, states_dict=states_dict)
         sim = PatternSimulator(

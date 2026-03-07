@@ -48,8 +48,10 @@ class SecretDatas:
         input_nodes: AbstractSet[int],
         output_nodes: AbstractSet[int],
         rng: Generator | None = None,
+        *,
+        stacklevel: int = 1,
     ) -> SecretDatas:
-        rng = ensure_rng(rng)
+        rng = ensure_rng(rng, stacklevel=stacklevel + 1)
         r = {}
         if secrets.r:
             # Need to generate the random bit for each measured qubit, 0 for the rest (output qubits)

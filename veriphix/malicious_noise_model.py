@@ -56,15 +56,11 @@ class MaliciousNoiseModel(NoiseModel):
     :type NoiseModel: class
     """
 
-    def __init__(
-        self,
-        nodes: list[int],
-        prob: float = 0.0,
-    ) -> None:
+    def __init__(self, nodes: list[int], prob: float = 0.0, rng: Generator | None = None) -> None:
         self.prob = prob
         self.nodes = nodes
         self.node = random.choice(self.nodes)
-        self.refresh_randomness()
+        self.refresh_randomness(rng)
 
     def refresh_randomness(self, rng: Generator | None = None) -> None:
         rng = ensure_rng(rng)
@@ -73,12 +69,16 @@ class MaliciousNoiseModel(NoiseModel):
         self.attack = bool(rng.uniform() < self.prob)
 
     @override
-    def input_nodes(self, nodes: Iterable[int], rng: Generator | None = None) -> list[CommandOrNoise]:
+    def input_nodes(
+        self, nodes: Iterable[int], rng: Generator | None = None, *, stacklevel: int = 1
+    ) -> list[CommandOrNoise]:
         """Return the noise to apply to input nodes."""
         return []
 
     @override
-    def command(self, cmd: CommandOrNoise, rng: Generator | None = None) -> list[CommandOrNoise]:
+    def command(
+        self, cmd: CommandOrNoise, rng: Generator | None = None, *, stacklevel: int = 1
+    ) -> list[CommandOrNoise]:
         """Return the noise to apply to the command `cmd`."""
         if cmd.kind == CommandKind.M and cmd.node in self.nodes and self.attack:
             return [cmd, ApplyNoise(DephasingNoise(prob=1), [self.node])]
@@ -86,6 +86,8 @@ class MaliciousNoiseModel(NoiseModel):
             return [cmd]
 
     @override
-    def confuse_result(self, cmd: BaseM, result: Outcome, rng: Generator | None = None) -> Outcome:
+    def confuse_result(
+        self, cmd: BaseM, result: Outcome, rng: Generator | None = None, *, stacklevel: int = 1
+    ) -> Outcome:
         """Assign wrong measurement result cmd = "M"."""
         return result

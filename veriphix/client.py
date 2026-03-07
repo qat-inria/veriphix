@@ -116,6 +116,8 @@ class Client:
         protocol: VerificationProtocol | None = None,
         autogen: bool = True,
         rng: Generator | None = None,
+        *,
+        stacklevel: int = 1,
     ) -> None:
         self.initial_pattern: Pattern = pattern
         self.classical_output = classical_output
@@ -132,8 +134,9 @@ class Client:
                 test_measure_method_cls=test_measure_method_cls,
                 secrets=secrets,
                 rng=rng,
+                stacklevel=stacklevel + 1,
             )
-            self.create_trappified_scheme()
+            self.create_trappified_scheme(rng=rng, stacklevel=stacklevel + 1)
 
     def preprocess_pattern(self, classical_output: bool = True) -> None:
         if classical_output:
@@ -150,8 +153,10 @@ class Client:
         test_measure_method_cls: Callable[[Client], MeasureMethod] | None = None,
         secrets: Secrets | None = None,
         rng: Generator | None = None,
+        *,
+        stacklevel: int = 1,
     ) -> None:
-        rng = ensure_rng(rng)
+        rng = ensure_rng(rng, stacklevel=stacklevel + 1)
         self.measure_method = (measure_method_cls or ClientMeasureMethod)(self)
         self.test_measure_method = (test_measure_method_cls or TestMeasureMethod)(self)
 
@@ -174,9 +179,9 @@ class Client:
         self.preparation_bank: dict[int, Statevec] = {}
         self.prepare_method = ClientPrepareMethod(self.preparation_bank)
 
-    def create_trappified_scheme(self) -> None:
+    def create_trappified_scheme(self, rng: Generator | None = None, *, stacklevel: int = 1) -> None:
         self.computationRun = ComputationRun(self)
-        self.test_runs = self.protocol.create_test_runs(client=self)
+        self.test_runs = self.protocol.create_test_runs(client=self, rng=rng, stacklevel=stacklevel + 1)
         self.trappifiedScheme = TrappifiedScheme(
             params=self.parameters or TrappifiedSchemeParameters(20, 20, 5), test_runs=self.test_runs
         )
@@ -200,13 +205,18 @@ class Client:
         copied_pattern = self._copy_pattern()
         return copied_pattern.extract_measurement_commands()
 
-    def refresh_randomness(self, rng: Generator | None = None) -> None:
+    def refresh_randomness(self, rng: Generator | None = None, *, stacklevel: int = 1) -> None:
         "method to refresh random randomness using parameters from Clinent instatiation."
 
         # refresh only if secrets bool is True; False is no randomness at all.
         if self.secrets is not None:
             self.secret_datas = SecretDatas.from_secrets(
-                self.secrets, self.graph, set(self.input_nodes), set(self.output_nodes), rng=rng
+                self.secrets,
+                self.graph,
+                set(self.input_nodes),
+                set(self.output_nodes),
+                rng=rng,
+                stacklevel=stacklevel + 1,
             )
 
     def get_computation_states(self) -> dict[int, State]:
@@ -241,8 +251,8 @@ class Client:
         for node in self.input_nodes:
             self.prepare_method.prepare_node(backend, node)
 
-    def sample_canvas(self, rng: Generator | None = None) -> dict[int, Run]:
-        rng = ensure_rng(rng)
+    def sample_canvas(self, rng: Generator | None = None, *, stacklevel: int = 1) -> dict[int, Run]:
+        rng = ensure_rng(rng, stacklevel=stacklevel + 1)
         N = self.trappifiedScheme.params.comp_rounds + self.trappifiedScheme.params.test_rounds
         computation_rounds = set(rng.integers(N, size=self.trappifiedScheme.params.comp_rounds))
 
@@ -262,7 +272,7 @@ class Client:
         for r in canvas:
             backend = backend_cls()
             if isinstance(noise_model, MaliciousNoiseModel):
-                noise_model.refresh_randomness()
+                noise_model.refresh_randomness(rng=rng)
             outcomes[r] = canvas[r].delegate(backend=backend, noise_model=noise_model, rng=rng)
         return outcomes
 
