@@ -1,6 +1,10 @@
 # Style
 ruff
 
+# Typing
+mypy
+pyright
+
 # Tests
 pytest
 pytest-cov

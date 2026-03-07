@@ -12,6 +12,7 @@ if TYPE_CHECKING:
 from graphix import Circuit
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from io import TextIOBase
 
 command_re = re.compile(r"([a-z]+)(?:\(([^)]*)\))?")
@@ -54,7 +55,7 @@ def _eval(node: ast.expr) -> float:
             return float(node.value)
         if isinstance(node.value, float):
             return node.value
-        raise TypeError(f"Unsupported numeric value: {node.n}")
+        raise TypeError(f"Unsupported numeric value: {node.n!r}")
     if isinstance(node, ast.BinOp):  # e.g., 7*pi or 3+4
         left = _eval(node.left)
         right = _eval(node.right)
