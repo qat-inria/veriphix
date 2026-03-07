@@ -1,4 +1,4 @@
-graphix
+graphix @ git+https://github.com/TeamGraphix/graphix.git
 stim>=1.13,<2
 
 # For sampling circuits
