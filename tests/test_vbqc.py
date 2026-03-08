@@ -150,7 +150,6 @@ class TestVBQC:
             x_error_prob=0,
             z_error_prob=0,
             measure_channel_prob=0,
-            rng=fx_rng,
         )
         for test_run in client.test_runs:
             client.refresh_randomness(rng=fx_rng)
@@ -175,7 +174,6 @@ class TestVBQC:
             x_error_prob=1,
             z_error_prob=1,
             measure_channel_prob=1,
-            rng=fx_rng,
         )
 
         for test_run in client.test_runs:
