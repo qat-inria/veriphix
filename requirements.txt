@@ -1,4 +1,5 @@
 graphix @ git+https://github.com/TeamGraphix/graphix.git
+graphix-qasm-parser
 stim>=1.13,<2
 
 # For sampling circuits

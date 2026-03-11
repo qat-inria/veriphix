@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 import pytest
 from graphix.random_objects import rand_circuit
 from graphix.sim.statevec import StatevectorBackend
+from graphix_qasm_parser import OpenQASMParser
 
 from veriphix.blinding import Secrets
 from veriphix.client import Client
@@ -45,11 +46,10 @@ class TestProtocols:
         """
         Tests that for a given circuit, we can indeed generate test runs from the graph coloring approach of FK
         """
-        from tests.qasm_parser import read_qasm
+        parser = OpenQASMParser()
 
         def load_pattern_from_circuit(circuit_label: str) -> Pattern:
-            with Path(f"tests/test_circuits/{circuit_label}").open() as f:
-                circuit = read_qasm(f)
+            circuit = parser.parse_file(Path("tests/test_circuits") / circuit_label)
             pattern = circuit.transpile().pattern
             pattern.minimize_space()
             return pattern
