@@ -11,81 +11,78 @@ from graphix.random_objects import rand_circuit
 from graphix.sim.density_matrix import DensityMatrixBackend
 from graphix.sim.statevec import StatevectorBackend
 from graphix.states import BasicStates
+from graphix_qasm_parser import OpenQASMParser
 
-from tests.qasm_parser import read_qasm
-from veriphix.client import Client, Secrets, TrappifiedSchemeParameters
-from veriphix.verifying import ComputationRun
+from veriphix.blinding import Secrets
+from veriphix.client import Client
+from veriphix.verifying import QuantumComputationResult, TrappifiedSchemeParameters
 
 if TYPE_CHECKING:
+    from graphix.measurements import Outcome
     from graphix.pattern import Pattern
     from numpy.random import Generator
 
 
-def load_pattern_from_circuit(circuit_label: str) -> tuple[Pattern, list[int]]:
-    with Path(f"tests/test_circuits/{circuit_label}").open() as f:
-        circuit = read_qasm(f)
-        pattern = circuit.transpile().pattern
-
-        pattern.minimize_space()
+def load_pattern_from_circuit(circuit_label: str) -> Pattern:
+    parser = OpenQASMParser()
+    circuit = parser.parse_file(Path("tests/test_circuits") / circuit_label)
+    pattern = circuit.transpile().pattern
+    pattern.minimize_space()
     return pattern
 
 
 class TestVBQC:
     @pytest.mark.parametrize("blind", (False, True))
-    def test_trap_delegated(self, fx_rng: np.random.Generator, blind: bool):
+    def test_trap_delegated(self, fx_rng: np.random.Generator, blind: bool) -> None:
         nqubits = 3
         depth = 5
         circuit = rand_circuit(nqubits, depth, fx_rng)
         pattern = circuit.transpile().pattern
 
         secrets = Secrets(r=blind, a=blind, theta=blind)
-        client = Client(pattern=pattern, secrets=secrets)
+        client = Client(pattern=pattern, secrets=secrets, rng=fx_rng)
         for test_run in client.test_runs:
             backend = StatevectorBackend()
-            trap_outcomes = test_run.delegate(backend=backend).trap_outcomes
+            trap_outcomes = test_run.delegate(backend=backend, rng=fx_rng).trap_outcomes
             assert sum(trap_outcomes.values()) == 0
 
-    def test_sample_canvas(self, fx_rng: Generator):
+    def test_sample_canvas(self, fx_rng: Generator) -> None:
         nqubits = 3
         depth = 5
         circuit = rand_circuit(nqubits, depth, fx_rng)
         pattern = circuit.transpile().pattern
 
-        client = Client(pattern=pattern)
+        client = Client(pattern=pattern, rng=fx_rng)
 
-        assert client.sample_canvas()
+        assert client.sample_canvas(rng=fx_rng)
         # Just tests that it runs
 
-    def test_delegate_canvas(self, fx_rng: Generator):
+    def test_delegate_canvas(self, fx_rng: Generator) -> None:
         nqubits = 3
         depth = 5
         circuit = rand_circuit(nqubits, depth, fx_rng)
         pattern = circuit.transpile().pattern
 
         svbackend = StatevectorBackend()
-        simulated_pattern_output = pattern.simulate_pattern(backend=svbackend)
+        simulated_pattern_output = pattern.simulate_pattern(backend=svbackend, rng=fx_rng)
         simulated_circuit_output = circuit.simulate_statevector().statevec
 
         parameters = TrappifiedSchemeParameters(comp_rounds=10, test_rounds=10, threshold=0)
-        client = Client(pattern=pattern, parameters=parameters, classical_output=False)
+        client = Client(pattern=pattern, parameters=parameters, classical_output=False, rng=fx_rng)
 
-        canvas = client.sample_canvas()
-        outcomes = client.delegate_canvas(canvas=canvas, backend_cls=StatevectorBackend)
-        for r in canvas:
-            if isinstance(canvas[r], ComputationRun):
+        canvas = client.sample_canvas(rng=fx_rng)
+        outcomes = client.delegate_canvas(canvas=canvas, backend_cls=StatevectorBackend, rng=fx_rng)
+        for result in outcomes.values():
+            if isinstance(result, QuantumComputationResult):
                 np.testing.assert_almost_equal(
                     np.abs(
-                        np.dot(
-                            outcomes[r].output_state.psi.flatten().conjugate(), simulated_pattern_output.psi.flatten()
-                        )
+                        np.dot(result.output_state.psi.flatten().conjugate(), simulated_pattern_output.psi.flatten())
                     ),
                     1,
                 )
                 np.testing.assert_almost_equal(
                     np.abs(
-                        np.dot(
-                            outcomes[r].output_state.psi.flatten().conjugate(), simulated_circuit_output.psi.flatten()
-                        )
+                        np.dot(result.output_state.psi.flatten().conjugate(), simulated_circuit_output.psi.flatten())
                     ),
                     1,
                 )
@@ -96,7 +93,7 @@ class TestVBQC:
         """
 
     @pytest.mark.parametrize("blind", (False, True))
-    def test_analyze_outcomes(self, fx_rng: Generator, blind: bool):
+    def test_analyze_outcomes(self, fx_rng: Generator, blind: bool) -> None:
         nqubits = 3
         depth = 3
         circuit = rand_circuit(nqubits, depth, fx_rng)
@@ -105,16 +102,16 @@ class TestVBQC:
         secrets = Secrets(r=blind, a=blind, theta=blind)
 
         parameters = TrappifiedSchemeParameters(comp_rounds=50, test_rounds=50, threshold=10)
-        client = Client(pattern=pattern, secrets=secrets, parameters=parameters)
+        client = Client(pattern=pattern, secrets=secrets, parameters=parameters, rng=fx_rng)
 
-        canvas = client.sample_canvas()
-        outcomes = client.delegate_canvas(canvas=canvas, backend_cls=StatevectorBackend)
+        canvas = client.sample_canvas(rng=fx_rng)
+        outcomes = client.delegate_canvas(canvas=canvas, backend_cls=StatevectorBackend, rng=fx_rng)
 
         # only for BQP
         assert client.analyze_outcomes(canvas, outcomes)
 
     @pytest.mark.parametrize("blind", (False, True))
-    def test_BQP_circuit(self, fx_rng: Generator, blind: bool):
+    def test_BQP_circuit(self, fx_rng: Generator, blind: bool) -> None:
         with Path("tests/test_circuits/table.json").open() as f:
             table = json.load(f)
             circuits = [name for name, prob in table.items()]
@@ -124,17 +121,17 @@ class TestVBQC:
             secrets = Secrets(r=blind, a=blind, theta=blind)
 
             parameters = TrappifiedSchemeParameters(comp_rounds=20, test_rounds=20, threshold=5)
-            client = Client(pattern=pattern, secrets=secrets, parameters=parameters)
+            client = Client(pattern=pattern, secrets=secrets, parameters=parameters, rng=fx_rng)
 
-            canvas = client.sample_canvas()
-            outcomes = client.delegate_canvas(canvas=canvas, backend_cls=StatevectorBackend)
+            canvas = client.sample_canvas(rng=fx_rng)
+            outcomes = client.delegate_canvas(canvas=canvas, backend_cls=StatevectorBackend, rng=fx_rng)
             decision, result, _ = client.analyze_outcomes(canvas, outcomes)
             assert decision
-            assert result != "Abort"
+            assert result is not None
             assert int(result) == find_correct_value(circuit_label)
 
     @pytest.mark.parametrize("blind", (False, True))
-    def test_noiseless(self, fx_rng: Generator, blind: bool):
+    def test_noiseless(self, fx_rng: Generator, blind: bool) -> None:
         nqubits = 3
         depth = 3
         circuit = rand_circuit(nqubits, depth, fx_rng)
@@ -144,17 +141,22 @@ class TestVBQC:
 
         secrets = Secrets(a=blind, r=blind, theta=blind)
 
-        client = Client(pattern=pattern, input_state=states, secrets=secrets)
+        client = Client(pattern=pattern, input_state=states, secrets=secrets, rng=fx_rng)
         noise_model = DepolarisingNoiseModel(
-            measure_error_prob=0, entanglement_error_prob=0, x_error_prob=0, z_error_prob=0, measure_channel_prob=0
+            measure_error_prob=0,
+            entanglement_error_prob=0,
+            x_error_prob=0,
+            z_error_prob=0,
+            measure_channel_prob=0,
+            rng=fx_rng,
         )
         for test_run in client.test_runs:
-            client.refresh_randomness()
-            backend = DensityMatrixBackend(rng=fx_rng)
-            trap_outcomes = test_run.delegate(backend=backend, noise_model=noise_model).trap_outcomes
+            client.refresh_randomness(rng=fx_rng)
+            backend = DensityMatrixBackend()
+            trap_outcomes = test_run.delegate(backend=backend, noise_model=noise_model, rng=fx_rng).trap_outcomes
             assert sum(trap_outcomes.values()) == 0
 
-    def test_noisy(self, fx_rng: Generator):
+    def test_noisy(self, fx_rng: Generator) -> None:
         nqubits = 3
         depth = 3
         circuit = rand_circuit(nqubits, depth, fx_rng)
@@ -164,33 +166,24 @@ class TestVBQC:
 
         secrets = Secrets(a=True, r=True, theta=True)
 
-        client = Client(pattern=pattern, input_state=states, secrets=secrets)
-
-        # Use an independent RNG for the noise model so it does not share fx_rng
-        # with the backend. This avoids coupling between noise sampling and backend randomness.
-        noise_rng = np.random.default_rng()
+        client = Client(pattern=pattern, input_state=states, secrets=secrets, rng=fx_rng)
         noise_model = DepolarisingNoiseModel(
             measure_error_prob=1,
             entanglement_error_prob=1,
             x_error_prob=1,
             z_error_prob=1,
             measure_channel_prob=1,
-            rng=noise_rng,
+            rng=fx_rng,
         )
 
         for test_run in client.test_runs:
-            # Establish client randomness before creating the backend to avoid
-            # ordering-dependent coupling with the test RNG.
-            client.refresh_randomness()
-
-            # The backend can continue to use fx_rng (fixture) for deterministic behavior
-            backend = DensityMatrixBackend(rng=fx_rng)
-
-            trap_outcomes = test_run.delegate(backend=backend, noise_model=noise_model).trap_outcomes
+            backend = DensityMatrixBackend()
+            client.refresh_randomness(rng=fx_rng)
+            trap_outcomes = test_run.delegate(backend=backend, noise_model=noise_model, rng=fx_rng).trap_outcomes
             assert sum(trap_outcomes.values()) > 0
 
 
-def find_correct_value(circuit_name):
+def find_correct_value(circuit_name: str) -> Outcome:
     with Path("tests/test_circuits/table.json").open() as f:
         table = json.load(f)
         # return 1 if yes instance

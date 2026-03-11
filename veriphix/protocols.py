@@ -1,28 +1,31 @@
 from __future__ import annotations
 
 import itertools
-import random
 from abc import ABC, abstractmethod
 from array import array
 from typing import TYPE_CHECKING
 
 import networkx as nx
+from graphix.rng import ensure_rng
+from typing_extensions import override
 
 from veriphix.verifying import TestRun
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
+    from typing import TypeVar
 
     from graphix import Pattern
+    from numpy.random import Generator
+
+    from veriphix.client import Client
+
+    _StateT = TypeVar("_StateT")
 
 
 class VerificationProtocol(ABC):
     @abstractmethod
-    def __init__(self) -> None:
-        pass
-
-    @abstractmethod
-    def create_test_runs(self, client) -> list[TestRun]:
+    def create_test_runs(self, client: Client, rng: Generator | None = None, *, stacklevel: int = 1) -> list[TestRun]:
         pass
 
 
@@ -31,7 +34,8 @@ class FK12(VerificationProtocol):
         super().__init__()
         self.manual_colouring = manual_colouring
 
-    def create_test_runs(self, client) -> list[TestRun]:
+    @override
+    def create_test_runs(self, client: Client, rng: Generator | None = None, *, stacklevel: int = 1) -> list[TestRun]:
         """Creates test runs according to a graph colouring according to [FK12].
         A test run, or a Trappified Canvas, is associated to each color in the colouring.
         For a given test run, the trap nodes are defined as being the nodes belonging to the color the run corresponds to.
@@ -89,7 +93,7 @@ class FK12(VerificationProtocol):
                 )
 
             nodes_by_color = {i: list(c) for i, c in enumerate(self.manual_colouring)}
-            colors = nodes_by_color.keys()
+            colors = set(nodes_by_color.keys())
 
         # Create the test runs : one per color
         test_runs: list[TestRun] = []
@@ -140,18 +144,20 @@ class RandomTraps(VerificationProtocol):
     def __init__(self) -> None:
         super().__init__()
 
-    def create_test_runs(self, client) -> list[TestRun]:
+    @override
+    def create_test_runs(self, client: Client, rng: Generator | None = None, *, stacklevel: int = 1) -> list[TestRun]:
+        rng = ensure_rng(rng)
         test_runs = []
         # Create 1 random trap per node
         n = len(client.graph.nodes)
         for _ in range(n):
             # Choose a random subset of nodes to create a trap (random size, random nodes)
-            trap_size = random.choice(range(n))
-            random_nodes = random.sample(client.nodes, k=trap_size)
+            trap_size = rng.integers(n)
+            random_nodes = [client.nodes[i] for i in rng.choice(len(client.nodes), size=trap_size, replace=False)]
             # Create a single-trap test round from it. The trap is multi-qubit.
-            random_multi_qubit_trap = tuple(random_nodes)
+            random_multi_qubit_trap = frozenset(random_nodes)
             # Only one trap
-            traps = (random_multi_qubit_trap,)
+            traps = frozenset({random_multi_qubit_trap})
             test_run = TestRun(client=client, traps=traps)
             test_runs.append(test_run)
 

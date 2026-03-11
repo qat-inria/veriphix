@@ -4,11 +4,11 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections.abc import Set as AbstractSet
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Generic, TypeVar
 
-from graphix.pattern import PatternSimulator
-from graphix.pauli import IXYZ, Pauli
-from graphix.sim.statevec import State
+from graphix.fundamentals import IXYZ_VALUES
+from graphix.pauli import Pauli
+from graphix.simulator import PatternSimulator
 from stim import PauliString
 from typing_extensions import override
 
@@ -17,10 +17,15 @@ Traps = AbstractSet[Trap]
 
 
 if TYPE_CHECKING:
+    from graphix.measurements import Outcome
+    from graphix.noise_models import NoiseModel
     from graphix.sim.base_backend import Backend
-    from graphix.states import State
+    from graphix.states import PlanarState
+    from numpy.random import Generator
 
-    from veriphix.client import Client, ResultAnalysis
+    from veriphix.client import Client
+
+_StateT = TypeVar("_StateT")
 
 
 class Run(ABC):
@@ -28,7 +33,9 @@ class Run(ABC):
         self.client = client
 
     @abstractmethod
-    def delegate(self, backend: Backend, **kwargs) -> RunResult:
+    def delegate(
+        self, backend: Backend[_StateT], noise_model: NoiseModel | None = None, rng: Generator | None = None
+    ) -> RunResult[_StateT]:
         # Delegates using UBQC
         pass
 
@@ -38,8 +45,15 @@ class ComputationRun(Run):
         super().__init__(client=client)
 
     @override
-    def delegate(self, backend: Backend, **kwargs) -> ComputationResult:
-        self.client.refresh_randomness()
+    def delegate(
+        self,
+        backend: Backend[_StateT],
+        noise_model: NoiseModel | None = None,
+        rng: Generator | None = None,
+        *,
+        stacklevel: int = 1,
+    ) -> ComputationResult[_StateT]:
+        self.client.refresh_randomness(rng=rng, stacklevel=stacklevel + 1)
         # Initializes the bank & asks backend to create the input
         self.client.prepare_states(backend, states_dict=self.client.computation_states)
 
@@ -48,9 +62,9 @@ class ComputationRun(Run):
             pattern=self.client.clean_pattern,
             prepare_method=self.client.prepare_method,
             measure_method=self.client.measure_method,
-            **kwargs,
+            noise_model=noise_model,
         )
-        sim.run(input_state=None)
+        sim.run(input_state=None, rng=rng)
 
         # If quantum output, decode the state, nothing needs to be returned (backend.state can be accessed by the Client)
         if not self.client.classical_output:
@@ -58,7 +72,7 @@ class ComputationRun(Run):
             return QuantumComputationResult(backend.state)
         # If classical output, return the output
         else:
-            results = {onode: self.client.results[onode] for onode in self.client.output_nodes}
+            results: dict[int, Outcome] = {onode: self.client.results[onode] for onode in self.client.output_nodes}
             return ClassicalComputationResult(outcomes=results)
 
 
@@ -70,7 +84,7 @@ def merge_pauli_strings(stabilizer_1: PauliString, stabilizer_2: PauliString) ->
     return result
 
 
-def merge(strings: list[PauliString]):
+def merge(strings: list[PauliString]) -> PauliString:
     n = len(strings)
     l = len(strings[0])
     common_string = strings[0]
@@ -84,16 +98,18 @@ def merge(strings: list[PauliString]):
     return common_string
 
 
-def generate_eigenstate(stabilizer: PauliString) -> list[State]:
+def generate_eigenstate(stabilizer: PauliString) -> list[PlanarState]:
     states = []
-    for pauli in stabilizer:
+    for pauli in stabilizer:  # type: ignore[attr-defined]
         # default coin = 0
-        operator = Pauli(IXYZ(pauli))
+        operator = Pauli(IXYZ_VALUES[pauli])
         states.append(operator.eigenstate())
     return states
 
 
 class TestRun(Run):
+    __test__ = False  # this is not a pytest test-suite
+
     def __init__(self, client: Client, traps: Traps, meas_basis: str = "X") -> None:
         super().__init__(client=client)
         self.traps = frozenset(traps)
@@ -101,9 +117,9 @@ class TestRun(Run):
         self.clifford_structure = client.clifford_structure
         self.nqubits = len(self.clifford_structure)
         self.stabilizer = self.build_common_stabilizer()
-        self.input_state = self.build_common_eigenstate()
+        self.input_state = generate_eigenstate(self.stabilizer)
 
-    def build_common_stabilizer(self):
+    def build_common_stabilizer(self) -> PauliString:
         # Build the PauliStrings representing the individual measurement of each trap qubit
         measurement_strings = [
             PauliString([self.meas_basis if i in trap else "I" for i in range(self.nqubits)]) for trap in self.traps
@@ -113,13 +129,16 @@ class TestRun(Run):
         common_stabilizer = merge(conjugated_measurements)
         return common_stabilizer
 
-    def build_common_eigenstate(self):
-        input_state = generate_eigenstate(self.stabilizer)
-        return input_state
-
     @override
-    def delegate(self, backend: Backend, **kwargs) -> dict[int, int]:
-        self.client.refresh_randomness()
+    def delegate(
+        self,
+        backend: Backend[_StateT],
+        noise_model: NoiseModel | None = None,
+        rng: Generator | None = None,
+        *,
+        stacklevel: int = 1,
+    ) -> TestResult[_StateT]:
+        self.client.refresh_randomness(rng=rng, stacklevel=stacklevel + 1)
         states_dict = {node: self.input_state[node] for node in self.client.nodes}
         self.client.prepare_states(backend=backend, states_dict=states_dict)
         sim = PatternSimulator(
@@ -127,15 +146,15 @@ class TestRun(Run):
             pattern=self.client.test_pattern,
             prepare_method=self.client.prepare_method,
             measure_method=self.client.test_measure_method,
-            **kwargs,
+            noise_model=noise_model,
         )
-        sim.run(input_state=None)
+        sim.run(input_state=None, rng=rng)
 
         trap_outcomes = dict()
         for trap in self.traps:
             outcomes = [self.client.results[component] for component in trap]
             trap_outcome = sum(outcomes) % 2 ^ (self.stabilizer.sign == -1)
-            trap_outcomes[trap] = trap_outcome
+            trap_outcomes[frozenset(trap)] = trap_outcome
         return TestResult(trap_outcomes)
 
     def __str__(self) -> str:
@@ -144,24 +163,21 @@ class TestRun(Run):
         Stabilizer: {self.stabilizer}"""
 
 
-class RunResult(ABC):
+class RunResult(ABC, Generic[_StateT]):
     @abstractmethod
-    def analyze(self, result_analysis: ResultAnalysis, client: Client) -> None:
-        pass
+    def analyze(self, result_analysis: ResultAnalysis[_StateT], client: Client) -> None: ...
 
 
-class ComputationResult(RunResult, ABC):
-    @abstractmethod
-    def analyze(self, result_analysis: ResultAnalysis, client: Client) -> None:
-        pass
+class ComputationResult(RunResult[_StateT], Generic[_StateT]):
+    pass
 
 
-class ClassicalComputationResult(ComputationResult):
-    def __init__(self, outcomes: dict[int, int]):
+class ClassicalComputationResult(ComputationResult[_StateT], Generic[_StateT]):
+    def __init__(self, outcomes: dict[int, Outcome]):
         self.outcomes = outcomes
         self.outcome_string = None
 
-    def analyze(self, result_analysis: ResultAnalysis, client: Client) -> None:
+    def analyze(self, result_analysis: ResultAnalysis[_StateT], client: Client) -> None:
         output_string = "".join(str(int(v)) for v in self.outcomes.values())
         result_analysis.computation_count += client.output_predicate(output_string)
         return
@@ -172,20 +188,20 @@ class ClassicalComputationResult(ComputationResult):
         """
 
 
-class QuantumComputationResult(ComputationResult):
-    def __init__(self, output_state: State):
+class QuantumComputationResult(Generic[_StateT], ComputationResult[_StateT]):
+    def __init__(self, output_state: _StateT):
         self.output_state = output_state
 
-    def analyze(self, result_analysis: ResultAnalysis, client: Client) -> None:
+    def analyze(self, result_analysis: ResultAnalysis[_StateT], client: Client) -> None:
         result_analysis.quantum_output_states.append(self.output_state)
 
 
-class TestResult(RunResult):
+class TestResult(Generic[_StateT], RunResult[_StateT]):
     def __init__(self, trap_outcomes: dict[frozenset[int], int]):
         self.trap_outcomes = trap_outcomes
         self.failed_round = False
 
-    def analyze(self, result_analysis: ResultAnalysis, client: Client) -> None:
+    def analyze(self, result_analysis: ResultAnalysis[_StateT], client: Client) -> None:
         self.failed_round = sum(self.trap_outcomes.values()) > 0
         result_analysis.nr_failed_test_rounds += self.failed_round
 
@@ -207,19 +223,19 @@ class TrappifiedSchemeParameters:
 @dataclass
 class TrappifiedScheme:
     params: TrappifiedSchemeParameters
-    test_runs: list
+    test_runs: list[TestRun]
 
 
 @dataclass
-class ResultAnalysis:
+class ResultAnalysis(Generic[_StateT]):
     nr_failed_test_rounds: int = 0
     # number of computation rounds for which the Client's predicate evaluated to True
     computation_count: int = 0
-    quantum_output_states: dict[int, State] = field(default_factory=dict)
+    quantum_output_states: list[_StateT] = field(default_factory=list)
 
 
 @dataclass
-class TrappifiedRun:
-    input_state: list
+class TrappifiedRun(Generic[_StateT]):
+    input_state: list[_StateT]
     tested_qubits: list[int]
     stabilizer: Pauli
