@@ -112,7 +112,6 @@ class TestVBQC:
         assert client.analyze_outcomes(canvas, outcomes)
 
     @pytest.mark.parametrize("blind", (False, True))
-    @pytest.mark.xfail(reason="Incorrect value")
     def test_BQP_circuit(self, fx_rng: Generator, blind: bool) -> None:
         with Path("tests/test_circuits/table.json").open() as f:
             table = json.load(f)
@@ -122,7 +121,7 @@ class TestVBQC:
 
             secrets = Secrets(r=blind, a=blind, theta=blind)
 
-            parameters = TrappifiedSchemeParameters(comp_rounds=18, test_rounds=18, threshold=5)
+            parameters = TrappifiedSchemeParameters(comp_rounds=20, test_rounds=20, threshold=5)
             client = Client(pattern=pattern, secrets=secrets, parameters=parameters, rng=fx_rng)
 
             canvas = client.sample_canvas(rng=fx_rng)

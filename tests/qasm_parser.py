@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
 from graphix import Circuit
+from graphix.fundamentals import rad_to_angle
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -112,9 +113,9 @@ def read_qasm(f: TextIOBase) -> Circuit:
                         raise ValueError(f"{command_name} expects one argument")
                     qubit = parse_reg(arguments[0])
                     if command_name == "rx":
-                        circuit.rx(qubit, angle)
+                        circuit.rx(qubit, rad_to_angle(angle))
                     else:
-                        circuit.rz(qubit, angle)
+                        circuit.rz(qubit, rad_to_angle(angle))
             case "measure":
                 pass
             case _:
