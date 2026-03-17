@@ -11,8 +11,8 @@ from graphix.random_objects import rand_circuit
 from graphix.sim.density_matrix import DensityMatrixBackend
 from graphix.sim.statevec import StatevectorBackend
 from graphix.states import BasicStates
+from graphix_qasm_parser import OpenQASMParser
 
-from tests.qasm_parser import read_qasm
 from veriphix.blinding import Secrets
 from veriphix.client import Client
 from veriphix.verifying import QuantumComputationResult, TrappifiedSchemeParameters
@@ -24,11 +24,10 @@ if TYPE_CHECKING:
 
 
 def load_pattern_from_circuit(circuit_label: str) -> Pattern:
-    with Path(f"tests/test_circuits/{circuit_label}").open() as f:
-        circuit = read_qasm(f)
-        pattern = circuit.transpile().pattern
-
-        pattern.minimize_space()
+    parser = OpenQASMParser()
+    circuit = parser.parse_file(Path("tests/test_circuits") / circuit_label)
+    pattern = circuit.transpile().pattern
+    pattern.minimize_space()
     return pattern
 
 
@@ -109,10 +108,10 @@ class TestVBQC:
         outcomes = client.delegate_canvas(canvas=canvas, backend_cls=StatevectorBackend, rng=fx_rng)
 
         # only for BQP
-        assert client.analyze_outcomes(canvas, outcomes)
+        traps_decision, _computation_decision, _result_analysis = client.analyze_outcomes(canvas, outcomes)
+        assert traps_decision
 
     @pytest.mark.parametrize("blind", (False, True))
-    @pytest.mark.xfail(reason="Incorrect value")
     def test_BQP_circuit(self, fx_rng: Generator, blind: bool) -> None:
         with Path("tests/test_circuits/table.json").open() as f:
             table = json.load(f)
@@ -122,7 +121,7 @@ class TestVBQC:
 
             secrets = Secrets(r=blind, a=blind, theta=blind)
 
-            parameters = TrappifiedSchemeParameters(comp_rounds=18, test_rounds=18, threshold=5)
+            parameters = TrappifiedSchemeParameters(comp_rounds=20, test_rounds=20, threshold=5)
             client = Client(pattern=pattern, secrets=secrets, parameters=parameters, rng=fx_rng)
 
             canvas = client.sample_canvas(rng=fx_rng)

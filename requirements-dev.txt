@@ -6,6 +6,7 @@ mypy
 pyright
 
 # Tests
+graphix-qasm-parser
 pytest
 pytest-cov
 pytest-mock

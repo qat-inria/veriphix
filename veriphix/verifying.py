@@ -64,11 +64,7 @@ class ComputationRun(Run):
             measure_method=self.client.measure_method,
             noise_model=noise_model,
         )
-        # `input_state=None` is disallowed by the type annotations,
-        # but permitted in the code to indicate that the qubits are
-        # already prepared in the backend.
-        # See https://github.com/TeamGraphix/graphix/pull/458
-        sim.run(input_state=None, rng=rng)  # type: ignore[arg-type]
+        sim.run(input_state=None, rng=rng)
 
         # If quantum output, decode the state, nothing needs to be returned (backend.state can be accessed by the Client)
         if not self.client.classical_output:
@@ -152,11 +148,7 @@ class TestRun(Run):
             measure_method=self.client.test_measure_method,
             noise_model=noise_model,
         )
-        # `input_state=None` is disallowed by the type annotations,
-        # but permitted in the code to indicate that the qubits are
-        # already prepared in the backend.
-        # See https://github.com/TeamGraphix/graphix/pull/458
-        sim.run(input_state=None, rng=rng)  # type: ignore[arg-type]
+        sim.run(input_state=None, rng=rng)
 
         trap_outcomes = dict()
         for trap in self.traps:

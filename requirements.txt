@@ -1,4 +1,4 @@
-graphix @ git+https://github.com/thierry-martinez/graphix@reproducibility_warnings
+graphix @ git+https://github.com/thierry-martinez/graphix@install_target_for_revdeps
 stim>=1.13,<2
 
 # For sampling circuits
