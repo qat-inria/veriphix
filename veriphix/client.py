@@ -156,7 +156,7 @@ class Client:
         *,
         stacklevel: int = 1,
     ) -> None:
-        rng = ensure_rng(rng)
+        rng = ensure_rng(rng, stacklevel=stacklevel + 1)
         self.measure_method = (measure_method_cls or ClientMeasureMethod)(self)
         self.test_measure_method = (test_measure_method_cls or TestMeasureMethod)(self)
 
@@ -252,7 +252,7 @@ class Client:
             self.prepare_method.prepare_node(backend, node)
 
     def sample_canvas(self, rng: Generator | None = None, *, stacklevel: int = 1) -> dict[int, Run]:
-        rng = ensure_rng(rng)
+        rng = ensure_rng(rng, stacklevel=stacklevel + 1)
         N = self.trappifiedScheme.params.comp_rounds + self.trappifiedScheme.params.test_rounds
         computation_rounds = set(rng.integers(N, size=self.trappifiedScheme.params.comp_rounds))
 

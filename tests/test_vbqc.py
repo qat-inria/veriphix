@@ -108,7 +108,8 @@ class TestVBQC:
         outcomes = client.delegate_canvas(canvas=canvas, backend_cls=StatevectorBackend, rng=fx_rng)
 
         # only for BQP
-        assert client.analyze_outcomes(canvas, outcomes)
+        traps_decision, _computation_decision, _result_analysis = client.analyze_outcomes(canvas, outcomes)
+        assert traps_decision
 
     @pytest.mark.parametrize("blind", (False, True))
     def test_BQP_circuit(self, fx_rng: Generator, blind: bool) -> None:
@@ -148,7 +149,6 @@ class TestVBQC:
             x_error_prob=0,
             z_error_prob=0,
             measure_channel_prob=0,
-            rng=fx_rng,
         )
         for test_run in client.test_runs:
             client.refresh_randomness(rng=fx_rng)
@@ -173,7 +173,6 @@ class TestVBQC:
             x_error_prob=1,
             z_error_prob=1,
             measure_channel_prob=1,
-            rng=fx_rng,
         )
 
         for test_run in client.test_runs:
