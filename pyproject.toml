@@ -1,7 +1,9 @@
+[build-system]
+requires = ["setuptools_scm"]
+
 [project]
 name = "veriphix"
-version = "1"
-dynamic = ["dependencies", "optional-dependencies"]
+dynamic = ["dependencies", "optional-dependencies", "version"]
 
 [tool.setuptools.dynamic]
 dependencies = { file = ["requirements.txt"] }
@@ -61,3 +63,6 @@ reportUnknownVariableType = "information"
 # reportInvalidTypeVarUse is a warning by default
 reportInvalidTypeVarUse = "error"
 extraPaths = ["./stubs"]
+
+[tool.setuptools_scm]
+version_file = "graphix/_version.py"
