@@ -100,7 +100,6 @@ class TestProtocols:
         pattern.standardize()
         pattern.minimize_space()
 
-
         nodes = pattern.extract_nodes()
 
         # initialise client

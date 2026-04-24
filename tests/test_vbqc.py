@@ -104,7 +104,6 @@ class TestVBQC:
         pattern = circuit.transpile().pattern
         pattern.minimize_space()
 
-
         secrets = Secrets(r=blind, a=blind, theta=blind)
 
         parameters = TrappifiedSchemeParameters(comp_rounds=50, test_rounds=50, threshold=10)
