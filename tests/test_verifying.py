@@ -1,6 +1,7 @@
 import numpy as np
 from graphix.random_objects import rand_circuit
 from graphix.sim.statevec import StatevectorBackend
+from graphix.transpiler import transpile_swaps
 
 from veriphix.client import Client
 from veriphix.verifying import TestRun
@@ -10,8 +11,9 @@ class TestVerifying:
     def test_delegate_test(self, fx_rng: np.random.Generator) -> None:
         nqubits = 3
         depth = 5
-        circuit = rand_circuit(nqubits, depth, fx_rng)
+        circuit = transpile_swaps(rand_circuit(nqubits, depth, fx_rng)).circuit
         pattern = circuit.transpile().pattern
+        pattern.minimize_space()
 
         client = Client(pattern=pattern, rng=fx_rng)
 
