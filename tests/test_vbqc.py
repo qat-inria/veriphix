@@ -123,8 +123,7 @@ class TestVBQC:
             table = json.load(f)
             circuits = [name for name, prob in table.items()]
         for circuit_label in circuits:
-            circuit = transpile_swaps(circuit_label).circuit
-            pattern = load_pattern_from_circuit(circuit_label=circuit)
+            pattern = load_pattern_from_circuit(circuit_label=circuit_label)
             pattern.standardize()
             pattern.minimize_space()
 

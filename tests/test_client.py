@@ -79,8 +79,9 @@ class TestClient:
         nqubits = 2
         depth = 1
         for _i in range(10):
-            circuit = transpile_swaps(rand_circuit(nqubits, depth, fx_rng)).circuit
+            circuit = rand_circuit(nqubits, depth, fx_rng)
             pattern = circuit.transpile().pattern
+            pattern = pattern.infer_pauli_measurements()
             pattern.standardize()
 
             state = circuit.simulate_statevector().statevec
@@ -100,8 +101,9 @@ class TestClient:
         nqubits = 2
         depth = 1
         for _i in range(10):
-            circuit = transpile_swaps(rand_circuit(nqubits, depth, fx_rng)).circuit
+            circuit = rand_circuit(nqubits, depth, fx_rng)
             pattern = circuit.transpile().pattern
+            pattern = pattern.infer_pauli_measurements()
             pattern.standardize()
 
             secrets = Secrets(theta=True)
@@ -129,8 +131,9 @@ class TestClient:
         nqubits = 2
         depth = 1
         for _ in range(10):
-            circuit = transpile_swaps(rand_circuit(nqubits, depth, fx_rng)).circuit
+            circuit = rand_circuit(nqubits, depth, fx_rng)
             pattern = circuit.transpile().pattern
+            pattern = pattern.infer_pauli_measurements()
             pattern.standardize()
 
             secrets = Secrets(a=True)
@@ -211,7 +214,6 @@ class TestClient:
             pattern = circuit.transpile().pattern
             # pattern.minimize_space()
             # pattern.standardize(method="global")
-            pattern.minimize_space()
             secrets = Secrets(a=True, r=True, theta=True)
 
             # Create a |+> state for each input node, and associate index
@@ -251,9 +253,8 @@ class TestClient:
     def test_graph_clifford_structure(self, fx_rng: Generator) -> None:
         nqubits = 5
         depth = 10
-        circuit = transpile_swaps(rand_circuit(nqubits, depth, fx_rng)).circuit
+        circuit = rand_circuit(nqubits, depth, fx_rng)
         pattern = circuit.transpile().pattern
-        pattern.minimize_space()
         client = Client(pattern=pattern, rng=fx_rng)
         for node in client.graph.nodes:
             x_string = PauliString(["X" if i == node else "I" for i in client.graph.nodes])
