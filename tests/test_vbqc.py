@@ -11,6 +11,7 @@ from graphix.random_objects import rand_circuit
 from graphix.sim.density_matrix import DensityMatrixBackend
 from graphix.sim.statevec import StatevectorBackend
 from graphix.states import BasicStates
+from graphix.transpiler import transpile_swaps
 from graphix_qasm_parser import OpenQASMParser
 
 from veriphix.blinding import Secrets
@@ -25,7 +26,7 @@ if TYPE_CHECKING:
 
 def load_pattern_from_circuit(circuit_label: str) -> Pattern:
     parser = OpenQASMParser()
-    circuit = parser.parse_file(Path("tests/test_circuits") / circuit_label)
+    circuit = transpile_swaps(parser.parse_file(Path("tests/test_circuits") / circuit_label)).circuit
     pattern = circuit.transpile().pattern
     pattern.minimize_space()
     return pattern
@@ -36,8 +37,9 @@ class TestVBQC:
     def test_trap_delegated(self, fx_rng: np.random.Generator, blind: bool) -> None:
         nqubits = 3
         depth = 5
-        circuit = rand_circuit(nqubits, depth, fx_rng)
+        circuit = transpile_swaps(rand_circuit(nqubits, depth, fx_rng)).circuit
         pattern = circuit.transpile().pattern
+        pattern.minimize_space()
 
         secrets = Secrets(r=blind, a=blind, theta=blind)
         client = Client(pattern=pattern, secrets=secrets, rng=fx_rng)
@@ -49,8 +51,9 @@ class TestVBQC:
     def test_sample_canvas(self, fx_rng: Generator) -> None:
         nqubits = 3
         depth = 5
-        circuit = rand_circuit(nqubits, depth, fx_rng)
+        circuit = transpile_swaps(rand_circuit(nqubits, depth, fx_rng)).circuit
         pattern = circuit.transpile().pattern
+        pattern.minimize_space()
 
         client = Client(pattern=pattern, rng=fx_rng)
 
@@ -60,8 +63,9 @@ class TestVBQC:
     def test_delegate_canvas(self, fx_rng: Generator) -> None:
         nqubits = 3
         depth = 5
-        circuit = rand_circuit(nqubits, depth, fx_rng)
+        circuit = transpile_swaps(rand_circuit(nqubits, depth, fx_rng)).circuit
         pattern = circuit.transpile().pattern
+        pattern.minimize_space()
 
         svbackend = StatevectorBackend()
         simulated_pattern_output = pattern.simulate_pattern(backend=svbackend, rng=fx_rng)
@@ -96,8 +100,10 @@ class TestVBQC:
     def test_analyze_outcomes(self, fx_rng: Generator, blind: bool) -> None:
         nqubits = 3
         depth = 3
-        circuit = rand_circuit(nqubits, depth, fx_rng)
+        circuit = transpile_swaps(rand_circuit(nqubits, depth, fx_rng)).circuit
         pattern = circuit.transpile().pattern
+        pattern.minimize_space()
+
 
         secrets = Secrets(r=blind, a=blind, theta=blind)
 
@@ -117,7 +123,10 @@ class TestVBQC:
             table = json.load(f)
             circuits = [name for name, prob in table.items()]
         for circuit_label in circuits:
-            pattern = load_pattern_from_circuit(circuit_label=circuit_label)
+            circuit = transpile_swaps(circuit_label).circuit
+            pattern = load_pattern_from_circuit(circuit_label=circuit)
+            pattern.standardize()
+            pattern.minimize_space()
 
             secrets = Secrets(r=blind, a=blind, theta=blind)
 
@@ -136,6 +145,7 @@ class TestVBQC:
         nqubits = 3
         depth = 3
         circuit = rand_circuit(nqubits, depth, fx_rng)
+        circuit = transpile_swaps(circuit).circuit
         pattern = circuit.transpile().pattern
 
         states = [BasicStates.PLUS for _ in pattern.input_nodes]
@@ -159,8 +169,9 @@ class TestVBQC:
     def test_noisy(self, fx_rng: Generator) -> None:
         nqubits = 3
         depth = 3
-        circuit = rand_circuit(nqubits, depth, fx_rng)
+        circuit = transpile_swaps(rand_circuit(nqubits, depth, fx_rng)).circuit
         pattern = circuit.transpile().pattern
+        pattern.minimize_space()
 
         states = [BasicStates.PLUS for _ in pattern.input_nodes]
 

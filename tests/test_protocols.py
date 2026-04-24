@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 import pytest
 from graphix.random_objects import rand_circuit
 from graphix.sim.statevec import StatevectorBackend
+from graphix.transpiler import transpile_swaps
 from graphix_qasm_parser import OpenQASMParser
 
 from veriphix.blinding import Secrets
@@ -30,8 +31,9 @@ class TestProtocols:
     ) -> None:
         nqubits = 3
         depth = 5
-        circuit = rand_circuit(nqubits, depth, fx_rng)
+        circuit = transpile_swaps(rand_circuit(nqubits, depth, fx_rng)).circuit
         pattern = circuit.transpile().pattern
+        pattern.minimize_space()
 
         protocol = protocol_class()
         client = Client(pattern=pattern, protocol=protocol, rng=fx_rng)
@@ -49,7 +51,7 @@ class TestProtocols:
         parser = OpenQASMParser()
 
         def load_pattern_from_circuit(circuit_label: str) -> Pattern:
-            circuit = parser.parse_file(Path("tests/test_circuits") / circuit_label)
+            circuit = transpile_swaps(parser.parse_file(Path("tests/test_circuits") / circuit_label)).circuit
             pattern = circuit.transpile().pattern
             pattern.minimize_space()
             return pattern
@@ -71,10 +73,11 @@ class TestProtocols:
         # generate random circuit
         nqubits = 2
         depth = 1
-        circuit = rand_circuit(nqubits, depth, fx_rng)
+        circuit = transpile_swaps(rand_circuit(nqubits, depth, fx_rng)).circuit
         # transpile to pattern
         pattern = circuit.transpile().pattern
         pattern.standardize()
+        pattern.minimize_space()
 
         # initialise client
         protocol = FK12(manual_colouring=(set([0]), set()))
@@ -90,10 +93,13 @@ class TestProtocols:
         # generate random circuit
         nqubits = 2
         depth = 1
-        circuit = rand_circuit(nqubits, depth, fx_rng)
+        circuit = transpile_swaps(rand_circuit(nqubits, depth, fx_rng)).circuit
+
         # transpile to pattern
         pattern = circuit.transpile().pattern
         pattern.standardize()
+        pattern.minimize_space()
+
 
         nodes = pattern.extract_nodes()
 
@@ -111,8 +117,9 @@ class TestProtocols:
         """
         nqubits = 3
         depth = 5
-        circuit = rand_circuit(nqubits, depth, fx_rng)
+        circuit = transpile_swaps(rand_circuit(nqubits, depth, fx_rng)).circuit
         pattern = circuit.transpile().pattern
+        pattern.minimize_space()
 
         secrets = Secrets(r=True, a=True, theta=True)
         protocol = RandomTraps()
