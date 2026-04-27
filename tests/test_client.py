@@ -256,12 +256,13 @@ class TestClient:
         circuit = rand_circuit(nqubits, depth, fx_rng)
         pattern = circuit.transpile().pattern
         client = Client(pattern=pattern, rng=fx_rng)
+        n = len(client.clifford_structure)
         for node in client.graph.nodes:
-            x_string = PauliString(["X" if i == node else "I" for i in client.graph.nodes])
+            x_string = PauliString(["X" if i == node else "I" for i in range(n)])
             conjugated_string = client.clifford_structure.inverse()(x_string)
             neighbors = set(client.graph.neighbors(node))
             expected_conjugated_string = PauliString(
-                ["X" if i == node else "Z" if i in neighbors else "I" for i in client.graph.nodes]
+                ["X" if i == node else "Z" if i in neighbors else "I" for i in range(n)]
             )
             assert conjugated_string == expected_conjugated_string
 
