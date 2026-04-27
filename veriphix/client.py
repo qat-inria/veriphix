@@ -84,6 +84,7 @@ def remove_flow(pattern: Pattern) -> Pattern:
         # pattern types will become more precise in the near future.
         # See https://github.com/TeamGraphix/graphix/issues/266
         clean_pattern.add(cast("Command", new_cmd))
+    clean_pattern.reorder_output_nodes(pattern.output_nodes)
     return clean_pattern
 
 

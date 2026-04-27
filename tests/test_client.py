@@ -5,6 +5,7 @@ from graphix.measurements import Outcome
 from graphix.random_objects import rand_circuit
 from graphix.sim.statevec import StatevectorBackend
 from graphix.states import BasicStates
+from graphix.transpiler import transpile_swaps
 from numpy.random import Generator
 from stim import PauliString
 from typing_extensions import override
@@ -21,9 +22,10 @@ class TestClient:
         """
         nqubits = 2
         depth = 2
-        circuit = rand_circuit(nqubits, depth, fx_rng)
+        circuit = transpile_swaps(rand_circuit(nqubits, depth, fx_rng)).circuit
         pattern = circuit.transpile().pattern
         pattern.standardize()
+        pattern.minimize_space()
 
         states = [BasicStates.PLUS for _ in pattern.input_nodes]
 
@@ -39,7 +41,7 @@ class TestClient:
         """
         nqubits = 3
         depth = 5
-        circuit = rand_circuit(nqubits, depth, fx_rng)
+        circuit = transpile_swaps(rand_circuit(nqubits, depth, fx_rng)).circuit
         pattern = circuit.transpile().pattern
         pattern.minimize_space()
 
@@ -56,7 +58,7 @@ class TestClient:
         # Generate random pattern
         nqubits = 2
         depth = 1
-        circuit = rand_circuit(nqubits, depth, fx_rng)
+        circuit = transpile_swaps(rand_circuit(nqubits, depth, fx_rng)).circuit
         pattern = circuit.transpile().pattern
         pattern.standardize()
 
@@ -79,6 +81,7 @@ class TestClient:
         for _i in range(10):
             circuit = rand_circuit(nqubits, depth, fx_rng)
             pattern = circuit.transpile().pattern
+            pattern = pattern.infer_pauli_measurements()
             pattern.standardize()
 
             state = circuit.simulate_statevector().statevec
@@ -100,6 +103,7 @@ class TestClient:
         for _i in range(10):
             circuit = rand_circuit(nqubits, depth, fx_rng)
             pattern = circuit.transpile().pattern
+            pattern = pattern.infer_pauli_measurements()
             pattern.standardize()
 
             secrets = Secrets(theta=True)
@@ -129,6 +133,7 @@ class TestClient:
         for _ in range(10):
             circuit = rand_circuit(nqubits, depth, fx_rng)
             pattern = circuit.transpile().pattern
+            pattern = pattern.infer_pauli_measurements()
             pattern.standardize()
 
             secrets = Secrets(a=True)
@@ -154,7 +159,7 @@ class TestClient:
         # Generate and standardize pattern
         nqubits = 2
         depth = 1
-        circuit = rand_circuit(nqubits, depth, fx_rng)
+        circuit = transpile_swaps(rand_circuit(nqubits, depth, fx_rng)).circuit
         pattern = circuit.transpile().pattern
         pattern.standardize()
         server_results = dict()
@@ -183,7 +188,7 @@ class TestClient:
     def test_qubits_preparation(self, fx_rng: Generator) -> None:
         nqubits = 2
         depth = 1
-        circuit = rand_circuit(nqubits, depth, fx_rng)
+        circuit = transpile_swaps(rand_circuit(nqubits, depth, fx_rng)).circuit
         pattern = circuit.transpile().pattern
         pattern.standardize()
         secrets = Secrets(a=True, r=True, theta=True)
@@ -205,11 +210,10 @@ class TestClient:
         # TODO : work on optimization of the quantum communication
         depth = 15
         for _ in range(10):
-            circuit = rand_circuit(nqubits, depth, fx_rng)
+            circuit = transpile_swaps(rand_circuit(nqubits, depth, fx_rng)).circuit
             pattern = circuit.transpile().pattern
             # pattern.minimize_space()
             # pattern.standardize(method="global")
-
             secrets = Secrets(a=True, r=True, theta=True)
 
             # Create a |+> state for each input node, and associate index
@@ -234,8 +238,9 @@ class TestClient:
     def test_delegate_pattern(self, fx_rng: Generator) -> None:
         nqubits = 5
         depth = 10
-        circuit = rand_circuit(nqubits, depth, fx_rng)
+        circuit = transpile_swaps(rand_circuit(nqubits, depth, fx_rng)).circuit
         pattern = circuit.transpile().pattern
+        pattern.minimize_space()
 
         client = Client(pattern=pattern, rng=fx_rng)
 
@@ -251,12 +256,13 @@ class TestClient:
         circuit = rand_circuit(nqubits, depth, fx_rng)
         pattern = circuit.transpile().pattern
         client = Client(pattern=pattern, rng=fx_rng)
+        n = len(client.clifford_structure)
         for node in client.graph.nodes:
-            x_string = PauliString(["X" if i == node else "I" for i in client.graph.nodes])
+            x_string = PauliString(["X" if i == node else "I" for i in range(n)])
             conjugated_string = client.clifford_structure.inverse()(x_string)
             neighbors = set(client.graph.neighbors(node))
             expected_conjugated_string = PauliString(
-                ["X" if i == node else "Z" if i in neighbors else "I" for i in client.graph.nodes]
+                ["X" if i == node else "Z" if i in neighbors else "I" for i in range(n)]
             )
             assert conjugated_string == expected_conjugated_string
 
