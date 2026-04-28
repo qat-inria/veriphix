@@ -15,15 +15,14 @@ from veriphix.blinding import Secrets
 from veriphix.client import Client
 from veriphix.protocols import (
     FK12,
+    Dummyless,
     RandomTraps,
     VerificationProtocol,
-    Dummyless,
     _odd_pair_generators_bfs,
     _odd_pair_generators_exhaustive,
 )
 
 if TYPE_CHECKING:
-    import numpy as np
     from graphix import Pattern
     from numpy.random import Generator
 
@@ -128,10 +127,14 @@ class TestProtocols:
         assert decision
         assert result_analysis.nr_failed_test_rounds == 0
 
-    @pytest.mark.parametrize("odd_pair_generator", [
-        _odd_pair_generators_bfs,
-        _odd_pair_generators_exhaustive,
-    ], ids=["bfs", "exhaustive"])
+    @pytest.mark.parametrize(
+        "odd_pair_generator",
+        [
+            _odd_pair_generators_bfs,
+            _odd_pair_generators_exhaustive,
+        ],
+        ids=["bfs", "exhaustive"],
+    )
     def test_dummyless(self, fx_rng: np.random.Generator, odd_pair_generator) -> None:
         nqubits = 2
         depth = 1
@@ -155,13 +158,14 @@ class TestProtocols:
         n = len(stabilizers[0])
         rows = np.array(
             [
-                [int(stab[i] in (1, 2)) for i in range(n)]   # X part
-                + [int(stab[i] in (2, 3)) for i in range(n)] # Z part
+                [int(stab[i] in (1, 2)) for i in range(n)]  # X part
+                + [int(stab[i] in (2, 3)) for i in range(n)]  # Z part
                 for stab in stabilizers
             ],
             dtype=np.uint8,
         )
         mat = MatGF2(rows)
         rank = mat.compute_rank()
-        assert rank == len(client.graph.nodes) - 1, \
-            f"generators span a space of dimension {rank}, expected |V|-1={len(client.graph.nodes)-1}"
+        assert (
+            rank == len(client.graph.nodes) - 1
+        ), f"generators span a space of dimension {rank}, expected |V|-1={len(client.graph.nodes)-1}"

@@ -3,15 +3,14 @@ from __future__ import annotations
 import itertools
 from abc import ABC, abstractmethod
 from array import array
-from typing import TYPE_CHECKING
+from collections.abc import Callable
+from functools import reduce
+from operator import mul
+from typing import TYPE_CHECKING, TypeAlias
 
 import networkx as nx
 import stim
-from collections.abc import Callable
-from operator import mul
-from functools import reduce
 from graphix.rng import ensure_rng
-from typing import TypeAlias
 from typing_extensions import override
 
 from veriphix.verifying import TestRun
@@ -181,7 +180,6 @@ class RandomTraps(VerificationProtocol):
         return test_runs
 
 
-
 def _odd_pair_generators_bfs(
     graph: nx.Graph,
     stabdict: dict[int, GraphStabilizer],
@@ -193,9 +191,9 @@ def _odd_pair_generators_bfs(
     Even-degree nodes are traversed transparently; each time the BFS reaches a new
     odd-degree node w from a current odd-degree source src, the path src→…→w (whose
     interior nodes are all even-degree by BFS construction) defines one generator
-    R\\(src,w) = Rfull × S_src × … × S_w.
+    R\\(src,w) = Rfull x S_src x … x S_w.
 
-    Produces exactly |odd|−1 generators per connected component, i.e. one per edge of
+    Produces exactly |odd|-1 generators per connected component, i.e. one per edge of
     the spanning tree of odd-degree nodes. Time complexity: O(|V| + |E|).
 
     Parameters
@@ -258,10 +256,10 @@ def _odd_pair_generators_exhaustive(
 
     Tries every pair (u, w) of odd-degree nodes. For each pair, computes the shortest
     path between them and accepts it only if all interior nodes are even-degree. The
-    resulting generator R\\(u,w) = Rfull × S_u × … × S_w is further validated by
+    resulting generator R\\(u,w) = Rfull x S_u x … x S_w is further validated by
     checking it contains no Z Paulis.
 
-    This approach is correct but has time complexity O(|odd|² × (|V| + |E|)) and
+    This approach is correct but has time complexity O(|odd|² x (|V| + |E|)) and
     produces more generators than necessary (not a minimal spanning set).
     Prefer :func:`_odd_pair_generators_bfs` for large graphs.
 
@@ -306,7 +304,7 @@ class Dummyless(VerificationProtocol):
         self.odd_pair_generator = odd_pair_generator
 
     @override
-    def create_test_runs(self, client, rng = None, *, stacklevel = 1):
+    def create_test_runs(self, client, rng=None, *, stacklevel=1):
         rng = ensure_rng(rng, stacklevel=stacklevel + 1)
 
         # Step 0: build per-node GraphStabilizers (dict keyed by node id)
@@ -322,19 +320,15 @@ class Dummyless(VerificationProtocol):
         n_qubits = len(client.clifford_structure)
         identity = GraphStabilizer(node_indices=set(), string=stim.PauliString(n_qubits))
         rfull: GraphStabilizer = reduce(mul, stabdict.values(), identity)
-        generators: list[GraphStabilizer] = []
 
-        # Step 2a: for each even-degree node v, R\v = Rfull * S_v
         # (removing S_v leaves I at v and flips Z count on its neighbours — stays in I/X/Y)
-        for v in client.graph.nodes:
-            if client.graph.degree(v) % 2 == 0:
-                generators.append(rfull * stabdict[v])
+        # Step 2a: for each even-degree node v, R\v = Rfull * S_v
+        generators: list[GraphStabilizer] = [
+            rfull * stabdict[v] for v in client.graph.nodes if client.graph.degree(v) % 2 == 0
+        ]
 
         # Step 2b: one R\(u,w) generator per odd-degree node pair
         generators.extend(self.odd_pair_generator(client.graph, stabdict, rfull))
 
         # Step 3: build TestRuns — each generator's node_indices form one multi-qubit trap
-        return [
-            TestRun(client=client, traps=frozenset({frozenset(gs.node_indices)}))
-            for gs in generators
-        ]
+        return [TestRun(client=client, traps=frozenset({frozenset(gs.node_indices)})) for gs in generators]

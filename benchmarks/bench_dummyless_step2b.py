@@ -2,22 +2,22 @@
 Benchmark: exhaustive combinations vs BFS spanning tree for step 2b of Dummyless.
 Run with:  python benchmarks/bench_dummyless_step2b.py
 """
+
 from __future__ import annotations
 
-import time
 import itertools
-from collections import deque
+import time
 from functools import reduce
 from operator import mul
 
 import networkx as nx
 import numpy as np
+import stim
 from graphix.random_objects import rand_circuit
 
 from veriphix.client import Client
 from veriphix.protocols import Dummyless, GraphStabilizer
 from veriphix.verifying import TestRun
-import stim
 
 
 def _build_stabdict(client, identity: GraphStabilizer) -> tuple[dict[int, GraphStabilizer], GraphStabilizer]:
@@ -113,7 +113,7 @@ def benchmark(nqubits: int, depth: int, repeats: int = 5) -> None:
 
     print(f"  exhaustive : {t_exhaustive*1000:.2f} ms  ({len(g_exhaustive)} generators)")
     print(f"  BFS        : {t_bfs*1000:.2f} ms  ({len(g_bfs)} generators)")
-    print(f"  speedup    : {t_exhaustive / t_bfs:.1f}×")
+    print(f"  speedup    : {t_exhaustive / t_bfs:.1f}x")
 
 
 if __name__ == "__main__":
