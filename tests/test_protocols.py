@@ -18,6 +18,8 @@ from veriphix.protocols import (
     RandomTraps,
     VerificationProtocol,
     Dummyless,
+    _odd_pair_generators_bfs,
+    _odd_pair_generators_exhaustive,
 )
 
 if TYPE_CHECKING:
@@ -126,27 +128,29 @@ class TestProtocols:
         assert decision
         assert result_analysis.nr_failed_test_rounds == 0
 
-    def test_dummyless(self, fx_rng: np.random.Generator) -> None:
+    @pytest.mark.parametrize("odd_pair_generator", [
+        _odd_pair_generators_bfs,
+        _odd_pair_generators_exhaustive,
+    ], ids=["bfs", "exhaustive"])
+    def test_dummyless(self, fx_rng: np.random.Generator, odd_pair_generator) -> None:
         nqubits = 2
         depth = 1
         circuit = rand_circuit(nqubits, depth, fx_rng)
         pattern = circuit.transpile().pattern
 
         secrets = Secrets(r=True, a=True, theta=True)
-        protocol = Dummyless()
+        protocol = Dummyless(odd_pair_generator=odd_pair_generator)
         client = Client(pattern=pattern, secrets=secrets, protocol=protocol, rng=fx_rng)
 
         stabilizers = [run.stabilizer for run in client.test_runs]
         assert stabilizers, "no test runs generated"
-        assert len(stabilizers) == len(client.graph.nodes) - 1, \
-            f"expected |V|-1={len(client.graph.nodes)-1} generators, got {len(stabilizers)}"
 
         # Each stabilizer must be a tensor product of I, X, Y only (no Z)
         for stab in stabilizers:
             assert stab.pauli_indices("Z") == [], f"stabilizer contains Z: {stab}"
 
         # Linear independence over F2: represent each stabilizer as a 2n binary row vector
-        # (X-component || Z-component), stack into MatGF2, check rank == number of stabilizers.
+        # (X-component || Z-component), stack into MatGF2, check rank == |V|-1.
         # stim encodes paulis as: 0=I, 1=X, 2=Y, 3=Z
         n = len(stabilizers[0])
         rows = np.array(
@@ -158,4 +162,6 @@ class TestProtocols:
             dtype=np.uint8,
         )
         mat = MatGF2(rows)
-        assert mat.compute_rank() == len(stabilizers), "stabilizers are not linearly independent"
+        rank = mat.compute_rank()
+        assert rank == len(client.graph.nodes) - 1, \
+            f"generators span a space of dimension {rank}, expected |V|-1={len(client.graph.nodes)-1}"

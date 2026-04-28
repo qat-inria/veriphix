@@ -7,9 +7,11 @@ from typing import TYPE_CHECKING
 
 import networkx as nx
 import stim
+from collections.abc import Callable
 from operator import mul
 from functools import reduce
 from graphix.rng import ensure_rng
+from typing import TypeAlias
 from typing_extensions import override
 
 from veriphix.verifying import TestRun
@@ -180,9 +182,128 @@ class RandomTraps(VerificationProtocol):
 
 
 
+def _odd_pair_generators_bfs(
+    graph: nx.Graph,
+    stabdict: dict[int, GraphStabilizer],
+    rfull: GraphStabilizer,
+) -> list[GraphStabilizer]:
+    """Find R\\(u,w) generators for all pairs of odd-degree nodes using a BFS spanning tree.
+
+    Builds a spanning tree of odd-degree nodes by doing BFS over the whole graph.
+    Even-degree nodes are traversed transparently; each time the BFS reaches a new
+    odd-degree node w from a current odd-degree source src, the path src→…→w (whose
+    interior nodes are all even-degree by BFS construction) defines one generator
+    R\\(src,w) = Rfull × S_src × … × S_w.
+
+    Produces exactly |odd|−1 generators per connected component, i.e. one per edge of
+    the spanning tree of odd-degree nodes. Time complexity: O(|V| + |E|).
+
+    Parameters
+    ----------
+    graph : nx.Graph
+        The resource graph.
+    stabdict : dict[int, GraphStabilizer]
+        Per-node canonical stabilizers S_v.
+    rfull : GraphStabilizer
+        Product of all S_v (Rfull).
+
+    Returns
+    -------
+    list[GraphStabilizer]
+        The R\\(u,w) generators, one per spanning-tree edge of odd-degree nodes.
+    """
+    odd_nodes_set = {v for v in graph.nodes if graph.degree(v) % 2 == 1}
+    visited: set[int] = set()
+    pred: dict[int, int] = {}
+    odd_source: dict[int, int] = {}
+    generators: list[GraphStabilizer] = []
+
+    for start in odd_nodes_set:
+        if start in visited:
+            continue
+        visited.add(start)
+        odd_source[start] = start
+        queue: list[int] = [start]
+        while queue:
+            u = queue.pop(0)
+            for w in graph.neighbors(u):
+                if w in visited:
+                    continue
+                pred[w] = u
+                visited.add(w)
+                queue.append(w)
+                if w in odd_nodes_set:
+                    odd_source[w] = w
+                    src = odd_source[u]
+                    path: list[int] = []
+                    node: int = w
+                    while node != src:
+                        path.append(node)
+                        node = pred[node]
+                    path.append(src)
+                    path.reverse()
+                    generators.append(reduce(mul, (stabdict[v] for v in path), rfull))
+                else:
+                    odd_source[w] = odd_source[u]
+
+    return generators
+
+
+def _odd_pair_generators_exhaustive(
+    graph: nx.Graph,
+    stabdict: dict[int, GraphStabilizer],
+    rfull: GraphStabilizer,
+) -> list[GraphStabilizer]:
+    """Find R\\(u,w) generators for all pairs of odd-degree nodes by exhaustive search.
+
+    Tries every pair (u, w) of odd-degree nodes. For each pair, computes the shortest
+    path between them and accepts it only if all interior nodes are even-degree. The
+    resulting generator R\\(u,w) = Rfull × S_u × … × S_w is further validated by
+    checking it contains no Z Paulis.
+
+    This approach is correct but has time complexity O(|odd|² × (|V| + |E|)) and
+    produces more generators than necessary (not a minimal spanning set).
+    Prefer :func:`_odd_pair_generators_bfs` for large graphs.
+
+    Parameters
+    ----------
+    graph : nx.Graph
+        The resource graph.
+    stabdict : dict[int, GraphStabilizer]
+        Per-node canonical stabilizers S_v.
+    rfull : GraphStabilizer
+        Product of all S_v (Rfull).
+
+    Returns
+    -------
+    list[GraphStabilizer]
+        All valid R\\(u,w) generators found.
+    """
+    odd_nodes = [v for v in graph.nodes if graph.degree(v) % 2 == 1]
+    generators: list[GraphStabilizer] = []
+    for u, w in itertools.combinations(odd_nodes, 2):
+        try:
+            path = nx.shortest_path(graph, u, w)
+        except nx.NetworkXNoPath:
+            continue
+        if not all(graph.degree(v) % 2 == 0 for v in path[1:-1]):
+            continue
+        candidate = reduce(mul, (stabdict[v] for v in path), rfull)
+        if candidate.string.pauli_indices("Z") == []:
+            generators.append(candidate)
+    return generators
+
+
+OddPairGeneratorFn: TypeAlias = Callable[
+    [nx.Graph, dict[int, GraphStabilizer], GraphStabilizer],
+    list[GraphStabilizer],
+]
+
+
 class Dummyless(VerificationProtocol):
-    def __init__(self):
+    def __init__(self, odd_pair_generator: OddPairGeneratorFn = _odd_pair_generators_bfs) -> None:
         super().__init__()
+        self.odd_pair_generator = odd_pair_generator
 
     @override
     def create_test_runs(self, client, rng = None, *, stacklevel = 1):
@@ -209,46 +330,8 @@ class Dummyless(VerificationProtocol):
             if client.graph.degree(v) % 2 == 0:
                 generators.append(rfull * stabdict[v])
 
-        # Step 2b: for odd-degree node, connect to another odd-degree node using even-degree
-        # nodes only.
-        # Optimized search method by Breadth First Search (BFS), suggested and implemented by Anthropic's Claude.
-        # BFS spanning tree over odd-degree nodes, traversing freely through the graph.
-        # odd_source[n] tracks the nearest odd ancestor of n in the BFS tree; when a new odd
-        # node w is discovered, the path from odd_source[predecessor] to w is a valid chain
-        # (even-degree intermediates by BFS construction). Produces |odd|-1 generators total.
-        odd_nodes_set = {v for v in client.graph.nodes if client.graph.degree(v) % 2 == 1}
-        visited: set[int] = set()
-        pred: dict[int, int] = {}
-        odd_source: dict[int, int] = {}  # nearest odd ancestor of each node in the BFS tree
-
-        for start in odd_nodes_set:
-            if start in visited:
-                continue
-            visited.add(start)
-            odd_source[start] = start
-            queue: list[int] = [start]
-            while queue:
-                u = queue.pop(0)
-                for w in client.graph.neighbors(u):
-                    if w in visited:
-                        continue
-                    pred[w] = u
-                    visited.add(w)
-                    queue.append(w)
-                    if w in odd_nodes_set:
-                        odd_source[w] = w
-                        # Reconstruct path from odd_source[u] to w
-                        src = odd_source[u]
-                        path: list[int] = []
-                        node: int = w
-                        while node != src:
-                            path.append(node)
-                            node = pred[node]
-                        path.append(src)
-                        path.reverse()
-                        generators.append(reduce(mul, (stabdict[v] for v in path), rfull))
-                    else:
-                        odd_source[w] = odd_source[u]
+        # Step 2b: one R\(u,w) generator per odd-degree node pair
+        generators.extend(self.odd_pair_generator(client.graph, stabdict, rfull))
 
         # Step 3: build TestRuns — each generator's node_indices form one multi-qubit trap
         return [
