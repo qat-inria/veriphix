@@ -4,7 +4,9 @@ import json
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import numpy as np
 import pytest
+from graphix._linalg import MatGF2
 from graphix.random_objects import rand_circuit
 from graphix.sim.statevec import StatevectorBackend
 from graphix_qasm_parser import OpenQASMParser
@@ -15,6 +17,7 @@ from veriphix.protocols import (
     FK12,
     RandomTraps,
     VerificationProtocol,
+    Dummyless,
 )
 
 if TYPE_CHECKING:
@@ -122,3 +125,37 @@ class TestProtocols:
         decision, _, result_analysis = client.analyze_outcomes(canvas=canvas, outcomes=run_results)
         assert decision
         assert result_analysis.nr_failed_test_rounds == 0
+
+    def test_dummyless(self, fx_rng: np.random.Generator) -> None:
+        nqubits = 2
+        depth = 1
+        circuit = rand_circuit(nqubits, depth, fx_rng)
+        pattern = circuit.transpile().pattern
+
+        secrets = Secrets(r=True, a=True, theta=True)
+        protocol = Dummyless()
+        client = Client(pattern=pattern, secrets=secrets, protocol=protocol, rng=fx_rng)
+
+        stabilizers = [run.stabilizer for run in client.test_runs]
+        assert stabilizers, "no test runs generated"
+        assert len(stabilizers) == len(client.graph.nodes) - 1, \
+            f"expected |V|-1={len(client.graph.nodes)-1} generators, got {len(stabilizers)}"
+
+        # Each stabilizer must be a tensor product of I, X, Y only (no Z)
+        for stab in stabilizers:
+            assert stab.pauli_indices("Z") == [], f"stabilizer contains Z: {stab}"
+
+        # Linear independence over F2: represent each stabilizer as a 2n binary row vector
+        # (X-component || Z-component), stack into MatGF2, check rank == number of stabilizers.
+        # stim encodes paulis as: 0=I, 1=X, 2=Y, 3=Z
+        n = len(stabilizers[0])
+        rows = np.array(
+            [
+                [int(stab[i] in (1, 2)) for i in range(n)]   # X part
+                + [int(stab[i] in (2, 3)) for i in range(n)] # Z part
+                for stab in stabilizers
+            ],
+            dtype=np.uint8,
+        )
+        mat = MatGF2(rows)
+        assert mat.compute_rank() == len(stabilizers), "stabilizers are not linearly independent"

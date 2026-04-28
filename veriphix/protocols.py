@@ -6,6 +6,9 @@ from array import array
 from typing import TYPE_CHECKING
 
 import networkx as nx
+import stim
+from operator import mul
+from functools import reduce
 from graphix.rng import ensure_rng
 from typing_extensions import override
 
@@ -21,6 +24,18 @@ if TYPE_CHECKING:
     from veriphix.client import Client
 
     _StateT = TypeVar("_StateT")
+
+
+class GraphStabilizer:
+    def __init__(self, node_indices: set[int], string: stim.PauliString) -> None:
+        self.node_indices = node_indices
+        self.string = string
+
+    def __mul__(self, other: GraphStabilizer) -> GraphStabilizer:
+        return GraphStabilizer(
+            node_indices=self.node_indices ^ other.node_indices,
+            string=self.string * other.string,
+        )
 
 
 class VerificationProtocol(ABC):
@@ -162,3 +177,81 @@ class RandomTraps(VerificationProtocol):
             test_runs.append(test_run)
 
         return test_runs
+
+
+
+class Dummyless(VerificationProtocol):
+    def __init__(self):
+        super().__init__()
+
+    @override
+    def create_test_runs(self, client, rng = None, *, stacklevel = 1):
+        rng = ensure_rng(rng, stacklevel=stacklevel + 1)
+
+        # Step 0: build per-node GraphStabilizers (dict keyed by node id)
+        stabdict: dict[int, GraphStabilizer] = {
+            node: GraphStabilizer(
+                node_indices={node},
+                string=TestRun(client=client, traps=frozenset({frozenset({node})})).stabilizer,
+            )
+            for node in client.graph.nodes
+        }
+
+        # Step 1: Rfull = product of all S_v
+        n_qubits = len(client.clifford_structure)
+        identity = GraphStabilizer(node_indices=set(), string=stim.PauliString(n_qubits))
+        rfull: GraphStabilizer = reduce(mul, stabdict.values(), identity)
+        generators: list[GraphStabilizer] = []
+
+        # Step 2a: for each even-degree node v, R\v = Rfull * S_v
+        # (removing S_v leaves I at v and flips Z count on its neighbours — stays in I/X/Y)
+        for v in client.graph.nodes:
+            if client.graph.degree(v) % 2 == 0:
+                generators.append(rfull * stabdict[v])
+
+        # Step 2b: for odd-degree node, connect to another odd-degree node using even-degree
+        # nodes only.
+        # Optimized search method by Breadth First Search (BFS), suggested and implemented by Anthropic's Claude.
+        # BFS spanning tree over odd-degree nodes, traversing freely through the graph.
+        # odd_source[n] tracks the nearest odd ancestor of n in the BFS tree; when a new odd
+        # node w is discovered, the path from odd_source[predecessor] to w is a valid chain
+        # (even-degree intermediates by BFS construction). Produces |odd|-1 generators total.
+        odd_nodes_set = {v for v in client.graph.nodes if client.graph.degree(v) % 2 == 1}
+        visited: set[int] = set()
+        pred: dict[int, int] = {}
+        odd_source: dict[int, int] = {}  # nearest odd ancestor of each node in the BFS tree
+
+        for start in odd_nodes_set:
+            if start in visited:
+                continue
+            visited.add(start)
+            odd_source[start] = start
+            queue: list[int] = [start]
+            while queue:
+                u = queue.pop(0)
+                for w in client.graph.neighbors(u):
+                    if w in visited:
+                        continue
+                    pred[w] = u
+                    visited.add(w)
+                    queue.append(w)
+                    if w in odd_nodes_set:
+                        odd_source[w] = w
+                        # Reconstruct path from odd_source[u] to w
+                        src = odd_source[u]
+                        path: list[int] = []
+                        node: int = w
+                        while node != src:
+                            path.append(node)
+                            node = pred[node]
+                        path.append(src)
+                        path.reverse()
+                        generators.append(reduce(mul, (stabdict[v] for v in path), rfull))
+                    else:
+                        odd_source[w] = odd_source[u]
+
+        # Step 3: build TestRuns — each generator's node_indices form one multi-qubit trap
+        return [
+            TestRun(client=client, traps=frozenset({frozenset(gs.node_indices)}))
+            for gs in generators
+        ]
