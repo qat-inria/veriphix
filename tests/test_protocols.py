@@ -166,6 +166,6 @@ class TestProtocols:
         )
         mat = MatGF2(rows)
         rank = mat.compute_rank()
-        assert (
-            rank == len(client.graph.nodes) - 1
-        ), f"generators span a space of dimension {rank}, expected |V|-1={len(client.graph.nodes)-1}"
+        assert rank == len(client.graph.nodes) - 1, (
+            f"generators span a space of dimension {rank}, expected |V|-1={len(client.graph.nodes) - 1}"
+        )

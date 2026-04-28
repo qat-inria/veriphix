@@ -111,8 +111,8 @@ def benchmark(nqubits: int, depth: int, repeats: int = 5) -> None:
         g_bfs = step2b_bfs(client, stabdict, rfull, identity)
     t_bfs = (time.perf_counter() - t0) / repeats
 
-    print(f"  exhaustive : {t_exhaustive*1000:.2f} ms  ({len(g_exhaustive)} generators)")
-    print(f"  BFS        : {t_bfs*1000:.2f} ms  ({len(g_bfs)} generators)")
+    print(f"  exhaustive : {t_exhaustive * 1000:.2f} ms  ({len(g_exhaustive)} generators)")
+    print(f"  BFS        : {t_bfs * 1000:.2f} ms  ({len(g_bfs)} generators)")
     print(f"  speedup    : {t_exhaustive / t_bfs:.1f}x")
 
 

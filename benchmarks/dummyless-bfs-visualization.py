@@ -147,8 +147,7 @@ class BFSVisualizer:
         edge_colors = []
         widths = []
 
-        path_edges = {tuple(sorted((a, b))) for a, b in zip(step["path"], step["path"][1:])}
-
+        path_edges = {tuple(sorted((a, b))) for a, b in zip(step["path"], step["path"][1:], strict=False)}
         for a, b in self.graph.edges:
             e = tuple(sorted((a, b)))
             if e in path_edges:
