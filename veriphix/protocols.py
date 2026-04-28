@@ -304,7 +304,7 @@ class Dummyless(VerificationProtocol):
         self.odd_pair_generator = odd_pair_generator
 
     @override
-    def create_test_runs(self, client, rng=None, *, stacklevel=1):
+    def create_test_runs(self, client, rng=None, *, stacklevel=1) -> list[TestRun]:
         rng = ensure_rng(rng, stacklevel=stacklevel + 1)
 
         # Step 0: build per-node GraphStabilizers (dict keyed by node id)

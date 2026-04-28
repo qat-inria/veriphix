@@ -16,6 +16,7 @@ from veriphix.client import Client
 from veriphix.protocols import (
     FK12,
     Dummyless,
+    OddPairGeneratorFn,
     RandomTraps,
     VerificationProtocol,
     _odd_pair_generators_bfs,
@@ -135,7 +136,7 @@ class TestProtocols:
         ],
         ids=["bfs", "exhaustive"],
     )
-    def test_dummyless(self, fx_rng: np.random.Generator, odd_pair_generator) -> None:
+    def test_dummyless(self, fx_rng: np.random.Generator, odd_pair_generator: OddPairGeneratorFn) -> None:
         nqubits = 2
         depth = 1
         circuit = rand_circuit(nqubits, depth, fx_rng)
