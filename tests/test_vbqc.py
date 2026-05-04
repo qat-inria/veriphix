@@ -15,6 +15,7 @@ from graphix_qasm_parser import OpenQASMParser
 
 from veriphix.blinding import Secrets
 from veriphix.client import Client
+from veriphix.protocols import RandomTraps, TestRun
 from veriphix.malicious_noise_model import MaliciousNoiseModel
 from veriphix.verifying import QuantumComputationResult, TrappifiedSchemeParameters
 
@@ -158,6 +159,83 @@ class TestVBQC:
             assert sum(trap_outcomes.values()) == 0
 
     @pytest.mark.parametrize("noise_model_name", ["depolarising", "malicious"])
+    def test_random_traps_performance(self, fx_rng: Generator, noise_model_name: str) -> None:
+        nqubits = 3
+        depth = 4
+        circuit = rand_circuit(nqubits, depth, fx_rng)
+        pattern = circuit.transpile().pattern
+
+        secrets = Secrets(a=True, r=True, theta=True)
+        protocol = RandomTraps()
+
+        n_test = 100
+
+
+        client = Client(
+            pattern=pattern,
+            secrets=secrets,
+            protocol=protocol,
+            rng=fx_rng
+        )
+
+        nodes = list(client.nodes)
+
+        subset_size = int(fx_rng.integers(1, len(nodes) + 1))
+        malicious_nodes = [
+            int(node)
+            for node in fx_rng.choice(nodes, size=subset_size, replace=False)
+        ]
+
+        if noise_model_name == "depolarising":
+            noise_model = DepolarisingNoiseModel(
+                measure_error_prob=1,
+                entanglement_error_prob=1,
+                x_error_prob=1,
+                z_error_prob=1,
+                measure_channel_prob=1,
+            )
+        elif noise_model_name == "malicious":
+            subset_size = int(fx_rng.integers(1, len(client.nodes)))
+            malicious_nodes = [int(node) for node in fx_rng.choice(client.nodes, size=subset_size, replace=False)]
+
+            noise_model = MaliciousNoiseModel(
+                nodes=malicious_nodes,
+                prob=1,
+                rng=fx_rng,
+            )
+        else:
+            raise ValueError(f"Unknown noise model: {noise_model_name}")
+
+        failures = 0
+
+        for _ in range(n_test):
+            backend = DensityMatrixBackend()
+            client.refresh_randomness(rng=fx_rng)
+
+            # Uniform random non-empty H ⊆ V
+            H = sample_non_empty_subset(nodes=client.nodes, rng=fx_rng)
+
+            test_run = TestRun(client=client, traps=frozenset({H}))
+
+            trap_outcomes = test_run.delegate(
+                backend=backend,
+                noise_model=noise_model,
+                rng=fx_rng,
+            ).trap_outcomes
+
+            detected = sum(trap_outcomes.values()) > 0
+            failures += int(detected)
+
+
+        print(failures)
+        detection_rate = failures / n_test
+
+        assert 0.35 <= detection_rate <= 0.65, (
+            f"Expected ≈1/2 detection rate, got {detection_rate:.3f}; "
+            f"malicious_nodes={malicious_nodes}"
+        )
+
+    @pytest.mark.parametrize("noise_model_name", ["depolarising", "malicious"])
     def test_noisy(self, fx_rng: Generator, noise_model_name: str) -> None:
         nqubits = 3
         depth = 3
@@ -214,3 +292,12 @@ def find_correct_value(circuit_name: str) -> Outcome:
         # return 0 else (no instance, as circuits are already filtered)
         # print(table[circuit_name])
         return round(table[circuit_name])
+
+
+def sample_non_empty_subset(nodes, rng: np.random.Generator) -> frozenset:
+    nodes = list(nodes)
+
+    while True:
+        keep = rng.random(len(nodes)) < 0.5
+        if keep.any():
+            return frozenset(node for node, k in zip(nodes, keep) if k)

@@ -128,6 +128,55 @@ class TestProtocols:
         assert decision
         assert result_analysis.nr_failed_test_rounds == 0
 
+    def test_random_general_traps_average_detection_rate(self, fx_rng: np.random.Generator) -> None:
+        """
+        Showcase Lemma 8 behavior:
+        for any fixed non-empty Pauli X/Y support E, a uniformly random non-empty
+        subset H detects iff |E ∩ H| is odd, giving average detection ≈ 1/2.
+
+        This test intentionally checks the trap-selection logic, not backend physics.
+        """
+
+        nqubits = 2
+        depth = 2
+        circuit = rand_circuit(nqubits, depth, fx_rng)
+        pattern = circuit.transpile().pattern
+
+        secrets = Secrets(a=True, r=True, theta=True)
+        protocol = RandomTraps()
+        client = Client(pattern=pattern, secrets=secrets, protocol=protocol, rng=fx_rng)
+        
+        nodes = list(client.nodes)
+        n = len(nodes)
+
+        # Fixed arbitrary Pauli deviation support:
+        # these are the qubits where the Pauli is X or Y after twirling.
+        error_size = int(fx_rng.integers(1, n + 1))
+        error_support = frozenset(
+            fx_rng.choice(nodes, size=error_size, replace=False).tolist()
+        )
+
+        n_test_runs = 100
+        detections = 0
+
+        for _ in range(n_test_runs):
+            # IMPORTANT: sample uniformly from non-empty subsets.
+            # Your current rng.integers(n) excludes size n and allows size 0.
+            mask = fx_rng.integers(1, 2**n)
+            H = frozenset(nodes[i] for i in range(n) if (mask >> i) & 1)
+
+            detected = (len(error_support & H) % 2) == 1
+            detections += int(detected)
+
+        detection_rate = detections / n_test_runs
+
+        # With 100 samples, allow statistical slack.
+        assert 0.35 <= detection_rate <= 0.65, (
+            f"Expected ≈1/2 detection rate, got {detection_rate:.3f}; "
+            f"error_support={error_support}"
+        )
+
+
     @pytest.mark.parametrize(
         "odd_pair_generator",
         [
