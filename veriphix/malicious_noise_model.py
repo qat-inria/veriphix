@@ -58,8 +58,7 @@ class MaliciousNoiseModel(NoiseModel):
 
     def __init__(self, nodes: list[int], prob: float = 0.0, rng: Generator | None = None) -> None:
         self.prob = prob
-        self.nodes = nodes
-        self.nodes = {int(node) for node in nodes}
+        self.nodes: set[int] = {int(node) for node in nodes}  # ✅ Explicitly annotate as set[int]
         self.refresh_randomness(rng)
 
     def refresh_randomness(self, rng: Generator | None = None) -> None:

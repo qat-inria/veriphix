@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import pytest
-from graphix.noise_models import DepolarisingNoiseModel
+from graphix.noise_models import DepolarisingNoiseModel, NoiseModel
 from graphix.random_objects import rand_circuit
 from graphix.sim.density_matrix import DensityMatrixBackend
 from graphix.sim.statevec import StatevectorBackend
@@ -169,6 +169,7 @@ class TestVBQC:
 
         client = Client(pattern=pattern, input_state=states, secrets=secrets, rng=fx_rng)
 
+        noise_model: NoiseModel
         if noise_model_name == "depolarising":
             noise_model = DepolarisingNoiseModel(
                 measure_error_prob=1,
