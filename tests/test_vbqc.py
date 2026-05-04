@@ -16,6 +16,7 @@ from graphix_qasm_parser import OpenQASMParser
 from veriphix.blinding import Secrets
 from veriphix.client import Client
 from veriphix.verifying import QuantumComputationResult, TrappifiedSchemeParameters
+from veriphix.malicious_noise_model import MaliciousNoiseModel
 
 if TYPE_CHECKING:
     from graphix.measurements import Outcome
@@ -53,8 +54,8 @@ class TestVBQC:
         pattern = circuit.transpile().pattern
 
         client = Client(pattern=pattern, rng=fx_rng)
-
-        assert client.sample_canvas(rng=fx_rng)
+        canvas = client.sample_canvas(rng=fx_rng)
+        assert canvas
         # Just tests that it runs
 
     def test_delegate_canvas(self, fx_rng: Generator) -> None:
@@ -156,30 +157,58 @@ class TestVBQC:
             trap_outcomes = test_run.delegate(backend=backend, noise_model=noise_model, rng=fx_rng).trap_outcomes
             assert sum(trap_outcomes.values()) == 0
 
-    def test_noisy(self, fx_rng: Generator) -> None:
+    @pytest.mark.parametrize("noise_model_name", ["depolarising", "malicious"])
+    def test_noisy(self, fx_rng: Generator, noise_model_name: str) -> None:
         nqubits = 3
         depth = 3
         circuit = rand_circuit(nqubits, depth, fx_rng)
         pattern = circuit.transpile().pattern
 
         states = [BasicStates.PLUS for _ in pattern.input_nodes]
-
         secrets = Secrets(a=True, r=True, theta=True)
 
         client = Client(pattern=pattern, input_state=states, secrets=secrets, rng=fx_rng)
-        noise_model = DepolarisingNoiseModel(
-            measure_error_prob=1,
-            entanglement_error_prob=1,
-            x_error_prob=1,
-            z_error_prob=1,
-            measure_channel_prob=1,
-        )
+
+        if noise_model_name == "depolarising":
+            noise_model = DepolarisingNoiseModel(
+                measure_error_prob=1,
+                entanglement_error_prob=1,
+                x_error_prob=1,
+                z_error_prob=1,
+                measure_channel_prob=1,
+            )
+        elif noise_model_name == "malicious":
+            subset_size = int(fx_rng.integers(1, len(client.nodes)))
+            malicious_nodes = [
+                int(node)
+                for node in fx_rng.choice(client.nodes, size=subset_size, replace=False)
+            ]
+
+
+            noise_model = MaliciousNoiseModel(
+                nodes=malicious_nodes,
+                prob=1,
+                rng=fx_rng,
+            )
+        else:
+            raise ValueError(f"Unknown noise model: {noise_model_name}")
+
+        failures = 0
 
         for test_run in client.test_runs:
             backend = DensityMatrixBackend()
             client.refresh_randomness(rng=fx_rng)
-            trap_outcomes = test_run.delegate(backend=backend, noise_model=noise_model, rng=fx_rng).trap_outcomes
-            assert sum(trap_outcomes.values()) > 0
+
+            trap_outcomes = test_run.delegate(
+                backend=backend,
+                noise_model=noise_model,
+                rng=fx_rng,
+            ).trap_outcomes
+
+            if sum(trap_outcomes.values()) > 0:
+                failures += 1
+
+        assert failures > 0
 
 
 def find_correct_value(circuit_name: str) -> Outcome:
