@@ -15,8 +15,8 @@ from graphix_qasm_parser import OpenQASMParser
 
 from veriphix.blinding import Secrets
 from veriphix.client import Client
-from veriphix.verifying import QuantumComputationResult, TrappifiedSchemeParameters
 from veriphix.malicious_noise_model import MaliciousNoiseModel
+from veriphix.verifying import QuantumComputationResult, TrappifiedSchemeParameters
 
 if TYPE_CHECKING:
     from graphix.measurements import Outcome
@@ -179,11 +179,7 @@ class TestVBQC:
             )
         elif noise_model_name == "malicious":
             subset_size = int(fx_rng.integers(1, len(client.nodes)))
-            malicious_nodes = [
-                int(node)
-                for node in fx_rng.choice(client.nodes, size=subset_size, replace=False)
-            ]
-
+            malicious_nodes = [int(node) for node in fx_rng.choice(client.nodes, size=subset_size, replace=False)]
 
             noise_model = MaliciousNoiseModel(
                 nodes=malicious_nodes,
