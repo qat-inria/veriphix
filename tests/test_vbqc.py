@@ -15,6 +15,7 @@ from graphix_qasm_parser import OpenQASMParser
 
 from veriphix.blinding import Secrets
 from veriphix.client import Client
+from veriphix.protocols import RandomTraps, TestRun
 from veriphix.malicious_noise_model import MaliciousNoiseModel
 from veriphix.protocols import FK12, RandomTraps
 from veriphix.util_rounds import optimize_with_robustness_constraint
@@ -375,3 +376,12 @@ def find_correct_value(circuit_name: str) -> Outcome:
         # return 0 else (no instance, as circuits are already filtered)
         # print(table[circuit_name])
         return round(table[circuit_name])
+
+
+def sample_non_empty_subset(nodes, rng: np.random.Generator) -> frozenset:
+    nodes = list(nodes)
+
+    while True:
+        keep = rng.random(len(nodes)) < 0.5
+        if keep.any():
+            return frozenset(node for node, k in zip(nodes, keep) if k)
