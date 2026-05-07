@@ -257,7 +257,7 @@ class Client:
         computation_rounds = set(rng.choice(N, size=self.trappifiedScheme.params.comp_rounds, replace=False))
 
         return {
-            r: self.computationRun if r in computation_rounds else self.test_runs[rng.integers(len(self.test_runs))]
+            r: self.computationRun if r in computation_rounds else self.protocol.sample_test_run(client=self, rng=rng)
             for r in range(N)
         }
 

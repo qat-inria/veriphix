@@ -145,16 +145,14 @@ class TestProtocols:
         secrets = Secrets(a=True, r=True, theta=True)
         protocol = RandomTraps()
         client = Client(pattern=pattern, secrets=secrets, protocol=protocol, rng=fx_rng)
-        
+
         nodes = list(client.nodes)
         n = len(nodes)
 
         # Fixed arbitrary Pauli deviation support:
         # these are the qubits where the Pauli is X or Y after twirling.
         error_size = int(fx_rng.integers(1, n + 1))
-        error_support = frozenset(
-            fx_rng.choice(nodes, size=error_size, replace=False).tolist()
-        )
+        error_support = frozenset(fx_rng.choice(nodes, size=error_size, replace=False).tolist())
 
         n_test_runs = 100
         detections = 0
@@ -172,10 +170,8 @@ class TestProtocols:
 
         # With 100 samples, allow statistical slack.
         assert 0.35 <= detection_rate <= 0.65, (
-            f"Expected ≈1/2 detection rate, got {detection_rate:.3f}; "
-            f"error_support={error_support}"
+            f"Expected ≈1/2 detection rate, got {detection_rate:.3f}; error_support={error_support}"
         )
-
 
     @pytest.mark.parametrize(
         "odd_pair_generator",

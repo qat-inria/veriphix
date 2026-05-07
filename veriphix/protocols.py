@@ -40,8 +40,17 @@ class GraphStabilizer:
 
 
 class VerificationProtocol(ABC):
+    @property
+    @abstractmethod
+    def detection_rate(self) -> float:
+        pass
+
     @abstractmethod
     def create_test_runs(self, client: Client, rng: Generator | None = None, *, stacklevel: int = 1) -> list[TestRun]:
+        pass
+
+    @abstractmethod
+    def sample_test_run(self, client: Client, rng: Generator | None = None, *, stacklevel: int = 1) -> TestRun:
         pass
 
 
@@ -49,6 +58,16 @@ class FK12(VerificationProtocol):
     def __init__(self, manual_colouring: Sequence[set[int]] | None = None) -> None:
         super().__init__()
         self.manual_colouring = manual_colouring
+        # self._detection_rate: float = 1 / 2
+
+    @property
+    @override
+    def detection_rate(self) -> float:
+        return self._detection_rate
+
+    @detection_rate.setter
+    def detection_rate(self, value: float) -> None:
+        self._detection_rate = value
 
     @override
     def create_test_runs(self, client: Client, rng: Generator | None = None, *, stacklevel: int = 1) -> list[TestRun]:
@@ -123,6 +142,11 @@ class FK12(VerificationProtocol):
         # print(test_runs)
         return test_runs
 
+    @override
+    def sample_test_run(self, client: Client, rng: Generator | None = None, *, stacklevel: int = 1) -> TestRun:
+        rng = ensure_rng(rng, stacklevel=stacklevel + 1)
+        return client.test_runs[rng.integers(len(client.test_runs))]
+
 
 def get_bipartite_coloring(pattern: Pattern) -> tuple[set[int], set[int]]:
     """Return a bipartite coloring for the given pattern."""
@@ -153,32 +177,33 @@ def get_node_positions(pattern: Pattern, scale: float = 1, reverse_qubit_order: 
 
 
 class RandomTraps(VerificationProtocol):
-    """
-    A bad and naive way of generating traps, but exposing the modularity of the interface.
-    """
-
     def __init__(self) -> None:
         super().__init__()
+        self._detection_rate = 1 / 2
+
+    @property
+    @override
+    def detection_rate(self) -> float:
+        return self._detection_rate
+
+    @detection_rate.setter
+    def detection_rate(self, value: float) -> None:
+        self._detection_rate = value
 
     @override
     def create_test_runs(self, client: Client, rng: Generator | None = None, *, stacklevel: int = 1) -> list[TestRun]:
-        rng = ensure_rng(rng, stacklevel=stacklevel + 1)
-        test_runs = []
-        # Create 1 random trap per node
-        n = len(client.graph.nodes)
-        for _ in range(n):
-            # Choose a random subset of nodes to create a trap (random size, random nodes)
-            # TODO: change, sample new one each time instead
-            trap_size = rng.integers(n)
-            random_nodes = [client.nodes[i] for i in rng.choice(len(client.nodes), size=trap_size, replace=False)]
-            # Create a single-trap test round from it. The trap is multi-qubit.
-            random_multi_qubit_trap = frozenset(random_nodes)
-            # Only one trap
-            traps = frozenset({random_multi_qubit_trap})
-            test_run = TestRun(client=client, traps=traps)
-            test_runs.append(test_run)
+        return []
 
-        return test_runs
+    @override
+    def sample_test_run(self, client: Client, rng: Generator | None = None, *, stacklevel: int = 1) -> TestRun:
+        rng = ensure_rng(rng, stacklevel=stacklevel + 1)
+        n = len(client.graph.nodes)
+        trap_size = rng.integers(n)
+        random_nodes: list[int] = [
+            client.nodes[i] for i in rng.choice(len(client.nodes), size=trap_size, replace=False)
+        ]
+        traps = frozenset({frozenset(random_nodes)})
+        return TestRun(client=client, traps=traps)
 
 
 def _odd_pair_generators_bfs(
@@ -304,6 +329,15 @@ class Dummyless(VerificationProtocol):
         super().__init__()
         self.odd_pair_generator = odd_pair_generator
 
+    @property
+    @override
+    def detection_rate(self) -> float:
+        return self._detection_rate
+
+    @detection_rate.setter
+    def detection_rate(self, value: float) -> None:
+        self._detection_rate = value
+
     @override
     def create_test_runs(self, client: Client, rng: Generator | None = None, *, stacklevel: int = 1) -> list[TestRun]:
         rng = ensure_rng(rng, stacklevel=stacklevel + 1)
@@ -333,3 +367,8 @@ class Dummyless(VerificationProtocol):
 
         # Step 3: build TestRuns — each generator's node_indices form one multi-qubit trap
         return [TestRun(client=client, traps=frozenset({frozenset(gs.node_indices)})) for gs in generators]
+
+    @override
+    def sample_test_run(self, client: Client, rng: Generator | None = None, *, stacklevel: int = 1) -> TestRun:
+        rng = ensure_rng(rng, stacklevel=stacklevel + 1)
+        return client.test_runs[rng.integers(len(client.test_runs))]

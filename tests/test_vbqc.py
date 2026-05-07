@@ -15,8 +15,8 @@ from graphix_qasm_parser import OpenQASMParser
 
 from veriphix.blinding import Secrets
 from veriphix.client import Client
-from veriphix.protocols import RandomTraps, TestRun
 from veriphix.malicious_noise_model import MaliciousNoiseModel
+from veriphix.protocols import RandomTraps
 from veriphix.verifying import QuantumComputationResult, TrappifiedSchemeParameters
 
 if TYPE_CHECKING:
@@ -160,31 +160,33 @@ class TestVBQC:
 
     @pytest.mark.parametrize("noise_model_name", ["depolarising", "malicious"])
     def test_random_traps_performance(self, fx_rng: Generator, noise_model_name: str) -> None:
-        nqubits = 3
-        depth = 4
+        """Check that RandomTraps detects deviations at the 1/2 rate expected by the literature [KKLM+22].
+
+        RandomTraps samples a fresh random multi-qubit trap for each test round via
+        sample_test_run, so no pre-computed test run list is needed. Under any deviation (here, depolarising/malicious noise), each
+        trap fires independently with probability ~1/2, giving an expected detection
+        rate of ≈1/2 over many rounds.
+
+        The canvas is configured with test rounds only (0 computation rounds).
+        The threshold is set to 0, arbitrarily.
+        After delegation, the empirical detection rate must fall in [0.35, 0.65].
+        """
+        nqubits = 2
+        depth = 2
         circuit = rand_circuit(nqubits, depth, fx_rng)
         pattern = circuit.transpile().pattern
 
         secrets = Secrets(a=True, r=True, theta=True)
-        protocol = RandomTraps()
-
-        n_test = 100
-
+        d, s, w = 0, 30, 0
+        parameters = TrappifiedSchemeParameters(comp_rounds=d, test_rounds=s, threshold=w)
 
         client = Client(
             pattern=pattern,
             secrets=secrets,
-            protocol=protocol,
-            rng=fx_rng
+            protocol=RandomTraps(),
+            parameters=parameters,
+            rng=fx_rng,
         )
-
-        nodes = list(client.nodes)
-
-        subset_size = int(fx_rng.integers(1, len(nodes) + 1))
-        malicious_nodes = [
-            int(node)
-            for node in fx_rng.choice(nodes, size=subset_size, replace=False)
-        ]
 
         if noise_model_name == "depolarising":
             noise_model = DepolarisingNoiseModel(
@@ -197,43 +199,18 @@ class TestVBQC:
         elif noise_model_name == "malicious":
             subset_size = int(fx_rng.integers(1, len(client.nodes)))
             malicious_nodes = [int(node) for node in fx_rng.choice(client.nodes, size=subset_size, replace=False)]
-
-            noise_model = MaliciousNoiseModel(
-                nodes=malicious_nodes,
-                prob=1,
-                rng=fx_rng,
-            )
+            noise_model = MaliciousNoiseModel(nodes=malicious_nodes, prob=1, rng=fx_rng)
         else:
             raise ValueError(f"Unknown noise model: {noise_model_name}")
 
-        failures = 0
-
-        for _ in range(n_test):
-            backend = DensityMatrixBackend()
-            client.refresh_randomness(rng=fx_rng)
-
-            # Uniform random non-empty H ⊆ V
-            H = sample_non_empty_subset(nodes=client.nodes, rng=fx_rng)
-
-            test_run = TestRun(client=client, traps=frozenset({H}))
-
-            trap_outcomes = test_run.delegate(
-                backend=backend,
-                noise_model=noise_model,
-                rng=fx_rng,
-            ).trap_outcomes
-
-            detected = sum(trap_outcomes.values()) > 0
-            failures += int(detected)
-
-
-        print(failures)
-        detection_rate = failures / n_test
-
-        assert 0.35 <= detection_rate <= 0.65, (
-            f"Expected ≈1/2 detection rate, got {detection_rate:.3f}; "
-            f"malicious_nodes={malicious_nodes}"
+        canvas = client.sample_canvas(rng=fx_rng)
+        outcomes = client.delegate_canvas(
+            canvas=canvas, backend_cls=DensityMatrixBackend, noise_model=noise_model, rng=fx_rng
         )
+        _, _, result_analysis = client.analyze_outcomes(canvas, outcomes)
+
+        detection_rate = result_analysis.nr_failed_test_rounds / s
+        assert 0.35 <= detection_rate <= 0.65, f"Expected ≈1/2 detection rate, got {detection_rate:.3f}"
 
     @pytest.mark.parametrize("noise_model_name", ["depolarising", "malicious"])
     def test_noisy(self, fx_rng: Generator, noise_model_name: str) -> None:
@@ -300,4 +277,4 @@ def sample_non_empty_subset(nodes, rng: np.random.Generator) -> frozenset:
     while True:
         keep = rng.random(len(nodes)) < 0.5
         if keep.any():
-            return frozenset(node for node, k in zip(nodes, keep) if k)
+            return frozenset(node for node, k in zip(nodes, keep, strict=True) if k)
