@@ -82,7 +82,6 @@ class FK12(VerificationProtocol):
                 )
             self._detection_rate = 1 / len(manual_colouring)
         self.manual_colouring = manual_colouring
-        # self._detection_rate: float = 1 / 2
 
     @property
     @override
