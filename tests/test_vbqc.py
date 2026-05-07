@@ -16,7 +16,8 @@ from graphix_qasm_parser import OpenQASMParser
 from veriphix.blinding import Secrets
 from veriphix.client import Client
 from veriphix.malicious_noise_model import MaliciousNoiseModel
-from veriphix.protocols import RandomTraps
+from veriphix.protocols import FK12, RandomTraps
+from veriphix.util_rounds import optimize_with_robustness_constraint
 from veriphix.verifying import QuantumComputationResult, TrappifiedSchemeParameters
 
 if TYPE_CHECKING:
@@ -211,6 +212,110 @@ class TestVBQC:
 
         detection_rate = result_analysis.nr_failed_test_rounds / s
         assert 0.35 <= detection_rate <= 0.65, f"Expected ≈1/2 detection rate, got {detection_rate:.3f}"
+
+    def test_designed_rounds_bqp_circuit(self, fx_rng: Generator) -> None:
+        """Designed round counts tolerate sub-threshold malicious noise on the output node.
+
+        For each BQP circuit:
+        - optimize_with_robustness_constraint computes (d, s, w) from RandomTraps's
+          detection_rate with epsilon=1e-10 and rho_min=0.1.
+        - A MaliciousNoiseModel is applied exclusively on the output node(s) with
+          prob = rho_min / 2 = 0.05, strictly below the robustness threshold.
+        - Delegation runs under DensityMatrixBackend.
+
+        Because noise < rho_min, the protocol's guarantees hold: traps should still
+        pass and the majority-vote answer should match the expected BQP output.
+        """
+        rho_min = 0.1
+
+        with Path("tests/test_circuits/table.json").open() as f:
+            table = json.load(f)
+
+        for circuit_label, prob in table.items():
+            pattern = load_pattern_from_circuit(circuit_label)
+            correct_answer = round(prob)
+            secrets = Secrets(a=True, r=True, theta=True)
+
+            protocol = RandomTraps()
+            client = Client(pattern=pattern, secrets=secrets, protocol=protocol, rng=fx_rng)
+
+            design = optimize_with_robustness_constraint(
+                c=0,
+                detection_rate=protocol.detection_rate,
+                epsilon_target=1e-2,
+                rho_min=rho_min,
+                n_grid=200,
+            )
+
+            parameters = TrappifiedSchemeParameters(
+                comp_rounds=design.d,
+                test_rounds=design.s,
+                threshold=design.w,
+            )
+            client.trappifiedScheme.params = parameters
+
+            noise_model = MaliciousNoiseModel(
+                nodes=[int(n) for n in client.output_nodes],
+                prob=rho_min * 1,
+                rng=fx_rng,
+            )
+
+            canvas = client.sample_canvas(rng=fx_rng)
+            print(parameters)
+            outcomes = client.delegate_canvas(
+                canvas=canvas,
+                backend_cls=DensityMatrixBackend,
+                noise_model=noise_model,
+                rng=fx_rng,
+            )
+            traps_decision, computation_decision, _ = client.analyze_outcomes(canvas, outcomes)
+
+            assert traps_decision, f"{circuit_label}: honest server rejected"
+            assert int(computation_decision) == correct_answer, (
+                f"{circuit_label}: majority vote gave {int(computation_decision)}, expected {correct_answer}"
+            )
+
+    def test_designed_rounds_noiseless(self, fx_rng: Generator) -> None:
+        """Round counts from util_rounds integrate correctly with the VBQC pipeline.
+
+        Uses optimize_with_robustness_constraint to compute (d, s, w) from the
+        protocol's detection_rate, then feeds those values into TrappifiedSchemeParameters.
+        With a noiseless honest server, all traps must pass (traps_decision=True).
+
+        Loose security parameters (epsilon=0.05, rho_min=0.01, coarse grid) are used
+        to keep the optimised round counts small and the test fast.
+        """
+        nqubits = 2
+        depth = 3
+        circuit = rand_circuit(nqubits, depth, fx_rng)
+        pattern = circuit.transpile().pattern
+
+        protocol = FK12()
+
+        design = optimize_with_robustness_constraint(
+            c=0,
+            detection_rate=protocol.detection_rate,
+            epsilon_target=0.05,
+            rho_min=0.01,
+            n_grid=200,
+        )
+
+        assert design.total_bound <= 0.05
+        assert design.w_over_s >= 0.01
+
+        parameters = TrappifiedSchemeParameters(
+            comp_rounds=design.d,
+            test_rounds=design.s,
+            threshold=design.w,
+        )
+        secrets = Secrets(a=True, r=True, theta=True)
+        client = Client(pattern=pattern, secrets=secrets, protocol=protocol, parameters=parameters, rng=fx_rng)
+
+        canvas = client.sample_canvas(rng=fx_rng)
+        outcomes = client.delegate_canvas(canvas=canvas, backend_cls=StatevectorBackend, rng=fx_rng)
+        traps_decision, _, _ = client.analyze_outcomes(canvas, outcomes)
+
+        assert traps_decision
 
     @pytest.mark.parametrize("noise_model_name", ["depolarising", "malicious"])
     def test_noisy(self, fx_rng: Generator, noise_model_name: str) -> None:

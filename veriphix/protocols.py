@@ -58,7 +58,6 @@ class FK12(VerificationProtocol):
     def __init__(self, manual_colouring: Sequence[set[int]] | None = None) -> None:
         super().__init__()
         self.manual_colouring = manual_colouring
-        # self._detection_rate: float = 1 / 2
 
     @property
     @override
@@ -139,7 +138,7 @@ class FK12(VerificationProtocol):
             test_run = TestRun(client=client, traps=traps)
             test_runs.append(test_run)
 
-        # print(test_runs)
+        self._detection_rate = 1 / len(test_runs)
         return test_runs
 
     @override
@@ -328,6 +327,7 @@ class Dummyless(VerificationProtocol):
     def __init__(self, odd_pair_generator: OddPairGeneratorFn = _odd_pair_generators_bfs) -> None:
         super().__init__()
         self.odd_pair_generator = odd_pair_generator
+        self._detection_rate = 1 / 14
 
     @property
     @override
@@ -366,7 +366,9 @@ class Dummyless(VerificationProtocol):
         generators.extend(self.odd_pair_generator(client.graph, stabdict, rfull))
 
         # Step 3: build TestRuns — each generator's node_indices form one multi-qubit trap
-        return [TestRun(client=client, traps=frozenset({frozenset(gs.node_indices)})) for gs in generators]
+        test_runs = [TestRun(client=client, traps=frozenset({frozenset(gs.node_indices)})) for gs in generators]
+        self._detection_rate = 1 / len(test_runs)
+        return test_runs
 
     @override
     def sample_test_run(self, client: Client, rng: Generator | None = None, *, stacklevel: int = 1) -> TestRun:
