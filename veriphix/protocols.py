@@ -68,6 +68,7 @@ class VerificationProtocol(ABC):
         pass
 
 
+
 class FK12(VerificationProtocol):
     def __init__(self, manual_colouring: Sequence[set[int]] | None = None) -> None:
         super().__init__()
@@ -82,6 +83,7 @@ class FK12(VerificationProtocol):
                 )
             self._detection_rate = 1 / len(manual_colouring)
         self.manual_colouring = manual_colouring
+        # self._detection_rate: float = 1 / 2
 
     @property
     @override
@@ -332,12 +334,17 @@ class Dummyless(VerificationProtocol):
         self.odd_pair_generator = odd_pair_generator
         self._detection_rate = BRICKWORK_DETECTION_RATE
 
+
+    def _set_detection_rate(self, value: float) -> None:
+        self._detection_rate = value
+
     @property
     @override
     def detection_rate(self) -> float:
         return self._detection_rate
 
-    def _set_detection_rate(self, value: float) -> None:
+    @detection_rate.setter
+    def detection_rate(self, value: float) -> None:
         self._detection_rate = value
 
     @override

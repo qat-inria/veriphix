@@ -15,7 +15,6 @@ from graphix_qasm_parser import OpenQASMParser
 
 from veriphix.blinding import Secrets
 from veriphix.client import Client
-from veriphix.protocols import RandomTraps, TestRun
 from veriphix.malicious_noise_model import MaliciousNoiseModel
 from veriphix.protocols import FK12, RandomTraps
 from veriphix.util_rounds import optimize_with_robustness_constraint
@@ -384,4 +383,4 @@ def sample_non_empty_subset(nodes, rng: np.random.Generator) -> frozenset:
     while True:
         keep = rng.random(len(nodes)) < 0.5
         if keep.any():
-            return frozenset(node for node, k in zip(nodes, keep) if k)
+            return frozenset(node for node, k in zip(nodes, keep, strict=True) if k)
