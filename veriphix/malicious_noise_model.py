@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from graphix.channels import KrausChannel, dephasing_channel
 from graphix.command import CommandKind
-from graphix.noise_models.noise_model import ApplyNoise, CommandOrNoise, Noise, NoiseModel
+from graphix.noise_models.noise_model import ApplyNoise, Noise, NoiseModel
 from graphix.rng import ensure_rng
 from graphix.utils import Probability
 
@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 
     from graphix.command import BaseM
     from graphix.measurements import Outcome
+    from graphix.noise_models.noise_model import CommandOrNoise
     from numpy.random import Generator
 
 

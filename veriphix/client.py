@@ -14,7 +14,7 @@ import graphix.simulator
 import stim
 from graphix import command
 from graphix.clifford import Clifford
-from graphix.command import BaseCommand, BaseM, BaseN, Command, CommandKind
+from graphix.command import BaseCommand, BaseM, BaseN, CommandKind
 from graphix.measurements import BlochMeasurement, Measurement, toggle_outcome
 from graphix.pattern import Pattern
 from graphix.rng import ensure_rng
@@ -40,6 +40,7 @@ if TYPE_CHECKING:
     from typing import TypeVar
 
     import networkx as nx
+    from graphix.command import CommandType
     from graphix.measurements import Outcome
     from graphix.noise_models import NoiseModel
     from graphix.sim.base_backend import Backend
@@ -80,10 +81,10 @@ def remove_flow(pattern: Pattern) -> Pattern:
         else:
             new_cmd = cmd
         # The type annotations require the pattern to contain only
-        # elements of type `Command`, which excludes `BaseM`. We hope
+        # elements of type `CommandType`, which excludes `BaseM`. We hope
         # pattern types will become more precise in the near future.
         # See https://github.com/TeamGraphix/graphix/issues/266
-        clean_pattern.add(cast("Command", new_cmd))
+        clean_pattern.add(cast("CommandType", new_cmd))
     return clean_pattern
 
 
