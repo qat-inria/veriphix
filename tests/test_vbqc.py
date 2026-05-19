@@ -225,6 +225,8 @@ class TestVBQC:
         Because noise < rho_min, the protocol's guarantees hold: traps should still
         pass and the majority-vote answer should match the expected BQP output.
         """
+        import random
+
         rho_min = 0.1
 
         with Path("tests/test_circuits/table.json").open() as f:

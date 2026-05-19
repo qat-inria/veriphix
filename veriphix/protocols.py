@@ -18,6 +18,8 @@ from veriphix.verifying import TestRun, build_stabilizer
 
 BRICKWORK_DETECTION_RATE = 1 / 14
 
+BRICKWORK_DETECTION_RATE = 1 / 14
+
 if TYPE_CHECKING:
     from collections.abc import Sequence
     from typing import TypeVar
@@ -89,7 +91,8 @@ class FK12(VerificationProtocol):
     def detection_rate(self) -> float:
         return self._detection_rate
 
-    def _set_detection_rate(self, value: float) -> None:
+    @detection_rate.setter
+    def detection_rate(self, value: float) -> None:
         self._detection_rate = value
 
     @override
@@ -164,7 +167,7 @@ class FK12(VerificationProtocol):
             )
             test_runs.append(test_run)
 
-        self._set_detection_rate(1 / len(test_runs))
+        self.detection_rate = 1 / len(test_runs)
         return test_runs
 
     @override
@@ -334,9 +337,6 @@ class Dummyless(VerificationProtocol):
         self._detection_rate = BRICKWORK_DETECTION_RATE
 
 
-    def _set_detection_rate(self, value: float) -> None:
-        self._detection_rate = value
-
     @property
     @override
     def detection_rate(self) -> float:
@@ -390,7 +390,7 @@ class Dummyless(VerificationProtocol):
             )
             for gs in generators
         ]
-        self._set_detection_rate(1 / len(test_runs))
+        self.detection_rate = 1 / len(test_runs)
         return test_runs
 
     @override
