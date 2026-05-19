@@ -225,6 +225,8 @@ class TestVBQC:
         Because noise < rho_min, the protocol's guarantees hold: traps should still
         pass and the majority-vote answer should match the expected BQP output.
         """
+        import random
+
         rho_min = 0.1
 
         with Path("tests/test_circuits/table.json").open() as f:
@@ -313,6 +315,7 @@ class TestVBQC:
             threshold=design.w,
         )
         secrets = Secrets(a=True, r=True, theta=True)
+        pattern = circuit.transpile().pattern
         client = Client(pattern=pattern, secrets=secrets, protocol=protocol, parameters=parameters, rng=fx_rng)
 
         canvas = client.sample_canvas(rng=fx_rng)

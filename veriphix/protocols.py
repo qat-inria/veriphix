@@ -18,6 +18,8 @@ from veriphix.verifying import TestRun, build_stabilizer
 
 BRICKWORK_DETECTION_RATE = 1 / 14
 
+BRICKWORK_DETECTION_RATE = 1 / 14
+
 if TYPE_CHECKING:
     from collections.abc import Sequence
     from typing import TypeVar
