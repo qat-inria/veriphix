@@ -12,7 +12,7 @@ class TestVerifying:
         depth = 5
         circuit = rand_circuit(nqubits, depth, fx_rng)
         pattern = circuit.transpile().pattern
-
+        
         client = Client(pattern=pattern, rng=fx_rng)
 
         for _ in range(10):

@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Generic, TypeVar
 import stim
 from graphix.fundamentals import IXYZ_VALUES
 from graphix.pauli import Pauli
+import networkx as nx
 from stim import PauliString
 from typing_extensions import override
 
@@ -85,6 +86,13 @@ def generate_eigenstate(stabilizer: PauliString) -> list[PlanarState]:
         states.append(operator.eigenstate())
     return states
 
+def get_graph_clifford_structure(graph: nx.Graph[int]) -> stim.Tableau:
+    circuit = stim.Circuit()
+    for edge in graph.edges:
+        i, j = edge
+        circuit.append_from_stim_program_text(f"CZ {i} {j}")
+    return circuit.to_tableau()
+
 
 def get_graph_clifford_structure(graph: nx.Graph[int]) -> stim.Tableau:
     circuit = stim.Circuit()
@@ -100,7 +108,9 @@ def build_stabilizer(
     traps: Traps,
     meas_basis: str = "X",
 ) -> PauliString:
-    measurement_strings = [PauliString([meas_basis if i in trap else "I" for i in range(nqubits)]) for trap in traps]
+    measurement_strings = [
+        PauliString([meas_basis if i in trap else "I" for i in range(nqubits)]) for trap in traps
+    ]
     clifford_structure = get_graph_clifford_structure(graph=graph)
     conjugated_measurements = [clifford_structure.inverse()(meas) for meas in measurement_strings]
     return merge(conjugated_measurements)

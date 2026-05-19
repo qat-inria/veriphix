@@ -375,7 +375,9 @@ class Dummyless(VerificationProtocol):
 
         # (removing S_v leaves I at v and flips Z count on its neighbours — stays in I/X/Y)
         # Step 2a: for each even-degree node v, R\v = Rfull * S_v
-        generators: list[GraphStabilizer] = [rfull * stabdict[v] for v in graph.nodes if graph.degree(v) % 2 == 0]
+        generators: list[GraphStabilizer] = [
+            rfull * stabdict[v] for v in graph.nodes if graph.degree(v) % 2 == 0
+        ]
 
         # Step 2b: one R\(u,w) generator per odd-degree node pair
         generators.extend(self.odd_pair_generator(graph, stabdict, rfull))
