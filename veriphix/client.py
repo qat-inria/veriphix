@@ -92,12 +92,7 @@ def remove_flow(pattern: Pattern) -> Pattern:
     return clean_pattern
 
 
-def get_graph_clifford_structure(graph: nx.Graph[int]) -> stim.Tableau:
-    circuit = stim.Circuit()
-    for edge in graph.edges:
-        i, j = edge
-        circuit.append_from_stim_program_text(f"CZ {i} {j}")
-    return circuit.to_tableau()
+
 
 
 def qCircuit_predicate(output_string: str) -> bool:
@@ -148,7 +143,6 @@ class Client:
             self._add_measurement_commands(self.initial_pattern)
 
         self.graph = self.initial_pattern.extract_graph()
-        self.clifford_structure = get_graph_clifford_structure(self.graph)
 
         self.results = self.initial_pattern.results.copy()
 
@@ -186,7 +180,11 @@ class Client:
 
     def create_trappified_scheme(self, rng: Generator | None = None, *, stacklevel: int = 1) -> None:
         self.computationRun = ComputationRun()
-        self.test_runs = self.protocol.create_test_runs(client=self, rng=rng, stacklevel=stacklevel + 1)
+        self.test_runs = self.protocol.create_test_runs(
+            graph=self.graph,
+            rng=rng,
+            stacklevel=stacklevel + 1,
+        )
         self.trappifiedScheme = TrappifiedScheme(
             params=self.parameters or TrappifiedSchemeParameters(20, 20, 5), test_runs=self.test_runs
         )
@@ -262,7 +260,11 @@ class Client:
         computation_rounds = set(rng.choice(N, size=self.trappifiedScheme.params.comp_rounds, replace=False))
 
         return {
-            r: self.computationRun if r in computation_rounds else self.protocol.sample_test_run(client=self, rng=rng)
+            r: self.computationRun if r in computation_rounds else self.protocol.sample_test_run(
+                graph=self.graph,
+                test_runs=self.test_runs,
+                rng=rng,
+            )
             for r in range(N)
         }
 

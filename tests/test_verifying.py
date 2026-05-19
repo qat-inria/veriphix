@@ -12,7 +12,7 @@ class TestVerifying:
         depth = 5
         circuit = rand_circuit(nqubits, depth, fx_rng)
         pattern = circuit.transpile().pattern
-
+        
         client = Client(pattern=pattern, rng=fx_rng)
 
         for _ in range(10):
@@ -25,8 +25,8 @@ class TestVerifying:
             traps = frozenset({random_multi_qubit_trap})
 
             test_run = TestRun(
-                clifford_structure=client.clifford_structure,
-                nqubits=len(client.clifford_structure),
+                graph=client.graph,
+                nqubits=len(client.graph),
                 traps=traps,
             )
             backend = StatevectorBackend()

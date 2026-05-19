@@ -11,7 +11,7 @@ from typing_extensions import override
 
 from veriphix.blinding import Secrets
 from veriphix.client import Client, ClientMeasureMethod
-from veriphix.verifying import ComputationRun
+from veriphix.verifying import ComputationRun, get_graph_clifford_structure
 
 
 class TestClient:
@@ -248,9 +248,10 @@ class TestClient:
         circuit = rand_circuit(nqubits, depth, fx_rng)
         pattern = circuit.transpile().pattern
         client = Client(pattern=pattern, rng=fx_rng)
+        clifford_structure = get_graph_clifford_structure(graph=client.graph)
         for node in client.graph.nodes:
             x_string = PauliString(["X" if i == node else "I" for i in client.graph.nodes])
-            conjugated_string = client.clifford_structure.inverse()(x_string)
+            conjugated_string = clifford_structure.inverse()(x_string)
             neighbors = set(client.graph.neighbors(node))
             expected_conjugated_string = PauliString(
                 ["X" if i == node else "Z" if i in neighbors else "I" for i in client.graph.nodes]

@@ -87,7 +87,7 @@ class TestProtocols:
         client.preprocess_pattern()
         client.create_blind_patterns(rng=fx_rng)
         with pytest.raises(ValueError):  # trivially duplicate a node
-            protocol.create_test_runs(client=client)
+            protocol.create_test_runs(graph=client.graph)
 
     def test_create_test_run_manual_fail_improper(self, fx_rng: Generator) -> None:
         """testing manual colouring not proper"""
@@ -153,7 +153,11 @@ class TestProtocols:
         detections = 0
 
         for _ in range(n_test_runs):
-            test_run = protocol.sample_test_run(client=client, rng=fx_rng)
+            test_run = protocol.sample_test_run(
+                graph=client.graph,
+                test_runs=client.test_runs,
+                rng=fx_rng,
+            )
             trap = next(iter(test_run.traps))
             detected = (len(error_support & trap) % 2) == 1
             detections += int(detected)

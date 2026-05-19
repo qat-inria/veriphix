@@ -24,8 +24,6 @@ if TYPE_CHECKING:
     from graphix import Pattern
     from numpy.random import Generator
 
-    from veriphix.client import Client
-
     _StateT = TypeVar("_StateT")
 
 
@@ -48,11 +46,24 @@ class VerificationProtocol(ABC):
         pass
 
     @abstractmethod
-    def create_test_runs(self, client: Client, rng: Generator | None = None, *, stacklevel: int = 1) -> list[TestRun]:
+    def create_test_runs(
+        self,
+        graph: nx.Graph,
+        rng: Generator | None = None,
+        *,
+        stacklevel: int = 1,
+    ) -> list[TestRun]:
         pass
 
     @abstractmethod
-    def sample_test_run(self, client: Client, rng: Generator | None = None, *, stacklevel: int = 1) -> TestRun:
+    def sample_test_run(
+        self,
+        graph: nx.Graph,
+        test_runs: list[TestRun],
+        rng: Generator | None = None,
+        *,
+        stacklevel: int = 1,
+    ) -> TestRun:
         pass
 
 
@@ -80,7 +91,13 @@ class FK12(VerificationProtocol):
         self._detection_rate = value
 
     @override
-    def create_test_runs(self, client: Client, rng: Generator | None = None, *, stacklevel: int = 1) -> list[TestRun]:
+    def create_test_runs(
+        self,
+        graph: nx.Graph,
+        rng: Generator | None = None,
+        *,
+        stacklevel: int = 1,
+    ) -> list[TestRun]:
         """Creates test runs according to a graph colouring according to [FK12].
         A test run, or a Trappified Canvas, is associated to each color in the colouring.
         For a given test run, the trap nodes are defined as being the nodes belonging to the color the run corresponds to.
@@ -117,16 +134,16 @@ class FK12(VerificationProtocol):
         # Create the graph coloring
         # Networkx output format: dict[int, int] eg {0: 0, 1: 1, 2: 0, 3: 1}
         if self.manual_colouring is None:
-            coloring = nx.coloring.greedy_color(client.graph, strategy="largest_first")
+            coloring = nx.coloring.greedy_color(graph, strategy="largest_first")
             colors = set(coloring.values())
             nodes_by_color: dict[int, list[int]] = {c: [] for c in colors}
-            for node in sorted(client.nodes):
+            for node in sorted(graph.nodes):
                 color = coloring[node]
                 nodes_by_color[color].append(node)
         else:
             # check that the colouring covers all nodes of the graph
             color_union = set().union(*self.manual_colouring)
-            if color_union != set(client.graph.nodes):
+            if color_union != set(graph.nodes):
                 raise ValueError("The provided colouring does not include all the nodes of the graph.")
 
             nodes_by_color = {i: list(c) for i, c in enumerate(self.manual_colouring)}
@@ -139,8 +156,8 @@ class FK12(VerificationProtocol):
             traps_list = [frozenset([colored_node]) for colored_node in nodes_by_color[color]]
             traps = frozenset(traps_list)
             test_run = TestRun(
-                clifford_structure=client.clifford_structure,
-                nqubits=len(client.clifford_structure),
+                graph=graph,
+                nqubits=len(graph),
                 traps=traps,
             )
             test_runs.append(test_run)
@@ -149,9 +166,16 @@ class FK12(VerificationProtocol):
         return test_runs
 
     @override
-    def sample_test_run(self, client: Client, rng: Generator | None = None, *, stacklevel: int = 1) -> TestRun:
+    def sample_test_run(
+        self,
+        graph: nx.Graph,
+        test_runs: list[TestRun],
+        rng: Generator | None = None,
+        *,
+        stacklevel: int = 1,
+    ) -> TestRun:
         rng = ensure_rng(rng, stacklevel=stacklevel + 1)
-        return client.test_runs[rng.integers(len(client.test_runs))]
+        return test_runs[rng.integers(len(test_runs))]
 
 
 def get_bipartite_coloring(pattern: Pattern) -> tuple[set[int], set[int]]:
@@ -197,21 +221,33 @@ class RandomTraps(VerificationProtocol):
         self._detection_rate = value
 
     @override
-    def create_test_runs(self, client: Client, rng: Generator | None = None, *, stacklevel: int = 1) -> list[TestRun]:
+    def create_test_runs(
+        self,
+        graph: nx.Graph,
+        rng: Generator | None = None,
+        *,
+        stacklevel: int = 1,
+    ) -> list[TestRun]:
         return []
 
     @override
-    def sample_test_run(self, client: Client, rng: Generator | None = None, *, stacklevel: int = 1) -> TestRun:
+    def sample_test_run(
+        self,
+        graph: nx.Graph,
+        test_runs: list[TestRun],
+        rng: Generator | None = None,
+        *,
+        stacklevel: int = 1,
+    ) -> TestRun:
         rng = ensure_rng(rng, stacklevel=stacklevel + 1)
-        n = len(client.graph.nodes)
+        nodes = sorted(graph.nodes)
+        n = len(nodes)
         trap_size = rng.integers(1, n + 1)
-        random_nodes: list[int] = [
-            client.nodes[i] for i in rng.choice(len(client.nodes), size=trap_size, replace=False)
-        ]
+        random_nodes: list[int] = [nodes[i] for i in rng.choice(n, size=trap_size, replace=False)]
         traps = frozenset({frozenset(random_nodes)})
         return TestRun(
-            clifford_structure=client.clifford_structure,
-            nqubits=len(client.clifford_structure),
+            graph=graph,
+            nqubits=len(graph),
             traps=traps,
         )
 
@@ -350,41 +386,47 @@ class Dummyless(VerificationProtocol):
         self._detection_rate = value
 
     @override
-    def create_test_runs(self, client: Client, rng: Generator | None = None, *, stacklevel: int = 1) -> list[TestRun]:
+    def create_test_runs(
+        self,
+        graph: nx.Graph,
+        rng: Generator | None = None,
+        *,
+        stacklevel: int = 1,
+    ) -> list[TestRun]:
         rng = ensure_rng(rng, stacklevel=stacklevel + 1)
+        n_qubits = len(graph)
 
         # Step 0: build per-node GraphStabilizers (dict keyed by node id)
         stabdict: dict[int, GraphStabilizer] = {
             node: GraphStabilizer(
                 node_indices={node},
                 string=build_stabilizer(
-                    client.clifford_structure,
-                    len(client.clifford_structure),
+                    graph,
+                    n_qubits,
                     frozenset({frozenset({node})}),
                 ),
             )
-            for node in client.graph.nodes
+            for node in graph.nodes
         }
 
         # Step 1: Rfull = product of all S_v
-        n_qubits = len(client.clifford_structure)
         identity = GraphStabilizer(node_indices=set(), string=stim.PauliString(n_qubits))
         rfull: GraphStabilizer = reduce(mul, stabdict.values(), identity)
 
         # (removing S_v leaves I at v and flips Z count on its neighbours — stays in I/X/Y)
         # Step 2a: for each even-degree node v, R\v = Rfull * S_v
         generators: list[GraphStabilizer] = [
-            rfull * stabdict[v] for v in client.graph.nodes if client.graph.degree(v) % 2 == 0
+            rfull * stabdict[v] for v in graph.nodes if graph.degree(v) % 2 == 0
         ]
 
         # Step 2b: one R\(u,w) generator per odd-degree node pair
-        generators.extend(self.odd_pair_generator(client.graph, stabdict, rfull))
+        generators.extend(self.odd_pair_generator(graph, stabdict, rfull))
 
         # Step 3: build TestRuns — each generator's node_indices form one multi-qubit trap
         test_runs = [
             TestRun(
-                clifford_structure=client.clifford_structure,
-                nqubits=len(client.clifford_structure),
+                graph=graph,
+                nqubits=n_qubits,
                 traps=frozenset({frozenset(gs.node_indices)}),
             )
             for gs in generators
@@ -393,6 +435,13 @@ class Dummyless(VerificationProtocol):
         return test_runs
 
     @override
-    def sample_test_run(self, client: Client, rng: Generator | None = None, *, stacklevel: int = 1) -> TestRun:
+    def sample_test_run(
+        self,
+        graph: nx.Graph,
+        test_runs: list[TestRun],
+        rng: Generator | None = None,
+        *,
+        stacklevel: int = 1,
+    ) -> TestRun:
         rng = ensure_rng(rng, stacklevel=stacklevel + 1)
-        return client.test_runs[rng.integers(len(client.test_runs))]
+        return test_runs[rng.integers(len(test_runs))]
