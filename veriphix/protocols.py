@@ -16,7 +16,6 @@ from typing_extensions import override
 
 from veriphix.verifying import TestRun, build_stabilizer
 
-BRICKWORK_DETECTION_RATE = 1 / 14
 
 BRICKWORK_DETECTION_RATE = 1 / 14
 
