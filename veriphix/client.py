@@ -19,7 +19,7 @@ from graphix.measurements import BlochMeasurement, Measurement, toggle_outcome
 from graphix.pattern import Pattern
 from graphix.rng import ensure_rng
 from graphix.sim.statevec import Statevec
-from graphix.simulator import MeasureMethod, PrepareMethod
+from graphix.simulator import MeasureMethod, PatternSimulator, PrepareMethod
 from graphix.states import BasicStates, State
 from typing_extensions import override
 
@@ -27,10 +27,15 @@ from veriphix.blinding import SecretDatas, Secrets
 from veriphix.malicious_noise_model import MaliciousNoiseModel
 from veriphix.protocols import FK12, VerificationProtocol
 from veriphix.verifying import (
+    ClassicalComputationResult,
+    ComputationResult,
     ComputationRun,
+    QuantumComputationResult,
     ResultAnalysis,
     Run,
     RunResult,
+    TestResult,
+    TestRun,
     TrappifiedScheme,
     TrappifiedSchemeParameters,
 )
@@ -180,7 +185,7 @@ class Client:
         self.prepare_method = ClientPrepareMethod(self.preparation_bank)
 
     def create_trappified_scheme(self, rng: Generator | None = None, *, stacklevel: int = 1) -> None:
-        self.computationRun = ComputationRun(self)
+        self.computationRun = ComputationRun()
         self.test_runs = self.protocol.create_test_runs(client=self, rng=rng, stacklevel=stacklevel + 1)
         self.trappifiedScheme = TrappifiedScheme(
             params=self.parameters or TrappifiedSchemeParameters(20, 20, 5), test_runs=self.test_runs
@@ -273,7 +278,7 @@ class Client:
             backend = backend_cls()
             if isinstance(noise_model, MaliciousNoiseModel):
                 noise_model.refresh_randomness(rng=rng)
-            outcomes[r] = canvas[r].delegate(backend=backend, noise_model=noise_model, rng=rng)
+            outcomes[r] = canvas[r].accept(self, backend, noise_model, rng)
         return outcomes
 
     def analyze_outcomes(
@@ -289,6 +294,53 @@ class Client:
         computation_decision = result_analysis.computation_count >= ceil(self.trappifiedScheme.params.comp_rounds / 2)
 
         return traps_decision, computation_decision, result_analysis
+
+    def execute_computation_run(
+        self,
+        backend: Backend[_StateT],
+        noise_model: NoiseModel | None = None,
+        rng: Generator | None = None,
+    ) -> ComputationResult[_StateT]:
+        self.refresh_randomness(rng=rng)
+        self.prepare_states(backend, states_dict=self.computation_states)
+        sim = PatternSimulator(
+            backend=backend,
+            pattern=self.clean_pattern,
+            prepare_method=self.prepare_method,
+            measure_method=self.measure_method,
+            noise_model=noise_model,
+        )
+        sim.run(input_state=None, rng=rng)
+        if not self.classical_output:
+            self.decode_output_state(backend)
+            return QuantumComputationResult(backend.state)
+        results: dict[int, Outcome] = {onode: self.results[onode] for onode in self.output_nodes}
+        return ClassicalComputationResult(outcomes=results)
+
+    def execute_test_run(
+        self,
+        test_run: TestRun,
+        backend: Backend[_StateT],
+        noise_model: NoiseModel | None = None,
+        rng: Generator | None = None,
+    ) -> TestResult[_StateT]:
+        self.refresh_randomness(rng=rng)
+        states_dict = {node: test_run.input_state[node] for node in self.nodes}
+        self.prepare_states(backend=backend, states_dict=states_dict)
+        sim = PatternSimulator(
+            backend=backend,
+            pattern=self.test_pattern,
+            prepare_method=self.prepare_method,
+            measure_method=self.test_measure_method,
+            noise_model=noise_model,
+        )
+        sim.run(input_state=None, rng=rng)
+        trap_outcomes: dict[frozenset[int], int] = {}
+        for trap in test_run.traps:
+            outcomes = [self.results[component] for component in trap]
+            trap_outcome = sum(outcomes) % 2 ^ (test_run.stabilizer.sign == -1)
+            trap_outcomes[frozenset(trap)] = trap_outcome
+        return TestResult(trap_outcomes)
 
     def decode_output_state(self, backend: Backend[_StateT]) -> None:
         for node in self.output_nodes:

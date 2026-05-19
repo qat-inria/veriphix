@@ -46,7 +46,7 @@ class TestVBQC:
         client = Client(pattern=pattern, secrets=secrets, rng=fx_rng)
         for test_run in client.test_runs:
             backend = StatevectorBackend()
-            trap_outcomes = test_run.delegate(backend=backend, rng=fx_rng).trap_outcomes
+            trap_outcomes = test_run.accept(client, backend, None, fx_rng).trap_outcomes
             assert sum(trap_outcomes.values()) == 0
 
     def test_sample_canvas(self, fx_rng: Generator) -> None:
@@ -154,9 +154,8 @@ class TestVBQC:
             measure_channel_prob=0,
         )
         for test_run in client.test_runs:
-            client.refresh_randomness(rng=fx_rng)
             backend = DensityMatrixBackend()
-            trap_outcomes = test_run.delegate(backend=backend, noise_model=noise_model, rng=fx_rng).trap_outcomes
+            trap_outcomes = test_run.accept(client, backend, noise_model, fx_rng).trap_outcomes
             assert sum(trap_outcomes.values()) == 0
 
     @pytest.mark.parametrize("noise_model_name", ["depolarising", "malicious"])
@@ -361,13 +360,7 @@ class TestVBQC:
 
         for test_run in client.test_runs:
             backend = DensityMatrixBackend()
-            client.refresh_randomness(rng=fx_rng)
-
-            trap_outcomes = test_run.delegate(
-                backend=backend,
-                noise_model=noise_model,
-                rng=fx_rng,
-            ).trap_outcomes
+            trap_outcomes = test_run.accept(client, backend, noise_model, fx_rng).trap_outcomes
 
             if sum(trap_outcomes.values()) > 0:
                 failures += 1

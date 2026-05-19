@@ -6,9 +6,9 @@ from collections.abc import Set as AbstractSet
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Generic, TypeVar
 
+import stim
 from graphix.fundamentals import IXYZ_VALUES
 from graphix.pauli import Pauli
-from graphix.simulator import PatternSimulator
 from stim import PauliString
 from typing_extensions import override
 
@@ -29,51 +29,27 @@ _StateT = TypeVar("_StateT")
 
 
 class Run(ABC):
-    def __init__(self, client: Client) -> None:
-        self.client = client
-
     @abstractmethod
-    def delegate(
-        self, backend: Backend[_StateT], noise_model: NoiseModel | None = None, rng: Generator | None = None
+    def accept(
+        self,
+        executor: Client,
+        backend: Backend[_StateT],
+        noise_model: NoiseModel | None,
+        rng: Generator | None,
     ) -> RunResult[_StateT]:
-        # Delegates using UBQC
         pass
 
 
 class ComputationRun(Run):
-    def __init__(self, client: Client) -> None:
-        super().__init__(client=client)
-
     @override
-    def delegate(
+    def accept(
         self,
+        executor: Client,
         backend: Backend[_StateT],
-        noise_model: NoiseModel | None = None,
-        rng: Generator | None = None,
-        *,
-        stacklevel: int = 1,
+        noise_model: NoiseModel | None,
+        rng: Generator | None,
     ) -> ComputationResult[_StateT]:
-        self.client.refresh_randomness(rng=rng, stacklevel=stacklevel + 1)
-        # Initializes the bank & asks backend to create the input
-        self.client.prepare_states(backend, states_dict=self.client.computation_states)
-
-        sim = PatternSimulator(
-            backend=backend,
-            pattern=self.client.clean_pattern,
-            prepare_method=self.client.prepare_method,
-            measure_method=self.client.measure_method,
-            noise_model=noise_model,
-        )
-        sim.run(input_state=None, rng=rng)
-
-        # If quantum output, decode the state, nothing needs to be returned (backend.state can be accessed by the Client)
-        if not self.client.classical_output:
-            self.client.decode_output_state(backend)
-            return QuantumComputationResult(backend.state)
-        # If classical output, return the output
-        else:
-            results: dict[int, Outcome] = {onode: self.client.results[onode] for onode in self.client.output_nodes}
-            return ClassicalComputationResult(outcomes=results)
+        return executor.execute_computation_run(backend, noise_model, rng)
 
 
 def merge_pauli_strings(stabilizer_1: PauliString, stabilizer_2: PauliString) -> PauliString:
@@ -107,55 +83,45 @@ def generate_eigenstate(stabilizer: PauliString) -> list[PlanarState]:
     return states
 
 
+def build_stabilizer(
+    clifford_structure: stim.Tableau,
+    nqubits: int,
+    traps: Traps,
+    meas_basis: str = "X",
+) -> PauliString:
+    measurement_strings = [
+        PauliString([meas_basis if i in trap else "I" for i in range(nqubits)]) for trap in traps
+    ]
+    conjugated_measurements = [clifford_structure.inverse()(meas) for meas in measurement_strings]
+    return merge(conjugated_measurements)
+
+
 class TestRun(Run):
     __test__ = False  # this is not a pytest test-suite
 
-    def __init__(self, client: Client, traps: Traps, meas_basis: str = "X") -> None:
-        super().__init__(client=client)
+    def __init__(
+        self,
+        clifford_structure: stim.Tableau,
+        nqubits: int,
+        traps: Traps,
+        meas_basis: str = "X",
+    ) -> None:
         self.traps = frozenset(traps)
         self.meas_basis = meas_basis
-        self.clifford_structure = client.clifford_structure
-        self.nqubits = len(self.clifford_structure)
-        self.stabilizer = self.build_common_stabilizer()
+        self.clifford_structure = clifford_structure
+        self.nqubits = nqubits
+        self.stabilizer = build_stabilizer(clifford_structure, nqubits, traps, meas_basis)
         self.input_state = generate_eigenstate(self.stabilizer)
 
-    def build_common_stabilizer(self) -> PauliString:
-        # Build the PauliStrings representing the individual measurement of each trap qubit
-        measurement_strings = [
-            PauliString([self.meas_basis if i in trap else "I" for i in range(self.nqubits)]) for trap in self.traps
-        ]
-        # Conjugate each measurement
-        conjugated_measurements = [self.clifford_structure.inverse()(meas) for meas in measurement_strings]
-        common_stabilizer = merge(conjugated_measurements)
-        return common_stabilizer
-
     @override
-    def delegate(
+    def accept(
         self,
+        executor: Client,
         backend: Backend[_StateT],
-        noise_model: NoiseModel | None = None,
-        rng: Generator | None = None,
-        *,
-        stacklevel: int = 1,
+        noise_model: NoiseModel | None,
+        rng: Generator | None,
     ) -> TestResult[_StateT]:
-        self.client.refresh_randomness(rng=rng, stacklevel=stacklevel + 1)
-        states_dict = {node: self.input_state[node] for node in self.client.nodes}
-        self.client.prepare_states(backend=backend, states_dict=states_dict)
-        sim = PatternSimulator(
-            backend=backend,
-            pattern=self.client.test_pattern,
-            prepare_method=self.client.prepare_method,
-            measure_method=self.client.test_measure_method,
-            noise_model=noise_model,
-        )
-        sim.run(input_state=None, rng=rng)
-
-        trap_outcomes = dict()
-        for trap in self.traps:
-            outcomes = [self.client.results[component] for component in trap]
-            trap_outcome = sum(outcomes) % 2 ^ (self.stabilizer.sign == -1)
-            trap_outcomes[frozenset(trap)] = trap_outcome
-        return TestResult(trap_outcomes)
+        return executor.execute_test_run(self, backend, noise_model, rng)
 
     def __str__(self) -> str:
         return f"""

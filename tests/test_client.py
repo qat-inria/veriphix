@@ -30,7 +30,7 @@ class TestClient:
         secrets = Secrets(a=True, r=True, theta=True)
 
         client = Client(pattern=pattern, input_state=states, secrets=secrets, classical_output=True, rng=fx_rng)
-        ComputationRun(client).delegate(backend=StatevectorBackend(), rng=fx_rng)
+        ComputationRun().accept(client, StatevectorBackend(), None, fx_rng)
         # No assertion needed
 
     def test_minimize_space(self, fx_rng: Generator) -> None:
@@ -48,7 +48,7 @@ class TestClient:
         secrets = Secrets(a=True, r=True, theta=True)
 
         client = Client(pattern=pattern, input_state=states, secrets=secrets, classical_output=True, rng=fx_rng)
-        ComputationRun(client).delegate(backend=StatevectorBackend(), rng=fx_rng)
+        ComputationRun().accept(client, StatevectorBackend(), None, fx_rng)
         # No assertion needed
 
     def test_client_input(self, fx_rng: Generator) -> None:
@@ -88,7 +88,7 @@ class TestClient:
             secrets = Secrets(r=True)
             # Giving it empty will create a random secret
             client = Client(pattern=pattern, secrets=secrets, classical_output=False, rng=fx_rng)
-            ComputationRun(client).delegate(backend, rng=fx_rng)
+            ComputationRun().accept(client, backend, None, fx_rng)
             state_mbqc = backend.state
             np.testing.assert_almost_equal(np.abs(np.dot(state_mbqc.psi.flatten().conjugate(), state.psi.flatten())), 1)
 
@@ -111,7 +111,7 @@ class TestClient:
             client = Client(pattern=pattern, input_state=states, secrets=secrets, classical_output=False, rng=fx_rng)
             backend = StatevectorBackend()
             # Blinded simulation, between the client and the server
-            ComputationRun(client).delegate(backend, rng=fx_rng)
+            ComputationRun().accept(client, backend, None, fx_rng)
             blinded_simulation = backend.state
 
             # Clear simulation = no secret, just simulate the circuit defined above
@@ -140,7 +140,7 @@ class TestClient:
             client = Client(pattern=pattern, input_state=states, secrets=secrets, classical_output=False, rng=fx_rng)
             backend = StatevectorBackend()
             # Blinded simulation, between the client and the server
-            ComputationRun(client).delegate(backend, rng=fx_rng)
+            ComputationRun().accept(client, backend, None, fx_rng)
             blinded_simulation = backend.state
 
             # Clear simulation = no secret, just simulate the circuit defined above
@@ -171,7 +171,7 @@ class TestClient:
         # Giving it empty will create a random secret
         client = Client(pattern=pattern, measure_method_cls=CacheMeasureMethod, secrets=secrets, rng=fx_rng)
         backend = StatevectorBackend()
-        ComputationRun(client).delegate(backend, rng=fx_rng)
+        ComputationRun().accept(client, backend, None, fx_rng)
 
         for measured_node in client.measurement_db:
             # Compare results on the client side and on the server side : should differ by r[node]
@@ -207,8 +207,6 @@ class TestClient:
         for _ in range(10):
             circuit = rand_circuit(nqubits, depth, fx_rng)
             pattern = circuit.transpile().pattern
-            # pattern.minimize_space()
-            # pattern.standardize(method="global")
 
             secrets = Secrets(a=True, r=True, theta=True)
 
@@ -220,9 +218,8 @@ class TestClient:
 
             backend = StatevectorBackend()
             # Blinded simulation, between the client and the server
-            # ComputationRun(client).delegate(backend)
-            computation = ComputationRun(client=client)
-            computation.delegate(backend=backend, rng=fx_rng)
+            computation = ComputationRun()
+            computation.accept(client, backend, None, fx_rng)
             blinded_simulation = backend.state
 
             # Clear simulation = no secret, just simulate the circuit defined above
@@ -239,9 +236,9 @@ class TestClient:
 
         client = Client(pattern=pattern, rng=fx_rng)
 
-        comp_run = ComputationRun(client=client)
+        comp_run = ComputationRun()
         backend = StatevectorBackend()
-        outcomes = comp_run.delegate(backend=backend, rng=fx_rng)
+        outcomes = comp_run.accept(client, backend, None, fx_rng)
         assert outcomes is not None
         # TODO: assert something ? generate BQP computation for that
 

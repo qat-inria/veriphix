@@ -13,7 +13,7 @@ import stim
 from graphix.rng import ensure_rng
 from typing_extensions import override
 
-from veriphix.verifying import TestRun
+from veriphix.verifying import TestRun, build_stabilizer
 
 BRICKWORK_DETECTION_RATE = 1 / 14
 
@@ -138,7 +138,11 @@ class FK12(VerificationProtocol):
             # 1 color = 1 test run = 1 collection of single-qubit traps
             traps_list = [frozenset([colored_node]) for colored_node in nodes_by_color[color]]
             traps = frozenset(traps_list)
-            test_run = TestRun(client=client, traps=traps)
+            test_run = TestRun(
+                clifford_structure=client.clifford_structure,
+                nqubits=len(client.clifford_structure),
+                traps=traps,
+            )
             test_runs.append(test_run)
 
         self._detection_rate = 1 / len(test_runs)
@@ -205,7 +209,11 @@ class RandomTraps(VerificationProtocol):
             client.nodes[i] for i in rng.choice(len(client.nodes), size=trap_size, replace=False)
         ]
         traps = frozenset({frozenset(random_nodes)})
-        return TestRun(client=client, traps=traps)
+        return TestRun(
+            clifford_structure=client.clifford_structure,
+            nqubits=len(client.clifford_structure),
+            traps=traps,
+        )
 
 
 def _odd_pair_generators_bfs(
@@ -349,7 +357,11 @@ class Dummyless(VerificationProtocol):
         stabdict: dict[int, GraphStabilizer] = {
             node: GraphStabilizer(
                 node_indices={node},
-                string=TestRun(client=client, traps=frozenset({frozenset({node})})).stabilizer,
+                string=build_stabilizer(
+                    client.clifford_structure,
+                    len(client.clifford_structure),
+                    frozenset({frozenset({node})}),
+                ),
             )
             for node in client.graph.nodes
         }
@@ -369,7 +381,14 @@ class Dummyless(VerificationProtocol):
         generators.extend(self.odd_pair_generator(client.graph, stabdict, rfull))
 
         # Step 3: build TestRuns — each generator's node_indices form one multi-qubit trap
-        test_runs = [TestRun(client=client, traps=frozenset({frozenset(gs.node_indices)})) for gs in generators]
+        test_runs = [
+            TestRun(
+                clifford_structure=client.clifford_structure,
+                nqubits=len(client.clifford_structure),
+                traps=frozenset({frozenset(gs.node_indices)}),
+            )
+            for gs in generators
+        ]
         self._detection_rate = 1 / len(test_runs)
         return test_runs
 

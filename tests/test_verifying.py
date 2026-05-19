@@ -24,9 +24,13 @@ class TestVerifying:
             # Only one trap
             traps = frozenset({random_multi_qubit_trap})
 
-            test_run = TestRun(client=client, traps=traps)
+            test_run = TestRun(
+                clifford_structure=client.clifford_structure,
+                nqubits=len(client.clifford_structure),
+                traps=traps,
+            )
             backend = StatevectorBackend()
-            outcomes = test_run.delegate(backend=backend, rng=fx_rng).trap_outcomes
+            outcomes = test_run.accept(client, backend, None, fx_rng).trap_outcomes
 
             for trap in traps:
                 assert outcomes[trap] == 0
