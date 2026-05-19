@@ -15,6 +15,8 @@ from typing_extensions import override
 
 from veriphix.verifying import TestRun
 
+BRICKWORK_DETECTION_RATE = 1 / 14
+
 if TYPE_CHECKING:
     from collections.abc import Sequence
     from typing import TypeVar
@@ -57,6 +59,15 @@ class VerificationProtocol(ABC):
 class FK12(VerificationProtocol):
     def __init__(self, manual_colouring: Sequence[set[int]] | None = None) -> None:
         super().__init__()
+        # Check the manual colouring, if any
+        if manual_colouring is not None:
+            if len(manual_colouring) == 0:
+                raise ValueError("manual_colouring must not be empty.")
+            if any(i & j for i, j in itertools.combinations(manual_colouring, 2)):
+                raise ValueError(
+                    "The provided colouring is not a proper colouring i.e the same node belongs to at least two colours."
+                )
+            self._detection_rate = 1 / len(manual_colouring)
         self.manual_colouring = manual_colouring
 
     @property
@@ -113,18 +124,10 @@ class FK12(VerificationProtocol):
                 color = coloring[node]
                 nodes_by_color[color].append(node)
         else:
-            # checks that manual_colouring is a proper colouring
-            ## first check uniion is the whole graph
+            # check that the colouring covers all nodes of the graph
             color_union = set().union(*self.manual_colouring)
-            if not color_union == set(client.graph.nodes):
+            if color_union != set(client.graph.nodes):
                 raise ValueError("The provided colouring does not include all the nodes of the graph.")
-            # check that colors are two by two disjoint
-            # if sets are disjoint, empty set from intersection is interpreted as False.
-            # so one non-empty set -> one True value -> use any()
-            if any([i & j for i, j in itertools.combinations(self.manual_colouring, 2)]):
-                raise ValueError(
-                    "The provided colouring is not a proper colouring i.e the same node belongs to at least two colours."
-                )
 
             nodes_by_color = {i: list(c) for i, c in enumerate(self.manual_colouring)}
             colors = set(nodes_by_color.keys())
@@ -197,7 +200,7 @@ class RandomTraps(VerificationProtocol):
     def sample_test_run(self, client: Client, rng: Generator | None = None, *, stacklevel: int = 1) -> TestRun:
         rng = ensure_rng(rng, stacklevel=stacklevel + 1)
         n = len(client.graph.nodes)
-        trap_size = rng.integers(n)
+        trap_size = rng.integers(1, n + 1)
         random_nodes: list[int] = [
             client.nodes[i] for i in rng.choice(len(client.nodes), size=trap_size, replace=False)
         ]
@@ -327,7 +330,7 @@ class Dummyless(VerificationProtocol):
     def __init__(self, odd_pair_generator: OddPairGeneratorFn = _odd_pair_generators_bfs) -> None:
         super().__init__()
         self.odd_pair_generator = odd_pair_generator
-        self._detection_rate = 1 / 14
+        self._detection_rate = BRICKWORK_DETECTION_RATE
 
     @property
     @override

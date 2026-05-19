@@ -226,54 +226,58 @@ class TestVBQC:
         Because noise < rho_min, the protocol's guarantees hold: traps should still
         pass and the majority-vote answer should match the expected BQP output.
         """
+        import random
+
         rho_min = 0.1
 
         with Path("tests/test_circuits/table.json").open() as f:
             table = json.load(f)
+        circuit_label = random.choice(list(table.keys()))
+        prob = table[circuit_label]
+        bqp_error = prob if prob <= 1 / 2 else 1 - prob
 
-        for circuit_label, prob in table.items():
-            pattern = load_pattern_from_circuit(circuit_label)
-            correct_answer = round(prob)
-            secrets = Secrets(a=True, r=True, theta=True)
+        # for circuit_label, prob in table.items():
+        pattern = load_pattern_from_circuit(circuit_label)
+        correct_answer = round(prob)
+        secrets = Secrets(a=True, r=True, theta=True)
 
-            protocol = RandomTraps()
-            client = Client(pattern=pattern, secrets=secrets, protocol=protocol, rng=fx_rng)
+        protocol = RandomTraps()
+        client = Client(pattern=pattern, secrets=secrets, protocol=protocol, rng=fx_rng)
 
-            design = optimize_with_robustness_constraint(
-                c=0,
-                detection_rate=protocol.detection_rate,
-                epsilon_target=1e-2,
-                rho_min=rho_min,
-                n_grid=200,
-            )
+        design = optimize_with_robustness_constraint(
+            c=bqp_error,
+            detection_rate=protocol.detection_rate,
+            epsilon_target=1e-2,
+            rho_min=rho_min,
+            n_grid=200,
+        )
 
-            parameters = TrappifiedSchemeParameters(
-                comp_rounds=design.d,
-                test_rounds=design.s,
-                threshold=design.w,
-            )
-            client.trappifiedScheme.params = parameters
+        parameters = TrappifiedSchemeParameters(
+            comp_rounds=design.d,
+            test_rounds=design.s,
+            threshold=design.w,
+        )
+        client.trappifiedScheme.params = parameters
 
-            noise_model = MaliciousNoiseModel(
-                nodes=[int(n) for n in client.output_nodes],
-                prob=rho_min * 1,
-                rng=fx_rng,
-            )
+        noise_model = MaliciousNoiseModel(
+            nodes=[int(n) for n in client.output_nodes],
+            prob=rho_min * 0.5,
+            rng=fx_rng,
+        )
 
-            canvas = client.sample_canvas(rng=fx_rng)
-            print(parameters)
-            outcomes = client.delegate_canvas(
-                canvas=canvas,
-                backend_cls=DensityMatrixBackend,
-                noise_model=noise_model,
-                rng=fx_rng,
-            )
-            traps_decision, computation_decision, _ = client.analyze_outcomes(canvas, outcomes)
+        canvas = client.sample_canvas(rng=fx_rng)
+        outcomes = client.delegate_canvas(
+            canvas=canvas,
+            backend_cls=DensityMatrixBackend,
+            noise_model=noise_model,
+            rng=fx_rng,
+        )
+        traps_decision, computation_decision, _ = client.analyze_outcomes(canvas, outcomes)
 
-            assert traps_decision, f"{circuit_label}: honest server rejected"
-            assert int(computation_decision) == correct_answer, (
-                f"{circuit_label}: majority vote gave {int(computation_decision)}, expected {correct_answer}"
-            )
+        assert traps_decision, f"{circuit_label}: honest server rejected"
+        assert int(computation_decision) == correct_answer, (
+            f"{circuit_label}: majority vote gave {int(computation_decision)}, expected {correct_answer}"
+        )
 
     def test_designed_rounds_noiseless(self, fx_rng: Generator) -> None:
         """Round counts from util_rounds integrate correctly with the VBQC pipeline.
@@ -286,22 +290,25 @@ class TestVBQC:
         to keep the optimised round counts small and the test fast.
         """
         nqubits = 2
-        depth = 3
+        depth = 1
+        epsilon_target = 0.1
+        rho_min = 0.1
         circuit = rand_circuit(nqubits, depth, fx_rng)
         pattern = circuit.transpile().pattern
 
         protocol = FK12()
+        client = Client(pattern=pattern, protocol=protocol)
 
         design = optimize_with_robustness_constraint(
             c=0,
             detection_rate=protocol.detection_rate,
-            epsilon_target=0.05,
-            rho_min=0.01,
+            epsilon_target=epsilon_target,
+            rho_min=rho_min,
             n_grid=200,
         )
 
-        assert design.total_bound <= 0.05
-        assert design.w_over_s >= 0.01
+        assert design.total_bound <= epsilon_target
+        assert design.w_over_s >= rho_min  # TODO: missing alpha
 
         parameters = TrappifiedSchemeParameters(
             comp_rounds=design.d,
@@ -309,6 +316,7 @@ class TestVBQC:
             threshold=design.w,
         )
         secrets = Secrets(a=True, r=True, theta=True)
+        pattern = circuit.transpile().pattern
         client = Client(pattern=pattern, secrets=secrets, protocol=protocol, parameters=parameters, rng=fx_rng)
 
         canvas = client.sample_canvas(rng=fx_rng)

@@ -102,13 +102,8 @@ class TestProtocols:
 
         nodes = pattern.extract_nodes()
 
-        # initialise client
-        protocol = FK12(manual_colouring=(set(nodes), set([next(iter(nodes))])))
-        client = Client(pattern=pattern, autogen=False, rng=fx_rng)
-        client.preprocess_pattern()
-        client.create_blind_patterns(rng=fx_rng)
-        with pytest.raises(ValueError):  # trivially duplicate a node
-            protocol.create_test_runs(client=client)
+        with pytest.raises(ValueError):  # trivially bad colouring
+            FK12(manual_colouring=(set(nodes), set([next(iter(nodes))])))
 
     def test_random_traps(self, fx_rng: np.random.Generator) -> None:
         """
@@ -158,16 +153,12 @@ class TestProtocols:
         detections = 0
 
         for _ in range(n_test_runs):
-            # IMPORTANT: sample uniformly from non-empty subsets.
-            # Your current rng.integers(n) excludes size n and allows size 0.
-            mask = fx_rng.integers(1, 2**n)
-            H = frozenset(nodes[i] for i in range(n) if (mask >> i) & 1)
-
-            detected = (len(error_support & H) % 2) == 1
+            test_run = protocol.sample_test_run(client=client, rng=fx_rng)
+            trap = next(iter(test_run.traps))
+            detected = (len(error_support & trap) % 2) == 1
             detections += int(detected)
 
         detection_rate = detections / n_test_runs
-
         # With 100 samples, allow statistical slack.
         assert 0.35 <= detection_rate <= 0.65, (
             f"Expected ≈1/2 detection rate, got {detection_rate:.3f}; error_support={error_support}"
