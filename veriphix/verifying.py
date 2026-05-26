@@ -17,6 +17,8 @@ Traps = AbstractSet[Trap]
 
 
 if TYPE_CHECKING:
+    from typing import Literal
+
     from graphix.measurements import Outcome
     from graphix.noise_models import NoiseModel
     from graphix.sim.base_backend import Backend
@@ -110,7 +112,7 @@ def generate_eigenstate(stabilizer: PauliString) -> list[PlanarState]:
 class TestRun(Run):
     __test__ = False  # this is not a pytest test-suite
 
-    def __init__(self, client: Client, traps: Traps, meas_basis: str = "X") -> None:
+    def __init__(self, client: Client, traps: Traps, meas_basis: Literal["_", "I", "X", "Y", "Z"] = "X") -> None:
         super().__init__(client=client)
         self.traps = frozenset(traps)
         self.meas_basis = meas_basis
