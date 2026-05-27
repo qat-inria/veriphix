@@ -15,6 +15,15 @@ from graphix_qasm_parser import OpenQASMParser
 from veriphix.blinding import Secrets
 from veriphix.client import Client
 from veriphix.protocols import FK12, Dummyless, RandomTraps, VerificationProtocol
+from veriphix.protocols import (
+    FK12,
+    Dummyless,
+    OddPairGeneratorFn,
+    RandomTraps,
+    VerificationProtocol,
+    odd_pair_generators_bfs,
+    odd_pair_generators_exhaustive,
+)
 
 if TYPE_CHECKING:
     from graphix import Pattern
