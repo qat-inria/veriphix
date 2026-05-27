@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import networkx as nx
 import numpy as np
 import pytest
 from graphix._linalg import MatGF2
@@ -19,8 +20,8 @@ from veriphix.protocols import (
     OddPairGeneratorFn,
     RandomTraps,
     VerificationProtocol,
-    _odd_pair_generators_bfs,
-    _odd_pair_generators_exhaustive,
+    odd_pair_generators_bfs,
+    odd_pair_generators_exhaustive,
 )
 
 if TYPE_CHECKING:
@@ -131,8 +132,8 @@ class TestProtocols:
     @pytest.mark.parametrize(
         "odd_pair_generator",
         [
-            _odd_pair_generators_bfs,
-            _odd_pair_generators_exhaustive,
+            odd_pair_generators_bfs,
+            odd_pair_generators_exhaustive,
         ],
         ids=["bfs", "exhaustive"],
     )
@@ -167,6 +168,8 @@ class TestProtocols:
         )
         mat = MatGF2(rows)
         rank = mat.compute_rank()
-        assert rank == len(client.graph.nodes) - 1, (
-            f"generators span a space of dimension {rank}, expected |V|-1={len(client.graph.nodes) - 1}"
-        )
+
+        # Each connected component contributes one degree of freedom (its own "logical qubit"),
+        # so the generators must span a space of dimension |V| - n_components.
+        n_components = nx.number_connected_components(client.graph)
+        assert rank == len(client.graph.nodes) - n_components

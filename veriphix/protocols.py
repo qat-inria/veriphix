@@ -3,6 +3,7 @@ from __future__ import annotations
 import itertools
 from abc import ABC, abstractmethod
 from array import array
+from collections import deque
 from collections.abc import Callable
 from functools import reduce
 from operator import mul
@@ -180,7 +181,7 @@ class RandomTraps(VerificationProtocol):
         return test_runs
 
 
-def _odd_pair_generators_bfs(
+def odd_pair_generators_bfs(
     graph: nx.Graph,
     stabdict: dict[int, GraphStabilizer],
     rfull: GraphStabilizer,
@@ -221,9 +222,9 @@ def _odd_pair_generators_bfs(
             continue
         visited.add(start)
         odd_source[start] = start
-        queue: list[int] = [start]
+        queue: deque[int] = deque([start])
         while queue:
-            u = queue.pop(0)
+            u = queue.popleft()
             for w in graph.neighbors(u):
                 if w in visited:
                     continue
@@ -247,7 +248,7 @@ def _odd_pair_generators_bfs(
     return generators
 
 
-def _odd_pair_generators_exhaustive(
+def odd_pair_generators_exhaustive(
     graph: nx.Graph,
     stabdict: dict[int, GraphStabilizer],
     rfull: GraphStabilizer,
@@ -261,7 +262,7 @@ def _odd_pair_generators_exhaustive(
 
     This approach is correct but has time complexity O(|odd|² x (|V| + |E|)) and
     produces more generators than necessary (not a minimal spanning set).
-    Prefer :func:`_odd_pair_generators_bfs` for large graphs.
+    Prefer :func:`odd_pair_generators_bfs` for large graphs.
 
     Parameters
     ----------
@@ -299,7 +300,7 @@ OddPairGeneratorFn: TypeAlias = Callable[
 
 
 class Dummyless(VerificationProtocol):
-    def __init__(self, odd_pair_generator: OddPairGeneratorFn = _odd_pair_generators_bfs) -> None:
+    def __init__(self, odd_pair_generator: OddPairGeneratorFn = odd_pair_generators_bfs) -> None:
         super().__init__()
         self.odd_pair_generator = odd_pair_generator
 

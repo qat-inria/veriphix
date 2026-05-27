@@ -58,7 +58,7 @@ class MaliciousNoiseModel(NoiseModel):
 
     def __init__(self, nodes: list[int], prob: float = 0.0, rng: Generator | None = None) -> None:
         self.prob = prob
-        self.nodes: set[int] = {int(node) for node in nodes}  # ✅ Explicitly annotate as set[int]
+        self.nodes: set[int] = {int(node) for node in nodes}
         self.refresh_randomness(rng)
 
     def refresh_randomness(self, rng: Generator | None = None) -> None:
@@ -80,7 +80,10 @@ class MaliciousNoiseModel(NoiseModel):
     ) -> list[CommandOrNoise]:
         """Return the noise to apply to the command `cmd`."""
         if cmd.kind == CommandKind.M and cmd.node in self.nodes and self.attack:
-            return [ApplyNoise(DephasingNoise(prob=1), [int(cmd.node)]), cmd]
+            return [
+                ApplyNoise(DephasingNoise(prob=1), [int(cmd.node)]),
+                cmd,
+            ]  # noise must precede measurement — dephasing after has no effect on the classical outcome
         else:
             return [cmd]
 
