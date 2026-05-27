@@ -47,7 +47,7 @@ def bounds_corrected_delta(
     d: int,
     s: int,
     lambda_phi: float = 0.5,
-) -> dict:
+) -> dict[str, float | int]:
     alpha = alpha_from_c(c)
 
     if not (0.0 < detection_rate <= 1.0):
@@ -111,7 +111,7 @@ def bounds_corrected_delta(
     }
 
 
-def _binary_search_min_int(ok_fn, hi_max: int) -> int:
+def _binary_search_min_int(ok_fn: Callable[[int], bool], hi_max: int) -> int:
     lo, hi = 1, 1
     while hi <= hi_max and not ok_fn(hi):
         hi *= 2

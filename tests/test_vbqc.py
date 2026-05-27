@@ -225,17 +225,15 @@ class TestVBQC:
         Because noise < rho_min, the protocol's guarantees hold: traps should still
         pass and the majority-vote answer should match the expected BQP output.
         """
-        import random
-
         rho_min = 0.1
 
         with Path("tests/test_circuits/table.json").open() as f:
             table = json.load(f)
-        circuit_label = random.choice(list(table.keys()))
+        table_keys = list(table.keys())
+        circuit_label = table_keys[fx_rng.integers(len(table_keys))]
         prob = table[circuit_label]
         bqp_error = prob if prob <= 1 / 2 else 1 - prob
 
-        # for circuit_label, prob in table.items():
         pattern = load_pattern_from_circuit(circuit_label)
         correct_answer = round(prob)
         secrets = Secrets(a=True, r=True, theta=True)
@@ -296,7 +294,7 @@ class TestVBQC:
         pattern = circuit.transpile().pattern
 
         protocol = FK12()
-        client = Client(pattern=pattern, protocol=protocol)
+        _ = protocol.create_test_runs(graph=pattern.extract_graph())
 
         design = optimize_with_robustness_constraint(
             c=0,
@@ -315,7 +313,6 @@ class TestVBQC:
             threshold=design.w,
         )
         secrets = Secrets(a=True, r=True, theta=True)
-        pattern = circuit.transpile().pattern
         client = Client(pattern=pattern, secrets=secrets, protocol=protocol, parameters=parameters, rng=fx_rng)
 
         canvas = client.sample_canvas(rng=fx_rng)
@@ -376,12 +373,3 @@ def find_correct_value(circuit_name: str) -> Outcome:
         # return 0 else (no instance, as circuits are already filtered)
         # print(table[circuit_name])
         return round(table[circuit_name])
-
-
-def sample_non_empty_subset(nodes, rng: np.random.Generator) -> frozenset:
-    nodes = list(nodes)
-
-    while True:
-        keep = rng.random(len(nodes)) < 0.5
-        if keep.any():
-            return frozenset(node for node, k in zip(nodes, keep, strict=True) if k)

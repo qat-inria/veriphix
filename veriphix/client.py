@@ -11,7 +11,6 @@ import graphix.pauli
 import graphix.sim.base_backend
 import graphix.sim.statevec
 import graphix.simulator
-import stim
 from graphix import command
 from graphix.clifford import Clifford
 from graphix.command import BaseCommand, BaseM, BaseN, Command, CommandKind
@@ -44,7 +43,6 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Mapping
     from typing import TypeVar
 
-    import networkx as nx
     from graphix.measurements import Outcome
     from graphix.noise_models import NoiseModel
     from graphix.sim.base_backend import Backend
@@ -90,9 +88,6 @@ def remove_flow(pattern: Pattern) -> Pattern:
         # See https://github.com/TeamGraphix/graphix/issues/266
         clean_pattern.add(cast("Command", new_cmd))
     return clean_pattern
-
-
-
 
 
 def qCircuit_predicate(output_string: str) -> bool:
@@ -260,7 +255,9 @@ class Client:
         computation_rounds = set(rng.choice(N, size=self.trappifiedScheme.params.comp_rounds, replace=False))
 
         return {
-            r: self.computationRun if r in computation_rounds else self.protocol.sample_test_run(
+            r: self.computationRun
+            if r in computation_rounds
+            else self.protocol.sample_test_run(
                 graph=self.graph,
                 test_runs=self.test_runs,
                 rng=rng,
