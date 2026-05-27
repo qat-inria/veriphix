@@ -3,13 +3,21 @@ from __future__ import annotations
 import itertools
 from abc import ABC, abstractmethod
 from array import array
-from typing import TYPE_CHECKING
+from collections.abc import Callable
+from functools import reduce
+from operator import mul
+from typing import TYPE_CHECKING, TypeAlias
 
 import networkx as nx
+import stim
 from graphix.rng import ensure_rng
 from typing_extensions import override
 
-from veriphix.verifying import TestRun
+from veriphix.verifying import TestRun, build_stabilizer
+
+BRICKWORK_DETECTION_RATE = 1 / 14
+
+BRICKWORK_DETECTION_RATE = 1 / 14
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -18,24 +26,80 @@ if TYPE_CHECKING:
     from graphix import Pattern
     from numpy.random import Generator
 
-    from veriphix.client import Client
-
     _StateT = TypeVar("_StateT")
 
 
+class GraphStabilizer:
+    def __init__(self, node_indices: set[int], string: stim.PauliString) -> None:
+        self.node_indices = node_indices
+        self.string = string
+
+    def __mul__(self, other: GraphStabilizer) -> GraphStabilizer:
+        return GraphStabilizer(
+            node_indices=self.node_indices ^ other.node_indices,
+            string=self.string * other.string,
+        )
+
+
 class VerificationProtocol(ABC):
+    @property
     @abstractmethod
-    def create_test_runs(self, client: Client, rng: Generator | None = None, *, stacklevel: int = 1) -> list[TestRun]:
+    def detection_rate(self) -> float:
+        pass
+
+    @abstractmethod
+    def create_test_runs(
+        self,
+        graph: nx.Graph,
+        rng: Generator | None = None,
+        *,
+        stacklevel: int = 1,
+    ) -> list[TestRun]:
+        pass
+
+    @abstractmethod
+    def sample_test_run(
+        self,
+        graph: nx.Graph,
+        test_runs: list[TestRun],
+        rng: Generator | None = None,
+        *,
+        stacklevel: int = 1,
+    ) -> TestRun:
         pass
 
 
 class FK12(VerificationProtocol):
     def __init__(self, manual_colouring: Sequence[set[int]] | None = None) -> None:
         super().__init__()
+        # Check the manual colouring, if any
+        if manual_colouring is not None:
+            if len(manual_colouring) == 0:
+                raise ValueError("manual_colouring must not be empty.")
+            if any(i & j for i, j in itertools.combinations(manual_colouring, 2)):
+                raise ValueError(
+                    "The provided colouring is not a proper colouring i.e the same node belongs to at least two colours."
+                )
+            self._detection_rate = 1 / len(manual_colouring)
         self.manual_colouring = manual_colouring
 
+    @property
     @override
-    def create_test_runs(self, client: Client, rng: Generator | None = None, *, stacklevel: int = 1) -> list[TestRun]:
+    def detection_rate(self) -> float:
+        return self._detection_rate
+
+    @detection_rate.setter
+    def detection_rate(self, value: float) -> None:
+        self._detection_rate = value
+
+    @override
+    def create_test_runs(
+        self,
+        graph: nx.Graph,
+        rng: Generator | None = None,
+        *,
+        stacklevel: int = 1,
+    ) -> list[TestRun]:
         """Creates test runs according to a graph colouring according to [FK12].
         A test run, or a Trappified Canvas, is associated to each color in the colouring.
         For a given test run, the trap nodes are defined as being the nodes belonging to the color the run corresponds to.
@@ -72,25 +136,17 @@ class FK12(VerificationProtocol):
         # Create the graph coloring
         # Networkx output format: dict[int, int] eg {0: 0, 1: 1, 2: 0, 3: 1}
         if self.manual_colouring is None:
-            coloring = nx.coloring.greedy_color(client.graph, strategy="largest_first")
+            coloring = nx.coloring.greedy_color(graph, strategy="largest_first")
             colors = set(coloring.values())
             nodes_by_color: dict[int, list[int]] = {c: [] for c in colors}
-            for node in sorted(client.nodes):
+            for node in sorted(graph.nodes):
                 color = coloring[node]
                 nodes_by_color[color].append(node)
         else:
-            # checks that manual_colouring is a proper colouring
-            ## first check uniion is the whole graph
+            # check that the colouring covers all nodes of the graph
             color_union = set().union(*self.manual_colouring)
-            if not color_union == set(client.graph.nodes):
+            if color_union != set(graph.nodes):
                 raise ValueError("The provided colouring does not include all the nodes of the graph.")
-            # check that colors are two by two disjoint
-            # if sets are disjoint, empty set from intersection is interpreted as False.
-            # so one non-empty set -> one True value -> use any()
-            if any([i & j for i, j in itertools.combinations(self.manual_colouring, 2)]):
-                raise ValueError(
-                    "The provided colouring is not a proper colouring i.e the same node belongs to at least two colours."
-                )
 
             nodes_by_color = {i: list(c) for i, c in enumerate(self.manual_colouring)}
             colors = set(nodes_by_color.keys())
@@ -101,11 +157,27 @@ class FK12(VerificationProtocol):
             # 1 color = 1 test run = 1 collection of single-qubit traps
             traps_list = [frozenset([colored_node]) for colored_node in nodes_by_color[color]]
             traps = frozenset(traps_list)
-            test_run = TestRun(client=client, traps=traps)
+            test_run = TestRun(
+                graph=graph,
+                nqubits=len(graph),
+                traps=traps,
+            )
             test_runs.append(test_run)
 
-        # print(test_runs)
+        self._detection_rate = 1 / len(test_runs)
         return test_runs
+
+    @override
+    def sample_test_run(
+        self,
+        graph: nx.Graph,
+        test_runs: list[TestRun],
+        rng: Generator | None = None,
+        *,
+        stacklevel: int = 1,
+    ) -> TestRun:
+        rng = ensure_rng(rng, stacklevel=stacklevel + 1)
+        return test_runs[rng.integers(len(test_runs))]
 
 
 def get_bipartite_coloring(pattern: Pattern) -> tuple[set[int], set[int]]:
@@ -137,28 +209,241 @@ def get_node_positions(pattern: Pattern, scale: float = 1, reverse_qubit_order: 
 
 
 class RandomTraps(VerificationProtocol):
-    """
-    A bad and naive way of generating traps, but exposing the modularity of the interface.
-    """
-
     def __init__(self) -> None:
         super().__init__()
+        self._detection_rate = 1 / 2
+
+    @property
+    @override
+    def detection_rate(self) -> float:
+        return self._detection_rate
+
+    @detection_rate.setter
+    def detection_rate(self, value: float) -> None:
+        self._detection_rate = value
 
     @override
-    def create_test_runs(self, client: Client, rng: Generator | None = None, *, stacklevel: int = 1) -> list[TestRun]:
-        rng = ensure_rng(rng, stacklevel=stacklevel + 1)
-        test_runs = []
-        # Create 1 random trap per node
-        n = len(client.graph.nodes)
-        for _ in range(n):
-            # Choose a random subset of nodes to create a trap (random size, random nodes)
-            trap_size = rng.integers(n)
-            random_nodes = [client.nodes[i] for i in rng.choice(len(client.nodes), size=trap_size, replace=False)]
-            # Create a single-trap test round from it. The trap is multi-qubit.
-            random_multi_qubit_trap = frozenset(random_nodes)
-            # Only one trap
-            traps = frozenset({random_multi_qubit_trap})
-            test_run = TestRun(client=client, traps=traps)
-            test_runs.append(test_run)
+    def create_test_runs(
+        self,
+        graph: nx.Graph,
+        rng: Generator | None = None,
+        *,
+        stacklevel: int = 1,
+    ) -> list[TestRun]:
+        return []
 
+    @override
+    def sample_test_run(
+        self,
+        graph: nx.Graph,
+        test_runs: list[TestRun],
+        rng: Generator | None = None,
+        *,
+        stacklevel: int = 1,
+    ) -> TestRun:
+        rng = ensure_rng(rng, stacklevel=stacklevel + 1)
+        nodes = sorted(graph.nodes)
+        n = len(nodes)
+        trap_size = rng.integers(1, n + 1)
+        random_nodes: list[int] = [nodes[i] for i in rng.choice(n, size=trap_size, replace=False)]
+        traps = frozenset({frozenset(random_nodes)})
+        return TestRun(
+            graph=graph,
+            nqubits=len(graph),
+            traps=traps,
+        )
+
+
+def _odd_pair_generators_bfs(
+    graph: nx.Graph,
+    stabdict: dict[int, GraphStabilizer],
+    rfull: GraphStabilizer,
+) -> list[GraphStabilizer]:
+    """Find R\\(u,w) generators for all pairs of odd-degree nodes using a BFS spanning tree.
+
+    Builds a spanning tree of odd-degree nodes by doing BFS over the whole graph.
+    Even-degree nodes are traversed transparently; each time the BFS reaches a new
+    odd-degree node w from a current odd-degree source src, the path src→…→w (whose
+    interior nodes are all even-degree by BFS construction) defines one generator
+    R\\(src,w) = Rfull x S_src x … x S_w.
+
+    Produces exactly |odd|-1 generators per connected component, i.e. one per edge of
+    the spanning tree of odd-degree nodes. Time complexity: O(|V| + |E|).
+
+    Parameters
+    ----------
+    graph : nx.Graph
+        The resource graph.
+    stabdict : dict[int, GraphStabilizer]
+        Per-node canonical stabilizers S_v.
+    rfull : GraphStabilizer
+        Product of all S_v (Rfull).
+
+    Returns
+    -------
+    list[GraphStabilizer]
+        The R\\(u,w) generators, one per spanning-tree edge of odd-degree nodes.
+    """
+    odd_nodes_set = {v for v in graph.nodes if graph.degree(v) % 2 == 1}
+    visited: set[int] = set()
+    pred: dict[int, int] = {}
+    odd_source: dict[int, int] = {}
+    generators: list[GraphStabilizer] = []
+
+    for start in odd_nodes_set:
+        if start in visited:
+            continue
+        visited.add(start)
+        odd_source[start] = start
+        queue: list[int] = [start]
+        while queue:
+            u = queue.pop(0)
+            for w in graph.neighbors(u):
+                if w in visited:
+                    continue
+                pred[w] = u
+                visited.add(w)
+                queue.append(w)
+                if w in odd_nodes_set:
+                    odd_source[w] = w
+                    src = odd_source[u]
+                    path: list[int] = []
+                    node: int = w
+                    while node != src:
+                        path.append(node)
+                        node = pred[node]
+                    path.append(src)
+                    path.reverse()
+                    generators.append(reduce(mul, (stabdict[v] for v in path), rfull))
+                else:
+                    odd_source[w] = odd_source[u]
+
+    return generators
+
+
+def _odd_pair_generators_exhaustive(
+    graph: nx.Graph,
+    stabdict: dict[int, GraphStabilizer],
+    rfull: GraphStabilizer,
+) -> list[GraphStabilizer]:
+    """Find R\\(u,w) generators for all pairs of odd-degree nodes by exhaustive search.
+
+    Tries every pair (u, w) of odd-degree nodes. For each pair, computes the shortest
+    path between them and accepts it only if all interior nodes are even-degree. The
+    resulting generator R\\(u,w) = Rfull x S_u x … x S_w is further validated by
+    checking it contains no Z Paulis.
+
+    This approach is correct but has time complexity O(|odd|² x (|V| + |E|)) and
+    produces more generators than necessary (not a minimal spanning set).
+    Prefer :func:`_odd_pair_generators_bfs` for large graphs.
+
+    Parameters
+    ----------
+    graph : nx.Graph
+        The resource graph.
+    stabdict : dict[int, GraphStabilizer]
+        Per-node canonical stabilizers S_v.
+    rfull : GraphStabilizer
+        Product of all S_v (Rfull).
+
+    Returns
+    -------
+    list[GraphStabilizer]
+        All valid R\\(u,w) generators found.
+    """
+    odd_nodes = [v for v in graph.nodes if graph.degree(v) % 2 == 1]
+    generators: list[GraphStabilizer] = []
+    for u, w in itertools.combinations(odd_nodes, 2):
+        try:
+            path = nx.shortest_path(graph, u, w)
+        except nx.NetworkXNoPath:
+            continue
+        if not all(graph.degree(v) % 2 == 0 for v in path[1:-1]):
+            continue
+        candidate = reduce(mul, (stabdict[v] for v in path), rfull)
+        if candidate.string.pauli_indices("Z") == []:
+            generators.append(candidate)
+    return generators
+
+
+OddPairGeneratorFn: TypeAlias = Callable[
+    [nx.Graph, dict[int, GraphStabilizer], GraphStabilizer],
+    list[GraphStabilizer],
+]
+
+
+class Dummyless(VerificationProtocol):
+    def __init__(self, odd_pair_generator: OddPairGeneratorFn = _odd_pair_generators_bfs) -> None:
+        super().__init__()
+        self.odd_pair_generator = odd_pair_generator
+        self._detection_rate = BRICKWORK_DETECTION_RATE
+
+    @property
+    @override
+    def detection_rate(self) -> float:
+        return self._detection_rate
+
+    @detection_rate.setter
+    def detection_rate(self, value: float) -> None:
+        self._detection_rate = value
+
+    @override
+    def create_test_runs(
+        self,
+        graph: nx.Graph,
+        rng: Generator | None = None,
+        *,
+        stacklevel: int = 1,
+    ) -> list[TestRun]:
+        rng = ensure_rng(rng, stacklevel=stacklevel + 1)
+        n_qubits = len(graph)
+
+        # Step 0: build per-node GraphStabilizers (dict keyed by node id)
+        stabdict: dict[int, GraphStabilizer] = {
+            node: GraphStabilizer(
+                node_indices={node},
+                string=build_stabilizer(
+                    graph,
+                    n_qubits,
+                    frozenset({frozenset({node})}),
+                ),
+            )
+            for node in graph.nodes
+        }
+
+        # Step 1: Rfull = product of all S_v
+        identity = GraphStabilizer(node_indices=set(), string=stim.PauliString(n_qubits))
+        rfull: GraphStabilizer = reduce(mul, stabdict.values(), identity)
+
+        # (removing S_v leaves I at v and flips Z count on its neighbours — stays in I/X/Y)
+        # Step 2a: for each even-degree node v, R\v = Rfull * S_v
+        generators: list[GraphStabilizer] = [
+            rfull * stabdict[v] for v in graph.nodes if graph.degree(v) % 2 == 0
+        ]
+
+        # Step 2b: one R\(u,w) generator per odd-degree node pair
+        generators.extend(self.odd_pair_generator(graph, stabdict, rfull))
+
+        # Step 3: build TestRuns — each generator's node_indices form one multi-qubit trap
+        test_runs = [
+            TestRun(
+                graph=graph,
+                nqubits=n_qubits,
+                traps=frozenset({frozenset(gs.node_indices)}),
+            )
+            for gs in generators
+        ]
+        self._detection_rate = 1 / len(test_runs)
         return test_runs
+
+    @override
+    def sample_test_run(
+        self,
+        graph: nx.Graph,
+        test_runs: list[TestRun],
+        rng: Generator | None = None,
+        *,
+        stacklevel: int = 1,
+    ) -> TestRun:
+        rng = ensure_rng(rng, stacklevel=stacklevel + 1)
+        return test_runs[rng.integers(len(test_runs))]

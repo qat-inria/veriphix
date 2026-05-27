@@ -12,7 +12,7 @@ class TestVerifying:
         depth = 5
         circuit = rand_circuit(nqubits, depth, fx_rng)
         pattern = circuit.transpile().pattern
-
+        
         client = Client(pattern=pattern, rng=fx_rng)
 
         for _ in range(10):
@@ -24,9 +24,13 @@ class TestVerifying:
             # Only one trap
             traps = frozenset({random_multi_qubit_trap})
 
-            test_run = TestRun(client=client, traps=traps)
+            test_run = TestRun(
+                graph=client.graph,
+                nqubits=len(client.graph),
+                traps=traps,
+            )
             backend = StatevectorBackend()
-            outcomes = test_run.delegate(backend=backend, rng=fx_rng).trap_outcomes
+            outcomes = test_run.accept(client, backend, None, fx_rng).trap_outcomes
 
             for trap in traps:
                 assert outcomes[trap] == 0

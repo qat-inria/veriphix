@@ -4,7 +4,9 @@ import json
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import numpy as np
 import pytest
+from graphix._linalg import MatGF2
 from graphix.random_objects import rand_circuit
 from graphix.sim.statevec import StatevectorBackend
 from graphix_qasm_parser import OpenQASMParser
@@ -13,12 +15,15 @@ from veriphix.blinding import Secrets
 from veriphix.client import Client
 from veriphix.protocols import (
     FK12,
+    Dummyless,
+    OddPairGeneratorFn,
     RandomTraps,
     VerificationProtocol,
+    _odd_pair_generators_bfs,
+    _odd_pair_generators_exhaustive,
 )
 
 if TYPE_CHECKING:
-    import numpy as np
     from graphix import Pattern
     from numpy.random import Generator
 
@@ -82,7 +87,7 @@ class TestProtocols:
         client.preprocess_pattern()
         client.create_blind_patterns(rng=fx_rng)
         with pytest.raises(ValueError):  # trivially duplicate a node
-            protocol.create_test_runs(client=client)
+            protocol.create_test_runs(graph=client.graph)
 
     def test_create_test_run_manual_fail_improper(self, fx_rng: Generator) -> None:
         """testing manual colouring not proper"""
@@ -97,13 +102,8 @@ class TestProtocols:
 
         nodes = pattern.extract_nodes()
 
-        # initialise client
-        protocol = FK12(manual_colouring=(set(nodes), set([next(iter(nodes))])))
-        client = Client(pattern=pattern, autogen=False, rng=fx_rng)
-        client.preprocess_pattern()
-        client.create_blind_patterns(rng=fx_rng)
-        with pytest.raises(ValueError):  # trivially duplicate a node
-            protocol.create_test_runs(client=client)
+        with pytest.raises(ValueError):  # trivially bad colouring
+            FK12(manual_colouring=(set(nodes), set([next(iter(nodes))])))
 
     def test_random_traps(self, fx_rng: np.random.Generator) -> None:
         """
@@ -122,3 +122,91 @@ class TestProtocols:
         decision, _, result_analysis = client.analyze_outcomes(canvas=canvas, outcomes=run_results)
         assert decision
         assert result_analysis.nr_failed_test_rounds == 0
+
+    def test_random_general_traps_average_detection_rate(self, fx_rng: np.random.Generator) -> None:
+        """
+        Showcase Lemma 8 behavior:
+        for any fixed non-empty Pauli X/Y support E, a uniformly random non-empty
+        subset H detects iff |E ∩ H| is odd, giving average detection ≈ 1/2.
+
+        This test intentionally checks the trap-selection logic, not backend physics.
+        """
+
+        nqubits = 2
+        depth = 2
+        circuit = rand_circuit(nqubits, depth, fx_rng)
+        pattern = circuit.transpile().pattern
+
+        secrets = Secrets(a=True, r=True, theta=True)
+        protocol = RandomTraps()
+        client = Client(pattern=pattern, secrets=secrets, protocol=protocol, rng=fx_rng)
+
+        nodes = list(client.nodes)
+        n = len(nodes)
+
+        # Fixed arbitrary Pauli deviation support:
+        # these are the qubits where the Pauli is X or Y after twirling.
+        error_size = int(fx_rng.integers(1, n + 1))
+        error_support = frozenset(fx_rng.choice(nodes, size=error_size, replace=False).tolist())
+
+        n_test_runs = 100
+        detections = 0
+
+        for _ in range(n_test_runs):
+            test_run = protocol.sample_test_run(
+                graph=client.graph,
+                test_runs=client.test_runs,
+                rng=fx_rng,
+            )
+            trap = next(iter(test_run.traps))
+            detected = (len(error_support & trap) % 2) == 1
+            detections += int(detected)
+
+        detection_rate = detections / n_test_runs
+        # With 100 samples, allow statistical slack.
+        assert 0.35 <= detection_rate <= 0.65, (
+            f"Expected ≈1/2 detection rate, got {detection_rate:.3f}; error_support={error_support}"
+        )
+
+    @pytest.mark.parametrize(
+        "odd_pair_generator",
+        [
+            _odd_pair_generators_bfs,
+            _odd_pair_generators_exhaustive,
+        ],
+        ids=["bfs", "exhaustive"],
+    )
+    def test_dummyless(self, fx_rng: np.random.Generator, odd_pair_generator: OddPairGeneratorFn) -> None:
+        nqubits = 2
+        depth = 1
+        circuit = rand_circuit(nqubits, depth, fx_rng)
+        pattern = circuit.transpile().pattern
+
+        secrets = Secrets(r=True, a=True, theta=True)
+        protocol = Dummyless(odd_pair_generator=odd_pair_generator)
+        client = Client(pattern=pattern, secrets=secrets, protocol=protocol, rng=fx_rng)
+
+        stabilizers = [run.stabilizer for run in client.test_runs]
+        assert stabilizers, "no test runs generated"
+
+        # Each stabilizer must be a tensor product of I, X, Y only (no Z)
+        for stab in stabilizers:
+            assert stab.pauli_indices("Z") == [], f"stabilizer contains Z: {stab}"
+
+        # Linear independence over F2: represent each stabilizer as a 2n binary row vector
+        # (X-component || Z-component), stack into MatGF2, check rank == |V|-1.
+        # stim encodes paulis as: 0=I, 1=X, 2=Y, 3=Z
+        n = len(stabilizers[0])
+        rows = np.array(
+            [
+                [int(stab[i] in (1, 2)) for i in range(n)]  # X part
+                + [int(stab[i] in (2, 3)) for i in range(n)]  # Z part
+                for stab in stabilizers
+            ],
+            dtype=np.uint8,
+        )
+        mat = MatGF2(rows)
+        rank = mat.compute_rank()
+        assert rank == len(client.graph.nodes) - 1, (
+            f"generators span a space of dimension {rank}, expected |V|-1={len(client.graph.nodes) - 1}"
+        )

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import random
 from typing import TYPE_CHECKING
 
 from graphix.channels import KrausChannel, dephasing_channel
@@ -52,6 +51,7 @@ class DephasingNoise(Noise):
 
 class MaliciousNoiseModel(NoiseModel):
     """Malicious noise model.
+    Chooses a subset of nodes, and with probability `prob`, attacks them with a full dephasing noise before measurement.
 
     :param NoiseModel: Parent abstract class class:`graphix.noise_model.NoiseModel`
     :type NoiseModel: class
@@ -59,14 +59,11 @@ class MaliciousNoiseModel(NoiseModel):
 
     def __init__(self, nodes: list[int], prob: float = 0.0, rng: Generator | None = None) -> None:
         self.prob = prob
-        self.nodes = nodes
-        self.node = random.choice(self.nodes)
+        self.nodes: set[int] = {int(node) for node in nodes}
         self.refresh_randomness(rng)
 
     def refresh_randomness(self, rng: Generator | None = None) -> None:
         rng = ensure_rng(rng)
-        # self.node = random.choice(self.nodes)
-        # self.target_nodes = random.sample(self.nodes, self.n_targets)
         self.attack = bool(rng.uniform() < self.prob)
 
     @override
@@ -82,7 +79,7 @@ class MaliciousNoiseModel(NoiseModel):
     ) -> list[CommandOrNoise]:
         """Return the noise to apply to the command `cmd`."""
         if cmd.kind == CommandKind.M and cmd.node in self.nodes and self.attack:
-            return [cmd, ApplyNoise(DephasingNoise(prob=1), [self.node])]
+            return [ApplyNoise(DephasingNoise(prob=1), [int(cmd.node)]), cmd]
         else:
             return [cmd]
 
