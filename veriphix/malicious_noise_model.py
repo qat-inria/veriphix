@@ -78,7 +78,10 @@ class MaliciousNoiseModel(NoiseModel):
     ) -> list[CommandOrNoise]:
         """Return the noise to apply to the command `cmd`."""
         if cmd.kind == CommandKind.M and cmd.node in self.nodes and self.attack:
-            return [ApplyNoise(DephasingNoise(prob=1), [int(cmd.node)]), cmd]
+            return [
+                ApplyNoise(DephasingNoise(prob=1), [int(cmd.node)]),
+                cmd,
+            ]  # noise must precede measurement — dephasing after has no effect on the classical outcome
         else:
             return [cmd]
 
