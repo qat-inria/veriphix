@@ -17,8 +17,6 @@ from typing_extensions import override
 from veriphix.verifying import TestRun, build_stabilizer
 
 
-BRICKWORK_DETECTION_RATE = 1 / 14
-
 if TYPE_CHECKING:
     from collections.abc import Sequence
     from typing import TypeVar
@@ -90,8 +88,7 @@ class FK12(VerificationProtocol):
     def detection_rate(self) -> float:
         return self._detection_rate
 
-    @detection_rate.setter
-    def detection_rate(self, value: float) -> None:
+    def _set_detection_rate(self, value: float) -> None:
         self._detection_rate = value
 
     @override
@@ -166,7 +163,7 @@ class FK12(VerificationProtocol):
             )
             test_runs.append(test_run)
 
-        self.detection_rate = 1 / len(test_runs)
+        self._set_detection_rate(1 / len(test_runs))
         return test_runs
 
     @override
@@ -341,8 +338,7 @@ class Dummyless(VerificationProtocol):
     def detection_rate(self) -> float:
         return self._detection_rate
 
-    @detection_rate.setter
-    def detection_rate(self, value: float) -> None:
+    def _set_detection_rate(self, value: float) -> None:
         self._detection_rate = value
 
     @override
@@ -375,9 +371,7 @@ class Dummyless(VerificationProtocol):
 
         # (removing S_v leaves I at v and flips Z count on its neighbours — stays in I/X/Y)
         # Step 2a: for each even-degree node v, R\v = Rfull * S_v
-        generators: list[GraphStabilizer] = [
-            rfull * stabdict[v] for v in graph.nodes if graph.degree(v) % 2 == 0
-        ]
+        generators: list[GraphStabilizer] = [rfull * stabdict[v] for v in graph.nodes if graph.degree(v) % 2 == 0]
 
         # Step 2b: one R\(u,w) generator per odd-degree node pair
         generators.extend(self.odd_pair_generator(graph, stabdict, rfull))
@@ -391,7 +385,7 @@ class Dummyless(VerificationProtocol):
             )
             for gs in generators
         ]
-        self.detection_rate = 1 / len(test_runs)
+        self._set_detection_rate(1 / len(test_runs))
         return test_runs
 
     @override

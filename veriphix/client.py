@@ -43,7 +43,6 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Mapping
     from typing import TypeVar
 
-    import networkx as nx
     from graphix.command import CommandType
     from graphix.measurements import Outcome
     from graphix.noise_models import NoiseModel
