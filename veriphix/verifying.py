@@ -110,6 +110,8 @@ def generate_eigenstate(stabilizer: PauliString) -> list[PlanarState]:
 
 
 class TestRun(Run):
+    meas_basis: Literal["_", "I", "X", "Y", "Z"]
+
     __test__ = False  # this is not a pytest test-suite
 
     def __init__(self, client: Client, traps: Traps, meas_basis: Literal["_", "I", "X", "Y", "Z"] = "X") -> None:
