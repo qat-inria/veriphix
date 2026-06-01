@@ -107,6 +107,8 @@ def build_stabilizer(
 
 
 class TestRun(Run):
+    meas_basis: Literal["_", "I", "X", "Y", "Z"]
+
     __test__ = False  # this is not a pytest test-suite
 
     def __init__(
