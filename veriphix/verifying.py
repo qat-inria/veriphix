@@ -18,6 +18,8 @@ Traps = AbstractSet[Trap]
 
 if TYPE_CHECKING:
     import networkx as nx
+    from typing import Literal
+
     from graphix.measurements import Outcome
     from graphix.noise_models import NoiseModel
     from graphix.sim.base_backend import Backend
@@ -112,7 +114,7 @@ class TestRun(Run):
         graph: nx.Graph,
         nqubits: int,
         traps: Traps,
-        meas_basis: str = "X",
+        meas_basis: Literal["_", "I", "X", "Y", "Z"] = "X",
     ) -> None:
         self.traps = frozenset(traps)
         self.meas_basis = meas_basis

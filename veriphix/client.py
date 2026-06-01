@@ -124,6 +124,7 @@ class Client:
         self.input_state = [BasicStates.PLUS for _ in self.input_nodes] if input_state is None else list(input_state)
         self.protocol = protocol or FK12()
         self.parameters = parameters
+        self.results = {}
         if autogen:
             self.preprocess_pattern(classical_output=classical_output)
             self.create_blind_patterns(
@@ -140,8 +141,6 @@ class Client:
             self._add_measurement_commands(self.initial_pattern)
 
         self.graph = self.initial_pattern.extract_graph()
-
-        self.results = self.initial_pattern.results.copy()
 
     def create_blind_patterns(
         self,
