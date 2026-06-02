@@ -242,7 +242,7 @@ class RandomTraps(VerificationProtocol):
         bits = rng.integers(0, 2, size=n, dtype=bool)
         if not bits.any():
             bits[rng.integers(n)] = True
-        random_nodes: list[int] = [node for node, b in zip(nodes, bits) if b]
+        random_nodes: list[int] = [node for node, b in zip(nodes, bits, strict=True) if b]
 
         traps = frozenset({frozenset(random_nodes)})
         return TestRun(

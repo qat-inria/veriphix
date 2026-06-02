@@ -125,7 +125,9 @@ class TestProtocols:
         assert result_analysis.nr_failed_test_rounds == 0
 
     @pytest.mark.parametrize("protocol_cls", (FK12, Dummyless, RandomTraps))
-    def test_average_detection_rate(self, fx_rng: np.random.Generator, protocol_cls:type[VerificationProtocol]) -> None:
+    def test_average_detection_rate(
+        self, fx_rng: np.random.Generator, protocol_cls: type[VerificationProtocol]
+    ) -> None:
         nqubits = 2
         depth = 2
         circuit = rand_circuit(nqubits, depth, fx_rng)
