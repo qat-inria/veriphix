@@ -14,15 +14,7 @@ from graphix_qasm_parser import OpenQASMParser
 
 from veriphix.blinding import Secrets
 from veriphix.client import Client
-from veriphix.protocols import (
-    FK12,
-    Dummyless,
-    OddPairGeneratorFn,
-    RandomTraps,
-    VerificationProtocol,
-    odd_pair_generators_bfs,
-    odd_pair_generators_exhaustive,
-)
+from veriphix.protocols import FK12, Dummyless, RandomTraps, VerificationProtocol
 
 if TYPE_CHECKING:
     from graphix import Pattern
@@ -129,22 +121,14 @@ class TestProtocols:
         assert decision
         assert result_analysis.nr_failed_test_rounds == 0
 
-    @pytest.mark.parametrize(
-        "odd_pair_generator",
-        [
-            odd_pair_generators_bfs,
-            odd_pair_generators_exhaustive,
-        ],
-        ids=["bfs", "exhaustive"],
-    )
-    def test_dummyless(self, fx_rng: np.random.Generator, odd_pair_generator: OddPairGeneratorFn) -> None:
+    def test_dummyless(self, fx_rng: np.random.Generator) -> None:
         nqubits = 2
         depth = 1
         circuit = rand_circuit(nqubits, depth, fx_rng)
         pattern = circuit.transpile().pattern
 
         secrets = Secrets(r=True, a=True, theta=True)
-        protocol = Dummyless(odd_pair_generator=odd_pair_generator)
+        protocol = Dummyless()
         client = Client(pattern=pattern, secrets=secrets, protocol=protocol, rng=fx_rng)
 
         stabilizers = [run.stabilizer for run in client.test_runs]

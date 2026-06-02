@@ -181,6 +181,7 @@ class RandomTraps(VerificationProtocol):
         return test_runs
 
 
+# One way of searching for a pair of odd-degree nodes connected by even-degree nodes
 def odd_pair_generators_bfs(
     graph: nx.Graph,
     stabdict: dict[int, GraphStabilizer],
@@ -245,51 +246,6 @@ def odd_pair_generators_bfs(
                 else:
                     odd_source[w] = odd_source[u]
 
-    return generators
-
-
-def odd_pair_generators_exhaustive(
-    graph: nx.Graph,
-    stabdict: dict[int, GraphStabilizer],
-    rfull: GraphStabilizer,
-) -> list[GraphStabilizer]:
-    """Find R\\(u,w) generators for all pairs of odd-degree nodes by exhaustive search.
-
-    Tries every pair (u, w) of odd-degree nodes. For each pair, computes the shortest
-    path between them and accepts it only if all interior nodes are even-degree. The
-    resulting generator R\\(u,w) = Rfull x S_u x … x S_w is further validated by
-    checking it contains no Z Paulis.
-
-    This approach is correct but has time complexity O(|odd|² x (|V| + |E|)) and
-    produces more generators than necessary (not a minimal spanning set).
-    Prefer :func:`odd_pair_generators_bfs` for large graphs.
-
-    Parameters
-    ----------
-    graph : nx.Graph
-        The resource graph.
-    stabdict : dict[int, GraphStabilizer]
-        Per-node canonical stabilizers S_v.
-    rfull : GraphStabilizer
-        Product of all S_v (Rfull).
-
-    Returns
-    -------
-    list[GraphStabilizer]
-        All valid R\\(u,w) generators found.
-    """
-    odd_nodes = [v for v in graph.nodes if graph.degree(v) % 2 == 1]
-    generators: list[GraphStabilizer] = []
-    for u, w in itertools.combinations(odd_nodes, 2):
-        try:
-            path = nx.shortest_path(graph, u, w)
-        except nx.NetworkXNoPath:
-            continue
-        if not all(graph.degree(v) % 2 == 0 for v in path[1:-1]):
-            continue
-        candidate = reduce(mul, (stabdict[v] for v in path), rfull)
-        if candidate.string.pauli_indices("Z") == []:
-            generators.append(candidate)
     return generators
 
 
