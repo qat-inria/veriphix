@@ -198,7 +198,6 @@ class Client:
         pattern_copy = Pattern(self.initial_pattern.input_nodes)
         for cmd in self.initial_pattern:
             pattern_copy.add(cmd)
-        pattern_copy.results.update(self.initial_pattern.results)
         pattern_copy.standardize()
         return pattern_copy
 
