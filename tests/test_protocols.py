@@ -124,50 +124,46 @@ class TestProtocols:
         assert decision
         assert result_analysis.nr_failed_test_rounds == 0
 
-    def test_random_general_traps_average_detection_rate(self, fx_rng: np.random.Generator) -> None:
-        """
-        Showcase Lemma 8 behavior:
-        for any fixed non-empty Pauli X/Y support E, a uniformly random non-empty
-        subset H detects iff |E ∩ H| is odd, giving average detection ≈ 1/2.
-
-        This test intentionally checks the trap-selection logic, not backend physics.
-        """
-
+    @pytest.mark.parametrize("protocol_cls", (FK12, Dummyless, RandomTraps))
+    def test_average_detection_rate(self, fx_rng: np.random.Generator, protocol_cls:type[VerificationProtocol]) -> None:
         nqubits = 2
         depth = 2
         circuit = rand_circuit(nqubits, depth, fx_rng)
         pattern = circuit.transpile().pattern
 
-        secrets = Secrets(a=True, r=True, theta=True)
-        protocol = RandomTraps()
-        client = Client(pattern=pattern, secrets=secrets, protocol=protocol, rng=fx_rng)
+        protocol = protocol_cls()
+        graph = pattern.extract_graph()
+        trs = protocol.create_test_runs(graph=graph, rng=fx_rng)
 
-        nodes = list(client.nodes)
+        nodes = list(graph.nodes)
         n = len(nodes)
 
-        # Fixed arbitrary Pauli deviation support:
-        # these are the qubits where the Pauli is X or Y after twirling.
-        error_size = int(fx_rng.integers(1, n + 1))
-        error_support = frozenset(fx_rng.choice(nodes, size=error_size, replace=False).tolist())
-
+        n_dev = 10
         n_test_runs = 100
         detections = 0
+        for _ in range(n_dev):
+            # Fixed arbitrary Pauli deviation support:
+            # these are the qubits where the Pauli is X or Y after twirling.
+            error_size = int(fx_rng.integers(1, n + 1))
+            error_support = frozenset(fx_rng.choice(nodes, size=error_size, replace=False).tolist())
 
-        for _ in range(n_test_runs):
-            test_run = protocol.sample_test_run(
-                graph=client.graph,
-                test_runs=client.test_runs,
-                rng=fx_rng,
+            detections = 0
+            for __ in range(n_test_runs):
+                test_run = protocol.sample_test_run(
+                    graph=graph,
+                    test_runs=trs,
+                    rng=fx_rng,
+                )
+                detected = sum([(len(error_support & trap) % 2) == 1 for trap in test_run.traps]) > 0
+                detections += int(detected)
+
+            detection_rate = detections / (n_test_runs)
+            expected = protocol.detection_rate
+            eps = 0.15
+            # With 100 samples, allow statistical slack.
+            assert expected - eps <= detection_rate, (
+                f"Expected ≈{expected} detection rate, got {detection_rate:.3f}, support: {error_support}"
             )
-            trap = next(iter(test_run.traps))
-            detected = (len(error_support & trap) % 2) == 1
-            detections += int(detected)
-
-        detection_rate = detections / n_test_runs
-        # With 100 samples, allow statistical slack.
-        assert 0.35 <= detection_rate <= 0.65, (
-            f"Expected ≈1/2 detection rate, got {detection_rate:.3f}; error_support={error_support}"
-        )
 
     @pytest.mark.parametrize(
         "odd_pair_generator",

@@ -237,10 +237,13 @@ class RandomTraps(VerificationProtocol):
         stacklevel: int = 1,
     ) -> TestRun:
         rng = ensure_rng(rng, stacklevel=stacklevel + 1)
-        nodes = sorted(graph.nodes)
+        nodes: list[int] = sorted(graph.nodes)
         n = len(nodes)
-        trap_size = rng.integers(1, n + 1)
-        random_nodes: list[int] = [nodes[i] for i in rng.choice(n, size=trap_size, replace=False)]
+        bits = rng.integers(0, 2, size=n, dtype=bool)
+        if not bits.any():
+            bits[rng.integers(n)] = True
+        random_nodes: list[int] = [node for node, b in zip(nodes, bits) if b]
+
         traps = frozenset({frozenset(random_nodes)})
         return TestRun(
             graph=graph,
