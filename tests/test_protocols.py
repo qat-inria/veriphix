@@ -14,15 +14,7 @@ from graphix_qasm_parser import OpenQASMParser
 
 from veriphix.blinding import Secrets
 from veriphix.client import Client
-from veriphix.protocols import (
-    FK12,
-    Dummyless,
-    OddPairGeneratorFn,
-    RandomTraps,
-    VerificationProtocol,
-    odd_pair_generators_bfs,
-    odd_pair_generators_exhaustive,
-)
+from veriphix.protocols import FK12, Dummyless, RandomTraps, VerificationProtocol
 
 if TYPE_CHECKING:
     from graphix import Pattern
@@ -182,7 +174,7 @@ class TestProtocols:
         pattern = circuit.transpile().pattern
 
         secrets = Secrets(r=True, a=True, theta=True)
-        protocol = Dummyless(odd_pair_generator=odd_pair_generator)
+        protocol = Dummyless()
         client = Client(pattern=pattern, secrets=secrets, protocol=protocol, rng=fx_rng)
 
         stabilizers = [run.stabilizer for run in client.test_runs]
