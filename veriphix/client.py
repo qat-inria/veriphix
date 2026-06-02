@@ -124,7 +124,7 @@ class Client:
         self.input_state = [BasicStates.PLUS for _ in self.input_nodes] if input_state is None else list(input_state)
         self.protocol = protocol or FK12()
         self.parameters = parameters
-        self.results = {}
+        self.results = dict(pattern.results)
         if autogen:
             self.preprocess_pattern(classical_output=classical_output)
             self.create_blind_patterns(
@@ -197,6 +197,7 @@ class Client:
         pattern_copy = Pattern(self.initial_pattern.input_nodes)
         for cmd in self.initial_pattern:
             pattern_copy.add(cmd)
+        pattern_copy.results.update(self.initial_pattern.results)
         pattern_copy.standardize()
         return pattern_copy
 
