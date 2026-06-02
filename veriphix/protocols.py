@@ -16,7 +16,6 @@ from typing_extensions import override
 
 from veriphix.verifying import TestRun, build_stabilizer
 
-
 if TYPE_CHECKING:
     from collections.abc import Sequence
     from typing import TypeVar
@@ -25,6 +24,8 @@ if TYPE_CHECKING:
     from numpy.random import Generator
 
     _StateT = TypeVar("_StateT")
+
+BRICKWORK_DETECTION_RATE = 1 / 14
 
 
 class GraphStabilizer:
@@ -65,7 +66,6 @@ class VerificationProtocol(ABC):
         stacklevel: int = 1,
     ) -> TestRun:
         pass
-
 
 
 class FK12(VerificationProtocol):
@@ -330,8 +330,7 @@ class Dummyless(VerificationProtocol):
     def __init__(self, odd_pair_generator: OddPairGeneratorFn = odd_pair_generators_bfs) -> None:
         super().__init__()
         self.odd_pair_generator = odd_pair_generator
-        self._detection_rate = BRICKWORK_DETECTION_RATE
-
+        # self._detection_rate = BRICKWORK_DETECTION_RATE
 
     @property
     @override

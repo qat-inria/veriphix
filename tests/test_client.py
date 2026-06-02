@@ -23,6 +23,7 @@ class TestClient:
         depth = 2
         circuit = rand_circuit(nqubits, depth, fx_rng)
         pattern = circuit.transpile().pattern
+        input_nodes = pattern.input_nodes.copy()
         pattern.remove_pauli_measurements()
         pattern.standardize()
 
@@ -32,6 +33,10 @@ class TestClient:
 
         client = Client(pattern=pattern, input_state=states, secrets=secrets, classical_output=True, rng=fx_rng)
         ComputationRun().accept(client, StatevectorBackend(), None, fx_rng)
+        client.protocol.sample_test_run(graph=client.graph, test_runs=client.test_runs).accept(
+            client, StatevectorBackend(), None, fx_rng
+        )
+
         # No assertion needed
 
     def test_minimize_space(self, fx_rng: Generator) -> None:

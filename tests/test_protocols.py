@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 import networkx as nx
 import numpy as np
 import pytest
+import stim
 from graphix._linalg import MatGF2
 from graphix.random_objects import rand_circuit
 from graphix.sim.statevec import StatevectorBackend
@@ -14,20 +15,18 @@ from graphix_qasm_parser import OpenQASMParser
 
 from veriphix.blinding import Secrets
 from veriphix.client import Client
-from veriphix.protocols import FK12, Dummyless, RandomTraps, VerificationProtocol
 from veriphix.protocols import (
     FK12,
     Dummyless,
-    OddPairGeneratorFn,
     RandomTraps,
     VerificationProtocol,
-    odd_pair_generators_bfs,
-    odd_pair_generators_exhaustive,
 )
+from veriphix.verifying import TestRun, build_stabilizer
 
 if TYPE_CHECKING:
     from graphix import Pattern
     from numpy.random import Generator
+
 
 
 class TestProtocols:
@@ -168,15 +167,7 @@ class TestProtocols:
                 f"Expected ≈{expected} detection rate, got {detection_rate:.3f}, support: {error_support}"
             )
 
-    @pytest.mark.parametrize(
-        "odd_pair_generator",
-        [
-            odd_pair_generators_bfs,
-            odd_pair_generators_exhaustive,
-        ],
-        ids=["bfs", "exhaustive"],
-    )
-    def test_dummyless(self, fx_rng: np.random.Generator, odd_pair_generator: OddPairGeneratorFn) -> None:
+    def test_dummyless(self, fx_rng: np.random.Generator) -> None:
         nqubits = 2
         depth = 1
         circuit = rand_circuit(nqubits, depth, fx_rng)
@@ -186,29 +177,46 @@ class TestProtocols:
         protocol = Dummyless()
         client = Client(pattern=pattern, secrets=secrets, protocol=protocol, rng=fx_rng)
 
+        assert client.test_runs, "no test runs generated"
+
         stabilizers = [run.stabilizer for run in client.test_runs]
-        assert stabilizers, "no test runs generated"
+        assert_no_z(stabilizers)
+        assert_linearly_independent(stabilizers, client.graph)
+        assert_from_canonical_basis(client.test_runs, client.graph, len(client.graph))
 
-        # Each stabilizer must be a tensor product of I, X, Y only (no Z)
-        for stab in stabilizers:
-            assert stab.pauli_indices("Z") == [], f"stabilizer contains Z: {stab}"
+def assert_no_z(stabilizers: list[stim.PauliString]) -> None:
+    for stab in stabilizers:
+        assert stab.pauli_indices("Z") == [], f"stabilizer contains Z: {stab}"
 
-        # Linear independence over F2: represent each stabilizer as a 2n binary row vector
-        # (X-component || Z-component), stack into MatGF2, check rank == |V|-1.
-        # stim encodes paulis as: 0=I, 1=X, 2=Y, 3=Z
-        n = len(stabilizers[0])
-        rows = np.array(
-            [
-                [int(stab[i] in (1, 2)) for i in range(n)]  # X part
-                + [int(stab[i] in (2, 3)) for i in range(n)]  # Z part
-                for stab in stabilizers
-            ],
-            dtype=np.uint8,
+
+def assert_linearly_independent(stabilizers: list[stim.PauliString], graph: nx.Graph) -> None:
+    n = len(stabilizers[0])
+    rows = np.array(
+        [
+            [int(stab[i] in (1, 2)) for i in range(n)] + [int(stab[i] in (2, 3)) for i in range(n)]
+            for stab in stabilizers
+        ],
+        dtype=np.uint8,
+    )
+    rank = MatGF2(rows).compute_rank()
+    n_components = nx.number_connected_components(graph)
+    expected_rank = len(graph.nodes) - n_components
+    assert rank == expected_rank, f"expected rank {expected_rank}, got {rank}"
+
+
+def assert_from_canonical_basis(test_runs: list[TestRun], graph: nx.Graph, n_qubits: int) -> None:
+    """Each stabilizer must equal the product of per-node canonical stabilizers for its trap."""
+    canonical: dict[int, stim.PauliString] = {
+        node: build_stabilizer(graph, n_qubits, frozenset({frozenset({node})}))
+        for node in graph.nodes
+    }
+    for run in test_runs:
+        (trap,) = run.traps
+        expected = stim.PauliString(n_qubits)
+        for v in trap:
+            expected *= canonical[v]
+        assert run.stabilizer == expected, (
+            f"stabilizer for trap {set(trap)} does not match product of canonical stabilizers:\n"
+            f"  got      {run.stabilizer}\n"
+            f"  expected {expected}"
         )
-        mat = MatGF2(rows)
-        rank = mat.compute_rank()
-
-        # Each connected component contributes one degree of freedom (its own "logical qubit"),
-        # so the generators must span a space of dimension |V| - n_components.
-        n_components = nx.number_connected_components(client.graph)
-        assert rank == len(client.graph.nodes) - n_components

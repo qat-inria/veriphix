@@ -17,8 +17,8 @@ Traps = AbstractSet[Trap]
 
 
 if TYPE_CHECKING:
-    import networkx as nx
     from typing import Literal
+
     import networkx as nx
     from graphix.measurements import Outcome
     from graphix.noise_models import NoiseModel
@@ -87,18 +87,11 @@ def generate_eigenstate(stabilizer: PauliString) -> list[PlanarState]:
 
 
 def get_graph_clifford_structure(graph: nx.Graph[int]) -> stim.Tableau:
+    nodes = list(graph.nodes)
+    node_to_idx = {node: idx for idx, node in enumerate(nodes)}
     circuit = stim.Circuit()
-    for edge in graph.edges:
-        i, j = edge
-        circuit.append_from_stim_program_text(f"CZ {i} {j}")
-    return circuit.to_tableau()
-
-
-def get_graph_clifford_structure(graph: nx.Graph[int]) -> stim.Tableau:
-    circuit = stim.Circuit()
-    for edge in graph.edges:
-        i, j = edge
-        circuit.append_from_stim_program_text(f"CZ {i} {j}")
+    for i, j in graph.edges:
+        circuit.append_from_stim_program_text(f"CZ {node_to_idx[i]} {node_to_idx[j]}")
     return circuit.to_tableau()
 
 
@@ -108,7 +101,8 @@ def build_stabilizer(
     traps: Traps,
     meas_basis: str = "X",
 ) -> PauliString:
-    measurement_strings = [PauliString([meas_basis if i in trap else "I" for i in range(nqubits)]) for trap in traps]
+    nodes = list(graph.nodes)
+    measurement_strings = [PauliString([meas_basis if node in trap else "I" for node in nodes]) for trap in traps]
     clifford_structure = get_graph_clifford_structure(graph=graph)
     conjugated_measurements = [clifford_structure.inverse()(meas) for meas in measurement_strings]
     return merge(conjugated_measurements)
@@ -130,7 +124,7 @@ class TestRun(Run):
         self.meas_basis = meas_basis
         self.nqubits = nqubits
         self.stabilizer = build_stabilizer(graph, nqubits, traps, meas_basis)
-        self.input_state = generate_eigenstate(self.stabilizer)
+        self.input_state = dict(zip(graph.nodes, generate_eigenstate(self.stabilizer)))
 
     @override
     def accept(
