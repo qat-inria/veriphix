@@ -12,7 +12,7 @@ import graphix.sim.base_backend
 import graphix.sim.statevec
 import graphix.simulator
 import stim
-from graphix import command
+from graphix import Plane, command
 from graphix.clifford import Clifford
 from graphix.command import BaseCommand, BaseM, BaseN, CommandKind
 from graphix.measurements import BlochMeasurement, Measurement, toggle_outcome
@@ -85,6 +85,8 @@ def remove_flow(pattern: Pattern) -> Pattern:
         # pattern types will become more precise in the near future.
         # See https://github.com/TeamGraphix/graphix/issues/266
         clean_pattern.add(cast("CommandType", new_cmd))
+    # See test_reorder_output_nodes.
+    clean_pattern.reorder_output_nodes(pattern.output_nodes)
     return clean_pattern
 
 
@@ -98,6 +100,15 @@ def get_graph_clifford_structure(graph: nx.Graph[int]) -> stim.Tableau:
 
 def qCircuit_predicate(output_string: str) -> bool:
     return int(output_string[0]) == 1
+
+
+def _check_all_measurements_in_xy(pattern: Pattern) -> None:
+    for cmd_m in pattern.extract_measurement_commands().values():
+        plane = cmd_m.measurement.to_bloch().plane
+        if plane != Plane.XY:
+            raise ValueError(
+                f"UBQC only works for measurements in plane XY: {cmd_m.node} is measured in plane {plane.name}."
+            )
 
 
 class Client:
@@ -120,6 +131,8 @@ class Client:
         *,
         stacklevel: int = 1,
     ) -> None:
+        # See test_reject_yz_measurement.
+        _check_all_measurements_in_xy(pattern)
         self.initial_pattern: Pattern = pattern
         self.classical_output = classical_output
         self.output_predicate = output_predicate
@@ -218,6 +231,8 @@ class Client:
                 rng=rng,
                 stacklevel=stacklevel + 1,
             )
+            # See test_refresh_computation_states.
+            self.computation_states = self.get_computation_states()
 
     def get_computation_states(self) -> dict[int, State]:
         states = dict()

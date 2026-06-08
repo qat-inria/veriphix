@@ -1,6 +1,9 @@
 import unittest
 
+import networkx as nx
 import numpy as np
+import pytest
+from graphix import Measurement, OpenGraph
 from graphix.measurements import Outcome
 from graphix.random_objects import rand_circuit
 from graphix.sim.statevec import StatevectorBackend
@@ -252,14 +255,67 @@ class TestClient:
         circuit = rand_circuit(nqubits, depth, fx_rng)
         pattern = circuit.transpile().pattern
         client = Client(pattern=pattern, rng=fx_rng)
+        node_upper_bound = max(client.graph.nodes) + 1
         for node in client.graph.nodes:
-            x_string = PauliString(["X" if i == node else "I" for i in client.graph.nodes])
+            x_string = PauliString(node_upper_bound)
+            x_string[node] = "X"
             conjugated_string = client.clifford_structure.inverse()(x_string)
-            neighbors = set(client.graph.neighbors(node))
-            expected_conjugated_string = PauliString(
-                ["X" if i == node else "Z" if i in neighbors else "I" for i in client.graph.nodes]
-            )
+            expected_conjugated_string = PauliString(node_upper_bound)
+            expected_conjugated_string[node] = "X"
+            for i in client.graph.neighbors(node):
+                expected_conjugated_string[i] = "Z"
             assert conjugated_string == expected_conjugated_string
+
+    def test_reorder_output_nodes(self, fx_rng: Generator) -> None:
+        # Verify that the delegate simulation respects the
+        # non-standard ordering of output nodes (i.e., [2, 1] instead
+        # of the usual [1, 2]).
+        og = OpenGraph(graph=nx.path_graph(3), input_nodes=[], output_nodes=[2, 1], measurements={0: Measurement.X})
+        pattern = og.to_pattern()
+        state_ref = pattern.simulate_pattern()
+        backend = StatevectorBackend()
+        secrets = Secrets()
+        client = Client(pattern=pattern, secrets=secrets, classical_output=False, rng=fx_rng)
+        ComputationRun(client).delegate(backend, rng=fx_rng)
+        state_veriphix = backend.state
+        assert state_veriphix.isclose(state_ref)
+
+    def test_refresh_computation_states(self, fx_rng: Generator) -> None:
+        # Verify that the "computation states" are regenerated when
+        # `refresh_randomness` is called.
+        # In particular, if the initial secret and the refreshed one
+        # do not flip the input state in the same way, the computation
+        # states must be updated after the secret refresh.
+        og = OpenGraph(
+            graph=nx.Graph([(0, 1)]), input_nodes=[0], output_nodes=[1], measurements={0: Measurement.XY(0.75)}
+        )
+        pattern = og.to_pattern()
+        state_ref = pattern.simulate_pattern()
+        backend = StatevectorBackend()
+        secrets = Secrets(a=True)
+        fixed_rng = np.random.default_rng(0)
+        client = Client(pattern=pattern, secrets=secrets, classical_output=False, rng=fixed_rng)
+        old_a = client.secret_datas.a.a.get(0, 0)
+        ComputationRun(client).delegate(backend, rng=fixed_rng)
+        new_a = client.secret_datas.a.a.get(0, 0)
+        # fixed_rng is chosen to satisfy the following assertion.
+        assert old_a != new_a
+        state_veriphix = backend.state
+        assert state_veriphix.isclose(state_ref)
+
+    def test_reject_yz_measurement(self, fx_rng: Generator) -> None:
+        og = OpenGraph(
+            graph=nx.Graph([(0, 1)]), input_nodes=[], output_nodes=[1], measurements={0: Measurement.YZ(0.5)}
+        )
+        pattern = og.to_pattern()
+        state_ref = pattern.simulate_pattern()
+        backend = StatevectorBackend()
+        secrets = Secrets()
+        with pytest.raises(ValueError, match="UBQC only works for measurements in plane XY"):
+            client = Client(pattern=pattern, secrets=secrets, classical_output=False, rng=fx_rng)
+            ComputationRun(client).delegate(backend, rng=fx_rng)
+            state_veriphix = backend.state
+            assert state_veriphix.isclose(state_ref)
 
 
 if __name__ == "__main__":
