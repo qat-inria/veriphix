@@ -26,7 +26,6 @@ class TestClient:
         depth = 2
         circuit = rand_circuit(nqubits, depth, fx_rng)
         pattern = circuit.transpile().pattern
-        pattern.remove_pauli_measurements()
         pattern.standardize()
 
         states = [BasicStates.PLUS for _ in pattern.input_nodes]
