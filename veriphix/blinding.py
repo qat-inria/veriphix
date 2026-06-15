@@ -54,9 +54,9 @@ class SecretDatas:
         rng = ensure_rng(rng, stacklevel=stacklevel + 1)
         r = {}
         if secrets.r:
-            # Need to generate the random bit for each measured qubit, 0 for the rest (output qubits)
+            # Need to generate the random bit for each measured qubit
             for node in graph.nodes:
-                r[node] = outcome(rng.integers(2) == 1) if node not in output_nodes else 0
+                r[node] = outcome(rng.integers(2) == 1) 
 
         theta = {}
         if secrets.theta:
