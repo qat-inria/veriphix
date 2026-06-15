@@ -56,7 +56,7 @@ class SecretDatas:
         if secrets.r:
             # Need to generate the random bit for each measured qubit
             for node in graph.nodes:
-                r[node] = outcome(rng.integers(2) == 1) 
+                r[node] = outcome(rng.integers(2) == 1)
 
         theta = {}
         if secrets.theta:
