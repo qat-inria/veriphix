@@ -178,7 +178,11 @@ class Client:
 
         self.secrets = secrets or Secrets()
         self.secret_datas = SecretDatas.from_secrets(
-            self.secrets, self.graph, set(self.input_nodes), set(self.output_nodes), rng=rng
+            self.secrets,
+            self.graph,
+            set(self.input_nodes),
+            set() if self.classical_output else set(self.output_nodes),
+            rng=rng,
         )
 
         self.clean_pattern = remove_flow(self.initial_pattern)
@@ -240,7 +244,7 @@ class Client:
             if node in self.input_nodes:
                 state = self.input_state[node]
 
-            elif node in self.output_nodes:
+            elif (node in self.output_nodes) and (not self.classical_output):
                 r_value = self.secret_datas.r.get(node, 0)
                 a_N_value = self.secret_datas.a.a_N.get(node, 0)
                 state = BasicStates.PLUS if r_value ^ a_N_value == 0 else BasicStates.MINUS
@@ -369,9 +373,7 @@ class ClientMeasureMethod(BlindMeasureMethod):
             measurement = measurement.clifford(Clifford.Z)
         bloch = measurement.to_bloch()
         # Blind the angle using the Client's secrets
-        angle = (-1) ** a_value * bloch.angle + self._client.secret_datas.blind_angle(
-            cmd.node, cmd.node in self._client.output_nodes, test=False
-        )
+        angle = (-1) ** a_value * bloch.angle + self._client.secret_datas.blind_angle(cmd.node)
         return BlochMeasurement(angle, bloch.plane)
 
 
@@ -379,6 +381,6 @@ class TestMeasureMethod(BlindMeasureMethod):
     @override
     def describe_measurement(self, cmd: BaseM) -> Measurement:
         # Blind the angle using the Client's secrets
-        angle = self._client.secret_datas.blind_angle(cmd.node, cmd.node in self._client.output_nodes, test=True)
+        angle = self._client.secret_datas.blind_angle(cmd.node)
 
         return Measurement.XY(angle)

@@ -82,8 +82,8 @@ class SecretDatas:
 
         return SecretDatas(r, Secret_a(a, a_N), theta)
 
-    def blind_angle(self, node: int, output_node: bool, test: bool) -> Angle:
-        r_value = 0 if (output_node and not test) else self.r.get(node, 0)
+    def blind_angle(self, node: int) -> Angle:
+        r_value = self.r.get(node, 0)
         theta_value = self.theta.get(node, 0)
         a_N_value = self.a.a_N.get(node, 0)
         return theta_value * ANGLE_PI / 4 + ANGLE_PI * (r_value ^ a_N_value)
