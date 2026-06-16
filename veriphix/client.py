@@ -223,7 +223,7 @@ class Client:
         return copied_pattern.extract_measurement_commands()
 
     def refresh_randomness(self, rng: Generator | None = None, *, stacklevel: int = 1) -> None:
-        "method to refresh random randomness using parameters from Clinent instatiation."
+        "method to refresh random randomness using parameters from Client instantiation."
 
         # refresh only if secrets bool is True; False is no randomness at all.
         if self.secrets is not None:
@@ -235,19 +235,12 @@ class Client:
                 rng=rng,
                 stacklevel=stacklevel + 1,
             )
-            # See test_refresh_computation_states.
-            self.computation_states = self.get_computation_states()
 
     def get_computation_states(self) -> dict[int, State]:
         states = dict()
         for node in self.graph.nodes:
             if node in self.input_nodes:
                 state = self.input_state[node]
-
-            elif (node in self.output_nodes) and (not self.classical_output):
-                r_value = self.secret_datas.r.get(node, 0)
-                a_N_value = self.secret_datas.a.a_N.get(node, 0)
-                state = BasicStates.PLUS if r_value ^ a_N_value == 0 else BasicStates.MINUS
 
             else:
                 state = BasicStates.PLUS
@@ -319,7 +312,7 @@ class Client:
 
     def decode_output(self, node: int) -> tuple[int, int]:
         z_decoding = sum(self.results[z_dep] for z_dep in self.byproduct_db[node].z_domain) % 2
-        z_decoding ^= self.secret_datas.r.get(node, 0)
+        z_decoding ^= self.secret_datas.r.get(node, 0) ^ self.secret_datas.a.a_N.get(node, 0)
         x_decoding = sum(self.results[x_dep] for x_dep in self.byproduct_db[node].x_domain) % 2
         x_decoding ^= self.secret_datas.a.a.get(node, 0)
         return z_decoding, x_decoding
@@ -349,9 +342,9 @@ class BlindMeasureMethod(MeasureMethod):
 
     @override
     def store_measurement_outcome(self, node: int, result: Outcome) -> None:
-        if self._client.secret_datas.r:
-            if self._client.secret_datas.r[node]:
-                result = toggle_outcome(result)
+        flip_value = self._client.secret_datas.r.get(node, 0) ^ self._client.secret_datas.a.a_N.get(node, 0)
+        if flip_value:
+            result = toggle_outcome(result)
         self._client.results[node] = result
 
 

@@ -83,10 +83,8 @@ class SecretDatas:
         return SecretDatas(r, Secret_a(a, a_N), theta)
 
     def blind_angle(self, node: int) -> Angle:
-        r_value = self.r.get(node, 0)
         theta_value = self.theta.get(node, 0)
-        a_N_value = self.a.a_N.get(node, 0)
-        return theta_value * ANGLE_PI / 4 + ANGLE_PI * (r_value ^ a_N_value)
+        return theta_value * ANGLE_PI / 4
 
     def blind_qubit(self, node: int, state: State) -> Statevec:
         def z_rotation(theta: float) -> npt.NDArray[np.complex128]:
@@ -95,12 +93,18 @@ class SecretDatas:
         def x_blind(a: Outcome) -> Pauli:
             return Pauli.X if a == 1 else Pauli.I
 
+        def z_blind(r: Outcome) -> Pauli:
+            return Pauli.Z if r == 1 else Pauli.I
+
         theta = self.theta.get(node, 0)
-        a = self.a.a.get(node, 0)
+        x_blind_value = self.a.a.get(node, 0)
+        r = self.r.get(node, 0)
         single_qubit_backend = StatevectorBackend()
         single_qubit_backend.add_nodes([0], [state])
-        if a:
-            single_qubit_backend.apply_single(node=0, op=x_blind(a).matrix)
+        if x_blind_value:
+            single_qubit_backend.apply_single(node=0, op=x_blind(x_blind_value).matrix)
+        if r:
+            single_qubit_backend.apply_single(node=0, op=z_blind(r).matrix)
         if theta:
             single_qubit_backend.apply_single(node=0, op=z_rotation(theta))
         return single_qubit_backend.state

@@ -292,7 +292,7 @@ class TestClient:
         state_ref = pattern.simulate_pattern()
         backend = StatevectorBackend()
         secrets = Secrets(a=True)
-        fixed_rng = np.random.default_rng(0)
+        fixed_rng = np.random.default_rng(3)
         client = Client(pattern=pattern, secrets=secrets, classical_output=False, rng=fixed_rng)
         old_a = client.secret_datas.a.a.get(0, 0)
         ComputationRun(client).delegate(backend, rng=fixed_rng)
