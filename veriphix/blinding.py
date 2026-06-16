@@ -54,7 +54,7 @@ class SecretDatas:
         rng = ensure_rng(rng, stacklevel=stacklevel + 1)
         r = {}
         if secrets.r:
-            # Need to generate the random bit for each measured qubit
+            # Need to generate the random bit for each qubit
             for node in graph.nodes:
                 r[node] = outcome(rng.integers(2) == 1)
 
@@ -76,8 +76,6 @@ class SecretDatas:
             # computed from the graph topology
             for i in graph.nodes:
                 a_N_value = outcome(sum([a[j] for j in graph.neighbors(i)]) % 2 == 1)
-                # for j in graph.neighbors(i):
-                #     a_N_value ^= a[j]
                 a_N[i] = a_N_value
 
         return SecretDatas(r, Secret_a(a, a_N), theta)
