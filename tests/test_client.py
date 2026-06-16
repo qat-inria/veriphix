@@ -88,7 +88,7 @@ class TestClient:
 
             backend = StatevectorBackend()
             # Initialize the client
-            secrets = Secrets(r=True)
+            secrets = Secrets(r=True, a=False, theta=False)
             # Giving it empty will create a random secret
             client = Client(pattern=pattern, secrets=secrets, classical_output=False, rng=fx_rng)
             ComputationRun(client).delegate(backend, rng=fx_rng)
@@ -105,7 +105,7 @@ class TestClient:
             pattern = circuit.transpile().pattern
             pattern.standardize()
 
-            secrets = Secrets(theta=True)
+            secrets = Secrets(theta=True, a=False, r=False)
 
             # Create a |+> state for each input node
             states = [BasicStates.PLUS for node in pattern.input_nodes]
@@ -134,7 +134,7 @@ class TestClient:
             pattern = circuit.transpile().pattern
             pattern.standardize()
 
-            secrets = Secrets(a=True)
+            secrets = Secrets(a=True, r=False, theta=False)
 
             # Create a |+> state for each input node
             states = [BasicStates.PLUS for __ in pattern.input_nodes]
@@ -170,7 +170,7 @@ class TestClient:
                 super().store_measurement_outcome(node, result)
 
         # Initialize the client
-        secrets = Secrets(r=True)
+        secrets = Secrets(r=True, a=False)
         # Giving it empty will create a random secret
         client = Client(pattern=pattern, measure_method_cls=CacheMeasureMethod, secrets=secrets, rng=fx_rng)
         backend = StatevectorBackend()
@@ -179,9 +179,9 @@ class TestClient:
         for measured_node in client.measurement_db:
             # Compare results on the client side and on the server side : should differ by r[node]
             result = client.results[measured_node]
-            client_r_secret = client.secret_datas.r[measured_node]
+            client_flip_value = client.secret_datas.r[measured_node] ^ client.secret_datas.a.a_N.get(measured_node, 0)
             server_result = server_results[measured_node]
-            assert result == (server_result + client_r_secret) % 2
+            assert result == (server_result + client_flip_value) % 2
 
     def test_qubits_preparation(self, fx_rng: Generator) -> None:
         nqubits = 2

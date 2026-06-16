@@ -136,8 +136,10 @@ class Client:
         self.initial_pattern: Pattern = pattern
         self.classical_output = classical_output
         self.output_predicate = output_predicate
+
         self.input_nodes = pattern.input_nodes.copy()
         self.output_nodes = pattern.output_nodes.copy()
+        self.unmeasured_nodes = set() if classical_output else self.output_nodes
         self.input_state = [BasicStates.PLUS for _ in self.input_nodes] if input_state is None else list(input_state)
         self.protocol = protocol or FK12()
         self.parameters = parameters
@@ -181,7 +183,7 @@ class Client:
             self.secrets,
             self.graph,
             set(self.input_nodes),
-            set() if self.classical_output else set(self.output_nodes),
+            set(self.unmeasured_nodes),
             rng=rng,
         )
 
@@ -208,7 +210,7 @@ class Client:
         return list(self.graph.nodes)
 
     def _add_measurement_commands(self, pattern: Pattern) -> None:
-        for onode in self.output_nodes:
+        for onode in pattern.output_nodes:
             pattern.add(graphix.command.M(node=onode))
 
     def _copy_pattern(self) -> Pattern:
@@ -231,12 +233,21 @@ class Client:
                 self.secrets,
                 self.graph,
                 set(self.input_nodes),
-                set(self.output_nodes),
+                set(self.unmeasured_nodes),
                 rng=rng,
                 stacklevel=stacklevel + 1,
             )
 
     def get_computation_states(self) -> dict[int, State]:
+        """Return the (unblinded) state in which each node is prepared.
+
+        These states do not depend on the secrets: input nodes are prepared in
+        the specific input state desired by the Client, and every other node is
+        prepared in ``|+>`` by default. Because they are secret-independent, the
+        computation states never need to be refreshed; the secret-dependent
+        blinding is applied separately at the blindness level (see
+        :meth:`SecretDatas.blind_qubit`).
+        """
         states = dict()
         for node in self.graph.nodes:
             if node in self.input_nodes:
@@ -303,6 +314,15 @@ class Client:
         return traps_decision, computation_decision, result_analysis
 
     def decode_output_state(self, backend: Backend[_StateT]) -> None:
+        """Undo the blinding on a quantum output state held by the backend.
+
+        When the output is a classical bitstring, the ``r``/``a_N`` decryption is
+        applied automatically when storing each measurement outcome (see
+        :meth:`BlindMeasureMethod.store_measurement_outcome`). When the output is
+        a quantum state, no measurement happens on the output nodes, so the
+        one-time-pad has to be undone here by applying the byproduct corrections
+        computed in :meth:`decode_output`.
+        """
         for node in self.output_nodes:
             z_decoding, x_decoding = self.decode_output(node)
             if z_decoding:
@@ -311,6 +331,16 @@ class Client:
                 backend.correct_byproduct(command.X(node))
 
     def decode_output(self, node: int) -> tuple[int, int]:
+        """Compute the ``(Z, X)`` byproduct corrections to apply on an output node.
+
+        On top of the flow-induced byproduct (the sum over the ``z_domain`` /
+        ``x_domain`` dependencies), the blinding has to be undone:
+
+        - the ``Z`` correction absorbs the ``r`` one-time-pad (applied to every
+          node) and the ``a_N`` encryption (the ``X`` Pauli propagated from the
+          neighbours' ``a`` secrets through the entangling ``CZ``\\ s);
+        - the ``X`` correction absorbs the input node's own ``a`` encryption.
+        """
         z_decoding = sum(self.results[z_dep] for z_dep in self.byproduct_db[node].z_domain) % 2
         z_decoding ^= self.secret_datas.r.get(node, 0) ^ self.secret_datas.a.a_N.get(node, 0)
         x_decoding = sum(self.results[x_dep] for x_dep in self.byproduct_db[node].x_domain) % 2
@@ -342,6 +372,10 @@ class BlindMeasureMethod(MeasureMethod):
 
     @override
     def store_measurement_outcome(self, node: int, result: Outcome) -> None:
+        # The Server returns the outcome of the *blinded* measurement; the Client
+        # decrypts it with `xor r xor a_N` before storing it. `r` is the
+        # one-time-pad applied to every node and `a_N` is the X encryption
+        # propagated from the neighbours' `a` secrets.
         flip_value = self._client.secret_datas.r.get(node, 0) ^ self._client.secret_datas.a.a_N.get(node, 0)
         if flip_value:
             result = toggle_outcome(result)
@@ -365,7 +399,9 @@ class ClientMeasureMethod(BlindMeasureMethod):
         if t_signal:
             measurement = measurement.clifford(Clifford.Z)
         bloch = measurement.to_bloch()
-        # Blind the angle using the Client's secrets
+        # Compensate the blinding inside the measurement angle: the `a` encryption
+        # flips the angle sign (it commutes the X Pauli through the measurement)
+        # and the `theta` encryption is added back via `blind_angle`.
         angle = (-1) ** a_value * bloch.angle + self._client.secret_datas.blind_angle(cmd.node)
         return BlochMeasurement(angle, bloch.plane)
 
