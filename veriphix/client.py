@@ -90,11 +90,32 @@ def remove_flow(pattern: Pattern) -> Pattern:
     return clean_pattern
 
 
-def get_graph_clifford_structure(graph: nx.Graph[int]) -> stim.Tableau:
+# Single-qubit Clifford factors of ``Clifford.hsz`` mapped to their Stim gate
+# name. ``Clifford.I`` is a no-op and is therefore absent (skipped below).
+_CLIFFORD_TO_STIM_GATE = {Clifford.H: "H", Clifford.S: "S", Clifford.Z: "Z"}
+
+
+def get_graph_clifford_structure(graph: nx.Graph[int], pattern: Pattern | None = None) -> stim.Tableau:
+    """Stim tableau of the Clifford the server applies to the graph state.
+
+    The graph edges give the CZ layer. When ``pattern`` is provided, the
+    single-qubit Clifford byproducts left by ``perform_pauli_measurements`` as
+    ``C(node, clifford)`` commands (typically on output nodes) are composed on
+    top, so the common stabilizer of a test run is correct on those nodes as
+    well. Without this, a trap touching such a node is conjugated by an
+    incomplete structure and comes out non-deterministic (~0.5).
+    """
     circuit = stim.Circuit()
     for edge in graph.edges:
         i, j = edge
         circuit.append_from_stim_program_text(f"CZ {i} {j}")
+    if pattern is not None:
+        for cmd in pattern:
+            if cmd.kind == CommandKind.C:
+                for gate in reversed(cmd.clifford.hsz):
+                    stim_gate = _CLIFFORD_TO_STIM_GATE.get(gate)
+                    if stim_gate is not None:
+                        circuit.append(stim_gate, [cmd.node])
     return circuit.to_tableau()
 
 
@@ -160,7 +181,7 @@ class Client:
             self._add_measurement_commands(self.initial_pattern)
 
         self.graph = self.initial_pattern.extract_graph()
-        self.clifford_structure = get_graph_clifford_structure(self.graph)
+        self.clifford_structure = get_graph_clifford_structure(self.graph, self.initial_pattern)
 
     def create_blind_patterns(
         self,
