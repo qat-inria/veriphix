@@ -103,7 +103,7 @@ def qCircuit_predicate(output_string: str) -> bool:
 
 
 def _check_all_measurements_in_xy(pattern: Pattern) -> None:
-    for cmd_m in pattern.extract_measurement_commands().values():
+    for cmd_m in pattern.measurement_commands().values():
         plane = cmd_m.measurement.to_bloch().plane
         if plane != Plane.XY:
             raise ValueError(
@@ -159,7 +159,7 @@ class Client:
         if classical_output:
             self._add_measurement_commands(self.initial_pattern)
 
-        self.graph = self.initial_pattern.extract_graph()
+        self.graph = self.initial_pattern.graph()
         self.clifford_structure = get_graph_clifford_structure(self.graph)
 
     def create_blind_patterns(
@@ -222,7 +222,7 @@ class Client:
 
     def _get_measurement_db(self) -> dict[int, command.M]:
         copied_pattern = self._copy_pattern()
-        return copied_pattern.extract_measurement_commands()
+        return copied_pattern.measurement_commands()
 
     def refresh_randomness(self, rng: Generator | None = None, *, stacklevel: int = 1) -> None:
         "method to refresh random randomness using parameters from Client instantiation."

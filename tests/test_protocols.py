@@ -95,7 +95,7 @@ class TestProtocols:
         pattern = circuit.transpile().pattern
         pattern.standardize()
 
-        nodes = pattern.extract_nodes()
+        nodes = pattern.nodes()
 
         # initialise client
         protocol = FK12(manual_colouring=(set(nodes), set([next(iter(nodes))])))
