@@ -1,4 +1,4 @@
-graphix @ git+https://github.com/TeamGraphix/graphix.git
+graphix @ git+https://github.com/matulni/graphix.git@rename_methods
 stim>=1.13,<2
 
 # For sampling circuits
