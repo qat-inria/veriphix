@@ -18,7 +18,7 @@ from graphix.command import BaseCommand, BaseM, BaseN, CommandKind
 from graphix.measurements import BlochMeasurement, Measurement, toggle_outcome
 from graphix.pattern import Pattern
 from graphix.rng import ensure_rng
-from graphix.sim.statevec import Statevec
+from graphix.sim.statevec import Statevector
 from graphix.simulator import MeasureMethod, PrepareMethod
 from graphix.states import BasicStates, State
 from typing_extensions import override
@@ -195,7 +195,7 @@ class Client:
             self.test_pattern = self.clean_pattern
         self.computation_states = self.get_computation_states()
 
-        self.preparation_bank: dict[int, Statevec] = {}
+        self.preparation_bank: dict[int, Statevector] = {}
         self.prepare_method = ClientPrepareMethod(self.preparation_bank)
 
     def create_trappified_scheme(self, rng: Generator | None = None, *, stacklevel: int = 1) -> None:
@@ -264,7 +264,7 @@ class Client:
         """
         for node in states_dict:
             blinded_qubit_state = self.secret_datas.blind_qubit(node=node, state=states_dict[node])
-            self.preparation_bank[node] = Statevec(blinded_qubit_state)
+            self.preparation_bank[node] = Statevector(blinded_qubit_state)
 
     def prepare_states(self, backend: Backend[_StateT], states_dict: Mapping[int, State]) -> None:
         # Initializes the bank (all the nodes)
@@ -349,7 +349,7 @@ class Client:
 
 
 class ClientPrepareMethod(PrepareMethod):
-    def __init__(self, preparation_bank: dict[int, Statevec]) -> None:
+    def __init__(self, preparation_bank: dict[int, Statevector]) -> None:
         self.__preparation_bank = preparation_bank
 
     def prepare_node(self, backend: Backend[_StateT], node: int) -> None:
