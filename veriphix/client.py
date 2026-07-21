@@ -159,7 +159,8 @@ class Client:
         if classical_output:
             self._add_measurement_commands(self.initial_pattern)
 
-        self.graph = self.initial_pattern.graph()
+        og = self.initial_pattern.to_opengraph()
+        self.graph = og.graph
         self.clifford_structure = get_graph_clifford_structure(self.graph)
 
     def create_blind_patterns(
