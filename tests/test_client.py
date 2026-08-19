@@ -84,7 +84,7 @@ class TestClient:
             pattern = circuit.transpile().pattern
             pattern.standardize()
 
-            state = circuit.simulate_statevector().statevec
+            state = circuit.simulate().state
 
             backend = StatevectorBackend()
             # Initialize the client
@@ -118,7 +118,7 @@ class TestClient:
             blinded_simulation = backend.state
 
             # Clear simulation = no secret, just simulate the circuit defined above
-            clear_simulation = circuit.simulate_statevector().statevec
+            clear_simulation = circuit.simulate().state
 
             np.testing.assert_almost_equal(
                 np.abs(np.dot(blinded_simulation.psi.flatten().conjugate(), clear_simulation.psi.flatten())), 1
@@ -147,7 +147,7 @@ class TestClient:
             blinded_simulation = backend.state
 
             # Clear simulation = no secret, just simulate the circuit defined above
-            clear_simulation = circuit.simulate_statevector().statevec
+            clear_simulation = circuit.simulate().state
             np.testing.assert_almost_equal(
                 np.abs(np.dot(blinded_simulation.psi.flatten().conjugate(), clear_simulation.psi.flatten())), 1
             )
@@ -229,7 +229,7 @@ class TestClient:
             blinded_simulation = backend.state
 
             # Clear simulation = no secret, just simulate the circuit defined above
-            clear_simulation = circuit.simulate_statevector().statevec
+            clear_simulation = circuit.simulate().state
             np.testing.assert_almost_equal(
                 np.abs(np.dot(blinded_simulation.psi.flatten().conjugate(), clear_simulation.psi.flatten())), 1
             )
@@ -271,7 +271,7 @@ class TestClient:
         # of the usual [1, 2]).
         og = OpenGraph(graph=nx.path_graph(3), input_nodes=[], output_nodes=[2, 1], measurements={0: Measurement.X})
         pattern = og.to_pattern()
-        state_ref = pattern.simulate_pattern()
+        state_ref = pattern.simulate()
         backend = StatevectorBackend()
         secrets = Secrets()
         client = Client(pattern=pattern, secrets=secrets, classical_output=False, rng=fx_rng)
@@ -289,7 +289,7 @@ class TestClient:
             graph=nx.Graph([(0, 1)]), input_nodes=[0], output_nodes=[1], measurements={0: Measurement.XY(0.75)}
         )
         pattern = og.to_pattern()
-        state_ref = pattern.simulate_pattern()
+        state_ref = pattern.simulate()
         backend = StatevectorBackend()
         secrets = Secrets(a=True)
         fixed_rng = np.random.default_rng(3)
@@ -307,7 +307,7 @@ class TestClient:
             graph=nx.Graph([(0, 1)]), input_nodes=[], output_nodes=[1], measurements={0: Measurement.YZ(0.5)}
         )
         pattern = og.to_pattern()
-        state_ref = pattern.simulate_pattern()
+        state_ref = pattern.simulate()
         backend = StatevectorBackend()
         secrets = Secrets()
         with pytest.raises(ValueError, match="UBQC only works for measurements in plane XY"):

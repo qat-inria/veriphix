@@ -17,7 +17,7 @@ if TYPE_CHECKING:
     import numpy.typing as npt
     from graphix.fundamentals import Angle
     from graphix.measurements import Outcome
-    from graphix.sim.statevec import Statevec
+    from graphix.sim.statevec import Statevector
     from graphix.states import State
     from numpy.random import Generator
 
@@ -110,7 +110,7 @@ class SecretDatas:
         theta_value = self.theta.get(node, 0)
         return theta_value * ANGLE_PI / 4
 
-    def blind_qubit(self, node: int, state: State) -> Statevec:
+    def blind_qubit(self, node: int, state: State) -> Statevector:
         """Apply the secret-dependent blinding to a single prepared qubit.
 
         The unblinded ``state`` is the secret-independent computation state (the
