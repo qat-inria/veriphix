@@ -18,7 +18,7 @@ from graphix.command import BaseCommand, BaseM, BaseN, CommandKind
 from graphix.measurements import BlochMeasurement, Measurement, toggle_outcome
 from graphix.pattern import Pattern
 from graphix.rng import ensure_rng
-from graphix.sim.statevec import Statevec
+from graphix.sim.statevec import Statevector
 from graphix.simulator import MeasureMethod, PrepareMethod
 from graphix.states import BasicStates, State
 from typing_extensions import override
@@ -103,7 +103,7 @@ def qCircuit_predicate(output_string: str) -> bool:
 
 
 def _check_all_measurements_in_xy(pattern: Pattern) -> None:
-    for cmd_m in pattern.extract_measurement_commands().values():
+    for cmd_m in pattern.measurement_commands().values():
         plane = cmd_m.measurement.to_bloch().plane
         if plane != Plane.XY:
             raise ValueError(
@@ -159,7 +159,8 @@ class Client:
         if classical_output:
             self._add_measurement_commands(self.initial_pattern)
 
-        self.graph = self.initial_pattern.extract_graph()
+        og = self.initial_pattern.to_opengraph()
+        self.graph = og.graph
         self.clifford_structure = get_graph_clifford_structure(self.graph)
 
     def create_blind_patterns(
@@ -195,7 +196,7 @@ class Client:
             self.test_pattern = self.clean_pattern
         self.computation_states = self.get_computation_states()
 
-        self.preparation_bank: dict[int, Statevec] = {}
+        self.preparation_bank: dict[int, Statevector] = {}
         self.prepare_method = ClientPrepareMethod(self.preparation_bank)
 
     def create_trappified_scheme(self, rng: Generator | None = None, *, stacklevel: int = 1) -> None:
@@ -222,7 +223,7 @@ class Client:
 
     def _get_measurement_db(self) -> dict[int, command.M]:
         copied_pattern = self._copy_pattern()
-        return copied_pattern.extract_measurement_commands()
+        return copied_pattern.measurement_commands()
 
     def refresh_randomness(self, rng: Generator | None = None, *, stacklevel: int = 1) -> None:
         "method to refresh random randomness using parameters from Client instantiation."
@@ -264,7 +265,7 @@ class Client:
         """
         for node in states_dict:
             blinded_qubit_state = self.secret_datas.blind_qubit(node=node, state=states_dict[node])
-            self.preparation_bank[node] = Statevec(blinded_qubit_state)
+            self.preparation_bank[node] = Statevector(blinded_qubit_state)
 
     def prepare_states(self, backend: Backend[_StateT], states_dict: Mapping[int, State]) -> None:
         # Initializes the bank (all the nodes)
@@ -349,7 +350,7 @@ class Client:
 
 
 class ClientPrepareMethod(PrepareMethod):
-    def __init__(self, preparation_bank: dict[int, Statevec]) -> None:
+    def __init__(self, preparation_bank: dict[int, Statevector]) -> None:
         self.__preparation_bank = preparation_bank
 
     def prepare_node(self, backend: Backend[_StateT], node: int) -> None:
