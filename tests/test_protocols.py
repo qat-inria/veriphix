@@ -151,7 +151,7 @@ class TestProtocols:
             dtype=np.uint8,
         )
         mat = MatGF2(rows)
-        rank = mat.compute_rank()
+        rank = mat.rank()
 
         # Each connected component contributes one degree of freedom (its own "logical qubit"),
         # so the generators must span a space of dimension |V| - n_components.
