@@ -1,6 +1,9 @@
 import unittest
 
+import networkx as nx
 import numpy as np
+import pytest
+from graphix import Measurement, OpenGraph
 from graphix.measurements import Outcome
 from graphix.random_objects import rand_circuit
 from graphix.sim.statevec import StatevectorBackend
@@ -24,7 +27,6 @@ class TestClient:
         circuit = rand_circuit(nqubits, depth, fx_rng)
         pattern = circuit.transpile().pattern
         input_nodes = pattern.input_nodes.copy()
-        pattern.remove_pauli_measurements()
         pattern.standardize()
 
         states = [BasicStates.PLUS for _ in input_nodes]
@@ -83,11 +85,11 @@ class TestClient:
             pattern = circuit.transpile().pattern
             pattern.standardize()
 
-            state = circuit.simulate_statevector().statevec
+            state = circuit.simulate().state
 
             backend = StatevectorBackend()
             # Initialize the client
-            secrets = Secrets(r=True)
+            secrets = Secrets(r=True, a=False, theta=False)
             # Giving it empty will create a random secret
             client = Client(pattern=pattern, secrets=secrets, classical_output=False, rng=fx_rng)
             ComputationRun(client).delegate(backend, rng=fx_rng)
@@ -104,7 +106,7 @@ class TestClient:
             pattern = circuit.transpile().pattern
             pattern.standardize()
 
-            secrets = Secrets(theta=True)
+            secrets = Secrets(theta=True, a=False, r=False)
 
             # Create a |+> state for each input node
             states = [BasicStates.PLUS for node in pattern.input_nodes]
@@ -117,7 +119,7 @@ class TestClient:
             blinded_simulation = backend.state
 
             # Clear simulation = no secret, just simulate the circuit defined above
-            clear_simulation = circuit.simulate_statevector().statevec
+            clear_simulation = circuit.simulate().state
 
             np.testing.assert_almost_equal(
                 np.abs(np.dot(blinded_simulation.psi.flatten().conjugate(), clear_simulation.psi.flatten())), 1
@@ -133,7 +135,7 @@ class TestClient:
             pattern = circuit.transpile().pattern
             pattern.standardize()
 
-            secrets = Secrets(a=True)
+            secrets = Secrets(a=True, r=False, theta=False)
 
             # Create a |+> state for each input node
             states = [BasicStates.PLUS for __ in pattern.input_nodes]
@@ -146,7 +148,7 @@ class TestClient:
             blinded_simulation = backend.state
 
             # Clear simulation = no secret, just simulate the circuit defined above
-            clear_simulation = circuit.simulate_statevector().statevec
+            clear_simulation = circuit.simulate().state
             np.testing.assert_almost_equal(
                 np.abs(np.dot(blinded_simulation.psi.flatten().conjugate(), clear_simulation.psi.flatten())), 1
             )
@@ -169,7 +171,7 @@ class TestClient:
                 super().store_measurement_outcome(node, result)
 
         # Initialize the client
-        secrets = Secrets(r=True)
+        secrets = Secrets(r=True, a=False)
         # Giving it empty will create a random secret
         client = Client(pattern=pattern, measure_method_cls=CacheMeasureMethod, secrets=secrets, rng=fx_rng)
         backend = StatevectorBackend()
@@ -178,9 +180,9 @@ class TestClient:
         for measured_node in client.measurement_db:
             # Compare results on the client side and on the server side : should differ by r[node]
             result = client.results[measured_node]
-            client_r_secret = client.secret_datas.r[measured_node]
+            client_flip_value = client.secret_datas.r[measured_node] ^ client.secret_datas.a.a_N.get(measured_node, 0)
             server_result = server_results[measured_node]
-            assert result == (server_result + client_r_secret) % 2
+            assert result == (server_result + client_flip_value) % 2
 
     def test_qubits_preparation(self, fx_rng: Generator) -> None:
         nqubits = 2
@@ -228,7 +230,7 @@ class TestClient:
             blinded_simulation = backend.state
 
             # Clear simulation = no secret, just simulate the circuit defined above
-            clear_simulation = circuit.simulate_statevector().statevec
+            clear_simulation = circuit.simulate().state
             np.testing.assert_almost_equal(
                 np.abs(np.dot(blinded_simulation.psi.flatten().conjugate(), clear_simulation.psi.flatten())), 1
             )
@@ -253,14 +255,67 @@ class TestClient:
         circuit = rand_circuit(nqubits, depth, fx_rng)
         pattern = circuit.transpile().pattern
         client = Client(pattern=pattern, rng=fx_rng)
+        node_upper_bound = max(client.graph.nodes) + 1
         for node in client.graph.nodes:
-            x_string = PauliString(["X" if i == node else "I" for i in client.graph.nodes])
+            x_string = PauliString(node_upper_bound)
+            x_string[node] = "X"
             conjugated_string = client.clifford_structure.inverse()(x_string)
-            neighbors = set(client.graph.neighbors(node))
-            expected_conjugated_string = PauliString(
-                ["X" if i == node else "Z" if i in neighbors else "I" for i in client.graph.nodes]
-            )
+            expected_conjugated_string = PauliString(node_upper_bound)
+            expected_conjugated_string[node] = "X"
+            for i in client.graph.neighbors(node):
+                expected_conjugated_string[i] = "Z"
             assert conjugated_string == expected_conjugated_string
+
+    def test_reorder_output_nodes(self, fx_rng: Generator) -> None:
+        # Verify that the delegate simulation respects the
+        # non-standard ordering of output nodes (i.e., [2, 1] instead
+        # of the usual [1, 2]).
+        og = OpenGraph(graph=nx.path_graph(3), input_nodes=[], output_nodes=[2, 1], measurements={0: Measurement.X})
+        pattern = og.to_pattern()
+        state_ref = pattern.simulate()
+        backend = StatevectorBackend()
+        secrets = Secrets()
+        client = Client(pattern=pattern, secrets=secrets, classical_output=False, rng=fx_rng)
+        ComputationRun(client).delegate(backend, rng=fx_rng)
+        state_veriphix = backend.state
+        assert state_veriphix.isclose(state_ref)
+
+    def test_refresh_computation_states(self, fx_rng: Generator) -> None:
+        # Verify that the "computation states" are regenerated when
+        # `refresh_randomness` is called.
+        # In particular, if the initial secret and the refreshed one
+        # do not flip the input state in the same way, the computation
+        # states must be updated after the secret refresh.
+        og = OpenGraph(
+            graph=nx.Graph([(0, 1)]), input_nodes=[0], output_nodes=[1], measurements={0: Measurement.XY(0.75)}
+        )
+        pattern = og.to_pattern()
+        state_ref = pattern.simulate()
+        backend = StatevectorBackend()
+        secrets = Secrets(a=True)
+        fixed_rng = np.random.default_rng(3)
+        client = Client(pattern=pattern, secrets=secrets, classical_output=False, rng=fixed_rng)
+        old_a = client.secret_datas.a.a.get(0, 0)
+        ComputationRun(client).delegate(backend, rng=fixed_rng)
+        new_a = client.secret_datas.a.a.get(0, 0)
+        # fixed_rng is chosen to satisfy the following assertion.
+        assert old_a != new_a
+        state_veriphix = backend.state
+        assert state_veriphix.isclose(state_ref)
+
+    def test_reject_yz_measurement(self, fx_rng: Generator) -> None:
+        og = OpenGraph(
+            graph=nx.Graph([(0, 1)]), input_nodes=[], output_nodes=[1], measurements={0: Measurement.YZ(0.5)}
+        )
+        pattern = og.to_pattern()
+        state_ref = pattern.simulate()
+        backend = StatevectorBackend()
+        secrets = Secrets()
+        with pytest.raises(ValueError, match="UBQC only works for measurements in plane XY"):
+            client = Client(pattern=pattern, secrets=secrets, classical_output=False, rng=fx_rng)
+            ComputationRun(client).delegate(backend, rng=fx_rng)
+            state_veriphix = backend.state
+            assert state_veriphix.isclose(state_ref)
 
 
 if __name__ == "__main__":

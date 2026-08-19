@@ -44,7 +44,7 @@ class DephasingNoise(Noise):
         return 1
 
     @override
-    def to_kraus_channel(self) -> KrausChannel:
+    def to_krauschannel(self) -> KrausChannel:
         """Return the Kraus channel describing the noise element."""
         return dephasing_channel(self.prob)
 

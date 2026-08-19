@@ -65,8 +65,8 @@ class TestVBQC:
         pattern = circuit.transpile().pattern
 
         svbackend = StatevectorBackend()
-        simulated_pattern_output = pattern.simulate_pattern(backend=svbackend, rng=fx_rng)
-        simulated_circuit_output = circuit.simulate_statevector().statevec
+        simulated_pattern_output = pattern.simulate(backend=svbackend, rng=fx_rng)
+        simulated_circuit_output = circuit.simulate().state
 
         parameters = TrappifiedSchemeParameters(comp_rounds=10, test_rounds=10, threshold=0)
         client = Client(pattern=pattern, parameters=parameters, classical_output=False, rng=fx_rng)

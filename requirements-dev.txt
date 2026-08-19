@@ -1,5 +1,5 @@
 # Style
-ruff
+ruff==0.15.2
 
 # Typing
 mypy
