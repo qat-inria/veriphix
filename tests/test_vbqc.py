@@ -179,7 +179,7 @@ class TestVBQC:
                 measure_channel_prob=1,
             )
         elif noise_model_name == "malicious":
-            subset_size = int(fx_rng.integers(1, len(client.nodes)))
+            subset_size = fx_rng.integers(1, len(client.nodes))
             malicious_nodes = [int(node) for node in fx_rng.choice(client.nodes, size=subset_size, replace=False)]
 
             noise_model = MaliciousNoiseModel(
