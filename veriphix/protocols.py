@@ -212,7 +212,7 @@ def odd_pair_generators_bfs(
     list[GraphStabilizer]
         The R\\(u,w) generators, one per spanning-tree edge of odd-degree nodes.
     """
-    odd_nodes_set = {v for v in graph.nodes if graph.degree(v) % 2 == 1}
+    odd_nodes_set = {v for v, degree in graph.degree if degree % 2 == 1}
     visited: set[int] = set()
     pred: dict[int, int] = {}
     odd_source: dict[int, int] = {}
