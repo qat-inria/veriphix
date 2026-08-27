@@ -26,10 +26,9 @@ class TestClient:
         depth = 2
         circuit = rand_circuit(nqubits, depth, fx_rng)
         pattern = circuit.transpile().pattern
-        input_nodes = pattern.input_nodes.copy()
         pattern.standardize()
 
-        states = [BasicStates.PLUS for _ in input_nodes]
+        states = [BasicStates.PLUS for _ in pattern.input_nodes]
 
         secrets = Secrets(a=True, r=True, theta=True)
 
