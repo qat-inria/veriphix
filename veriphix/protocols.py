@@ -3,9 +3,14 @@ from __future__ import annotations
 import itertools
 from abc import ABC, abstractmethod
 from array import array
-from typing import TYPE_CHECKING
+from collections import deque
+from collections.abc import Callable
+from functools import reduce
+from operator import mul
+from typing import TYPE_CHECKING, TypeAlias
 
 import networkx as nx
+import stim
 from graphix.rng import ensure_rng
 from typing_extensions import override
 
@@ -21,6 +26,18 @@ if TYPE_CHECKING:
     from veriphix.client import Client
 
     _StateT = TypeVar("_StateT")
+
+
+class GraphStabilizer:
+    def __init__(self, node_indices: set[int], string: stim.PauliString) -> None:
+        self.node_indices = node_indices
+        self.string = string
+
+    def __mul__(self, other: GraphStabilizer) -> GraphStabilizer:
+        return GraphStabilizer(
+            node_indices=self.node_indices ^ other.node_indices,
+            string=self.string * other.string,
+        )
 
 
 class VerificationProtocol(ABC):
@@ -162,3 +179,113 @@ class RandomTraps(VerificationProtocol):
             test_runs.append(test_run)
 
         return test_runs
+
+
+# One way of searching for a pair of odd-degree nodes connected by even-degree nodes
+def odd_pair_generators_bfs(
+    graph: nx.Graph,
+    stabdict: dict[int, GraphStabilizer],
+    rfull: GraphStabilizer,
+) -> list[GraphStabilizer]:
+    """Find R\\(u,w) generators for all pairs of odd-degree nodes using a BFS spanning tree.
+
+    Builds a spanning tree of odd-degree nodes by doing BFS over the whole graph.
+    Even-degree nodes are traversed transparently; each time the BFS reaches a new
+    odd-degree node w from a current odd-degree source src, the path src→…→w (whose
+    interior nodes are all even-degree by BFS construction) defines one generator
+    R\\(src,w) = Rfull x S_src x … x S_w.
+
+    Produces exactly |odd|-1 generators per connected component, i.e. one per edge of
+    the spanning tree of odd-degree nodes. Time complexity: O(|V| + |E|).
+
+    Parameters
+    ----------
+    graph : nx.Graph
+        The resource graph.
+    stabdict : dict[int, GraphStabilizer]
+        Per-node canonical stabilizers S_v.
+    rfull : GraphStabilizer
+        Product of all S_v (Rfull).
+
+    Returns
+    -------
+    list[GraphStabilizer]
+        The R\\(u,w) generators, one per spanning-tree edge of odd-degree nodes.
+    """
+    odd_nodes_set = {v for v, degree in graph.degree if degree % 2 == 1}
+    visited: set[int] = set()
+    pred: dict[int, int] = {}
+    odd_source: dict[int, int] = {}
+    generators: list[GraphStabilizer] = []
+
+    for start in odd_nodes_set:
+        if start in visited:
+            continue
+        visited.add(start)
+        odd_source[start] = start
+        queue: deque[int] = deque([start])
+        while queue:
+            u = queue.popleft()
+            for w in graph.neighbors(u):
+                if w in visited:
+                    continue
+                pred[w] = u
+                visited.add(w)
+                queue.append(w)
+                if w in odd_nodes_set:
+                    odd_source[w] = w
+                    src = odd_source[u]
+                    path: list[int] = []
+                    node: int = w
+                    while node != src:
+                        path.append(node)
+                        node = pred[node]
+                    path.append(src)
+                    path.reverse()
+                    generators.append(reduce(mul, (stabdict[v] for v in path), rfull))
+                else:
+                    odd_source[w] = odd_source[u]
+
+    return generators
+
+
+OddPairGeneratorFn: TypeAlias = Callable[
+    [nx.Graph, dict[int, GraphStabilizer], GraphStabilizer],
+    list[GraphStabilizer],
+]
+
+
+class Dummyless(VerificationProtocol):
+    def __init__(self, odd_pair_generator: OddPairGeneratorFn = odd_pair_generators_bfs) -> None:
+        super().__init__()
+        self.odd_pair_generator = odd_pair_generator
+
+    @override
+    def create_test_runs(self, client: Client, rng: Generator | None = None, *, stacklevel: int = 1) -> list[TestRun]:
+        rng = ensure_rng(rng, stacklevel=stacklevel + 1)
+
+        # Step 0: build per-node GraphStabilizers (dict keyed by node id)
+        stabdict: dict[int, GraphStabilizer] = {
+            node: GraphStabilizer(
+                node_indices={node},
+                string=TestRun(client=client, traps=frozenset({frozenset({node})})).stabilizer,
+            )
+            for node in client.graph.nodes
+        }
+
+        # Step 1: Rfull = product of all S_v
+        n_qubits = len(client.clifford_structure)
+        identity = GraphStabilizer(node_indices=set(), string=stim.PauliString(n_qubits))
+        rfull: GraphStabilizer = reduce(mul, stabdict.values(), identity)
+
+        # (removing S_v leaves I at v and flips Z count on its neighbours — stays in I/X/Y)
+        # Step 2a: for each even-degree node v, R\v = Rfull * S_v
+        generators: list[GraphStabilizer] = [
+            rfull * stabdict[v] for v, degree in client.graph.degree if degree % 2 == 0
+        ]
+
+        # Step 2b: one R\(u,w) generator per odd-degree node pair
+        generators.extend(self.odd_pair_generator(client.graph, stabdict, rfull))
+
+        # Step 3: build TestRuns — each generator's node_indices form one multi-qubit trap
+        return [TestRun(client=client, traps=frozenset({frozenset(gs.node_indices)})) for gs in generators]

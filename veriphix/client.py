@@ -278,7 +278,7 @@ class Client:
     def sample_canvas(self, rng: Generator | None = None, *, stacklevel: int = 1) -> dict[int, Run]:
         rng = ensure_rng(rng, stacklevel=stacklevel + 1)
         N = self.trappifiedScheme.params.comp_rounds + self.trappifiedScheme.params.test_rounds
-        computation_rounds = set(rng.integers(N, size=self.trappifiedScheme.params.comp_rounds))
+        computation_rounds = set(rng.choice(N, size=self.trappifiedScheme.params.comp_rounds, replace=False))
 
         return {
             r: self.computationRun if r in computation_rounds else self.test_runs[rng.integers(len(self.test_runs))]
