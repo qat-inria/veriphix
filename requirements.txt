@@ -1,5 +1,5 @@
 graphix>=0.4
-stim>=1.13,<2
+stim>=1.16.0,<2
 
 # For sampling circuits
 gitpython
