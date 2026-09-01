@@ -279,6 +279,42 @@ class TestClient:
         state_veriphix = backend.state
         assert state_veriphix.isclose(state_ref)
 
+    def test_input_nodes_not_zero_based(self, fx_rng: Generator) -> None:
+        # Verify that the input states are dispatched by position in
+        # `input_nodes`, not by node label: here the only input node is
+        # labelled 1, so `input_state[0]` is the state it must be prepared in.
+        og = OpenGraph(graph=nx.Graph([(1, 2)]), input_nodes=[1], output_nodes=[2], measurements={1: Measurement.XY(0)})
+        pattern = og.to_pattern()
+        input_state = [BasicStates.ZERO]
+        state_ref = pattern.simulate(input_state=input_state, rng=fx_rng)
+        backend = StatevectorBackend()
+        secrets = Secrets()
+        client = Client(pattern=pattern, input_state=input_state, secrets=secrets, classical_output=False, rng=fx_rng)
+        ComputationRun(client).delegate(backend, rng=fx_rng)
+        state_veriphix = backend.state
+        assert state_veriphix.isclose(state_ref)
+
+    def test_reorder_input_nodes(self, fx_rng: Generator) -> None:
+        # Same as above, with input node labels that are in range but not
+        # sorted (i.e. [1, 0] instead of the usual [0, 1]): each input state
+        # must follow its position in `input_nodes`, so node 1 is prepared in
+        # |0> and node 0 in |+>. Indexing by label silently swaps the two.
+        og = OpenGraph(
+            graph=nx.Graph([(0, 2), (1, 3)]),
+            input_nodes=[1, 0],
+            output_nodes=[2, 3],
+            measurements={0: Measurement.XY(0), 1: Measurement.XY(0)},
+        )
+        pattern = og.to_pattern()
+        input_state = [BasicStates.ZERO, BasicStates.PLUS]
+        state_ref = pattern.simulate(input_state=input_state, rng=fx_rng)
+        backend = StatevectorBackend()
+        secrets = Secrets()
+        client = Client(pattern=pattern, input_state=input_state, secrets=secrets, classical_output=False, rng=fx_rng)
+        ComputationRun(client).delegate(backend, rng=fx_rng)
+        state_veriphix = backend.state
+        assert state_veriphix.isclose(state_ref)
+
     def test_refresh_computation_states(self, fx_rng: Generator) -> None:
         # Verify that the "computation states" are regenerated when
         # `refresh_randomness` is called.

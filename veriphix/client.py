@@ -5,12 +5,6 @@ from math import ceil
 from typing import TYPE_CHECKING, cast
 
 import graphix.command
-import graphix.ops
-import graphix.pattern
-import graphix.pauli
-import graphix.sim.base_backend
-import graphix.sim.statevec
-import graphix.simulator
 import stim
 from graphix import Plane, command
 from graphix.clifford import Clifford
@@ -249,11 +243,15 @@ class Client:
         blinding is applied separately at the blindness level (see
         :meth:`SecretDatas.blind_qubit`).
         """
+        # `input_state` is parallel to `input_nodes`, so an input node is prepared
+        # in the state at its *position* in `input_nodes`, not at its label.
+        # See test_input_nodes_not_zero_based and test_reorder_input_nodes.
+        input_index = {node: index for index, node in enumerate(self.input_nodes)}
         states = dict()
         for node in self.graph.nodes:
-            if node in self.input_nodes:
-                state = self.input_state[node]
-
+            index = input_index.get(node)
+            if index is not None:
+                state = self.input_state[index]
             else:
                 state = BasicStates.PLUS
             states[node] = state
