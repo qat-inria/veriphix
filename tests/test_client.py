@@ -265,6 +265,26 @@ class TestClient:
                 expected_conjugated_string[i] = "Z"
             assert conjugated_string == expected_conjugated_string
 
+    def test_isolated_node_clifford_structure(self, fx_rng: Generator) -> None:
+        # A node belonging to no edge must still be addressable in the graph's
+        # Clifford structure. stim sizes the tableau from the highest qubit index
+        # it sees, so an isolated highest-labelled node (here 2, an untouched
+        # identity wire) would otherwise be missing from the tableau, silently
+        # reducing its trap to the identity.
+        graph = nx.Graph([(0, 1)])
+        graph.add_node(2)
+        og = OpenGraph(graph=graph, input_nodes=[0, 2], output_nodes=[1, 2], measurements={0: Measurement.XY(0)})
+        pattern = og.to_pattern()
+        client = Client(pattern=pattern, classical_output=False, rng=fx_rng)
+        assert len(client.clifford_structure) == max(client.graph.nodes) + 1
+        for test_run in client.test_runs:
+            # every trap must actually constrain the nodes it claims to trap
+            for trap in test_run.traps:
+                assert any(test_run.stabilizer[node] != 0 for node in trap)
+            # and an honest server must pass every test run
+            trap_outcomes = test_run.delegate(backend=StatevectorBackend(), rng=fx_rng).trap_outcomes
+            assert sum(trap_outcomes.values()) == 0
+
     def test_reorder_output_nodes(self, fx_rng: Generator) -> None:
         # Verify that the delegate simulation respects the
         # non-standard ordering of output nodes (i.e., [2, 1] instead

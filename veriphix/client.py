@@ -86,6 +86,11 @@ def remove_flow(pattern: Pattern) -> Pattern:
 
 def get_graph_clifford_structure(graph: nx.Graph[int]) -> stim.Tableau:
     circuit = stim.Circuit()
+    # Declare every node before the edges: stim sizes the tableau from the
+    # highest qubit index it sees, so a node belonging to no edge would never be
+    # mentioned and the tableau would be too narrow to address it.
+    # See test_isolated_node_clifford_structure.
+    circuit.append("I", list(graph.nodes))
     for edge in graph.edges:
         i, j = edge
         circuit.append_from_stim_program_text(f"CZ {i} {j}")
