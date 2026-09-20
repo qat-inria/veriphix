@@ -271,7 +271,7 @@ class TestClient:
         # of the usual [1, 2]).
         og = OpenGraph(graph=nx.path_graph(3), input_nodes=[], output_nodes=[2, 1], measurements={0: Measurement.X})
         pattern = og.to_pattern()
-        state_ref = pattern.simulate()
+        state_ref = pattern.simulate(rng=fx_rng)
         backend = StatevectorBackend()
         secrets = Secrets()
         client = Client(pattern=pattern, secrets=secrets, classical_output=False, rng=fx_rng)
@@ -289,7 +289,7 @@ class TestClient:
             graph=nx.Graph([(0, 1)]), input_nodes=[0], output_nodes=[1], measurements={0: Measurement.XY(0.75)}
         )
         pattern = og.to_pattern()
-        state_ref = pattern.simulate()
+        state_ref = pattern.simulate(rng=fx_rng)
         backend = StatevectorBackend()
         secrets = Secrets(a=True)
         fixed_rng = np.random.default_rng(3)
@@ -304,10 +304,10 @@ class TestClient:
 
     def test_reject_yz_measurement(self, fx_rng: Generator) -> None:
         og = OpenGraph(
-            graph=nx.Graph([(0, 1)]), input_nodes=[], output_nodes=[1], measurements={0: Measurement.YZ(0.5)}
+            graph=nx.Graph([(0, 1)]), input_nodes=[], output_nodes=[1], measurements={0: Measurement.YZ(0.1)}
         )
         pattern = og.to_pattern()
-        state_ref = pattern.simulate()
+        state_ref = pattern.simulate(rng=fx_rng)
         backend = StatevectorBackend()
         secrets = Secrets()
         with pytest.raises(ValueError, match="UBQC only works for measurements in plane XY"):
