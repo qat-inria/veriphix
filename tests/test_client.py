@@ -160,7 +160,7 @@ class TestClient:
         circuit = rand_circuit(nqubits, depth, fx_rng)
         pattern = circuit.transpile().pattern
         pattern.standardize()
-        server_results = dict()
+        server_results = {}
 
         class CacheMeasureMethod(ClientMeasureMethod):
             @override
