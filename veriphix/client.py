@@ -56,7 +56,7 @@ class ByProduct:
 
 
 def get_byproduct_db(pattern: Pattern) -> dict[int, ByProduct]:
-    byproduct_db = dict()
+    byproduct_db = {}
     for node in pattern.output_nodes:
         byproduct_db[node] = ByProduct(z_domain=set(), x_domain=set())
 
@@ -249,7 +249,7 @@ class Client:
         blinding is applied separately at the blindness level (see
         :meth:`SecretDatas.blind_qubit`).
         """
-        states = dict()
+        states = {}
         for node in self.graph.nodes:
             if node in self.input_nodes:
                 state = self.input_state[node]
@@ -292,12 +292,12 @@ class Client:
         noise_model: NoiseModel | None = None,
         rng: Generator | None = None,
     ) -> dict[int, RunResult[_StateT]]:
-        outcomes = dict()
-        for r in canvas:
+        outcomes = {}
+        for r, run in canvas.items():
             backend = backend_cls()
             if isinstance(noise_model, MaliciousNoiseModel):
                 noise_model.refresh_randomness(rng=rng)
-            outcomes[r] = canvas[r].delegate(backend=backend, noise_model=noise_model, rng=rng)
+            outcomes[r] = run.delegate(backend=backend, noise_model=noise_model, rng=rng)
         return outcomes
 
     def analyze_outcomes(

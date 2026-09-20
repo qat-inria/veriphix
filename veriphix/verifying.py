@@ -94,7 +94,7 @@ def merge(strings: list[PauliString]) -> PauliString:
         common_string.sign *= strings[i].sign
         for j in range(l):
             if (common_string[j] != 0 and strings[i][j] != 0) and (common_string[j] != strings[i][j]):
-                raise Exception("Traps are not compatible.")
+                raise ValueError("Traps are not compatible.")
             if common_string[j] == 0 and strings[i][j] != 0:
                 common_string[j] = strings[i][j]
     return common_string
@@ -154,7 +154,7 @@ class TestRun(Run):
         )
         sim.run(input_state=None, rng=rng)
 
-        trap_outcomes = dict()
+        trap_outcomes = {}
         for trap in self.traps:
             outcomes = [self.client.results[component] for component in trap]
             trap_outcome = sum(outcomes) % 2 ^ (self.stabilizer.sign == -1)
@@ -184,7 +184,6 @@ class ClassicalComputationResult(ComputationResult[_StateT], Generic[_StateT]):
     def analyze(self, result_analysis: ResultAnalysis[_StateT], client: Client) -> None:
         output_string = "".join(str(int(v)) for v in self.outcomes.values())
         result_analysis.computation_count += client.output_predicate(output_string)
-        return
 
     def __str__(self) -> str:
         return f"""
@@ -192,7 +191,7 @@ class ClassicalComputationResult(ComputationResult[_StateT], Generic[_StateT]):
         """
 
 
-class QuantumComputationResult(Generic[_StateT], ComputationResult[_StateT]):
+class QuantumComputationResult(ComputationResult[_StateT], Generic[_StateT]):
     def __init__(self, output_state: _StateT):
         self.output_state = output_state
 
@@ -200,7 +199,7 @@ class QuantumComputationResult(Generic[_StateT], ComputationResult[_StateT]):
         result_analysis.quantum_output_states.append(self.output_state)
 
 
-class TestResult(Generic[_StateT], RunResult[_StateT]):
+class TestResult(RunResult[_StateT], Generic[_StateT]):
     def __init__(self, trap_outcomes: dict[frozenset[int], int]):
         self.trap_outcomes = trap_outcomes
         self.failed_round = False

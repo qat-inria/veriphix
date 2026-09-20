@@ -75,7 +75,7 @@ class TestProtocols:
         pattern.standardize()
 
         # initialise client
-        protocol = FK12(manual_colouring=(set([0]), set()))
+        protocol = FK12(manual_colouring=({0}, set()))
         client = Client(pattern=pattern, protocol=protocol, autogen=False, rng=fx_rng)
         client.preprocess_pattern()
         client.create_blind_patterns(rng=fx_rng)
@@ -96,7 +96,7 @@ class TestProtocols:
         nodes = pattern.nodes()
 
         # initialise client
-        protocol = FK12(manual_colouring=(set(nodes), set([next(iter(nodes))])))
+        protocol = FK12(manual_colouring=(set(nodes), {next(iter(nodes))}))
         client = Client(pattern=pattern, autogen=False, rng=fx_rng)
         client.preprocess_pattern()
         client.create_blind_patterns(rng=fx_rng)

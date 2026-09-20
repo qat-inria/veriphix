@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import itertools
 from abc import ABC, abstractmethod
 from array import array
 from collections import deque
@@ -17,7 +16,8 @@ from typing_extensions import override
 from veriphix.verifying import TestRun
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Iterable, Sequence
+    from collections.abc import Set as AbstractSet
     from typing import TypeVar
 
     from graphix import Pattern
@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 
     from veriphix.client import Client
 
-    _StateT = TypeVar("_StateT")
+    _T = TypeVar("_T")
 
 
 class GraphStabilizer:
@@ -102,9 +102,7 @@ class FK12(VerificationProtocol):
             if not color_union == set(client.graph.nodes):
                 raise ValueError("The provided colouring does not include all the nodes of the graph.")
             # check that colors are two by two disjoint
-            # if sets are disjoint, empty set from intersection is interpreted as False.
-            # so one non-empty set -> one True value -> use any()
-            if any([i & j for i, j in itertools.combinations(self.manual_colouring, 2)]):
+            if not disjoint_sets(self.manual_colouring):
                 raise ValueError(
                     "The provided colouring is not a proper colouring i.e the same node belongs to at least two colours."
                 )
@@ -123,6 +121,16 @@ class FK12(VerificationProtocol):
 
         # print(test_runs)
         return test_runs
+
+
+def disjoint_sets(sets: Iterable[AbstractSet[_T]]) -> bool:
+    """Check whether given sets are pairwise disjoint."""
+    seen: set[_T] = set()
+    for s in sets:
+        if seen & s:
+            return False
+        seen |= s
+    return True
 
 
 def get_bipartite_coloring(pattern: Pattern) -> tuple[set[int], set[int]]:
