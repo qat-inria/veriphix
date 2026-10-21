@@ -77,16 +77,13 @@ class CreateTestRunsMixin(ABC):
     """
 
     @abstractmethod
-    def create_test_runs(self, client: Client, rng: Generator | None = None, *, stacklevel: int = 1) -> list[TestRun]:
+    def create_test_runs(self, client: Client, *, stacklevel: int = 1) -> list[TestRun]:
         """Create test runs for the given client.
 
         Parameters
         ----------
         client : Client
             Client used to generate the test runs.
-        rng : Generator or None, optional
-            Random number generator used during test run generation. If
-            ``None``, a default generator is used.
         stacklevel : int, default=1
             Stack level to use when reporting the caller's location.
 
@@ -123,7 +120,7 @@ class CreateTestRunsMixin(ABC):
         rng = ensure_rng(rng)
         # TODO:
         # `create_test_runs` should be cached. This requires that all arguments are hashable. It should be possible when only a networkx graph is the only parameter.
-        test_runs = self.create_test_runs(client, rng, stacklevel=stacklevel + 1)
+        test_runs = self.create_test_runs(client, stacklevel=stacklevel + 1)
         return test_runs[rng.integers(len(test_runs))]
 
 
@@ -133,7 +130,7 @@ class FK12(CreateTestRunsMixin, VerificationProtocol):
         self.manual_colouring = manual_colouring
 
     @override
-    def create_test_runs(self, client: Client, rng: Generator | None = None, *, stacklevel: int = 1) -> list[TestRun]:
+    def create_test_runs(self, client: Client, *, stacklevel: int = 1) -> list[TestRun]:
         """Creates test runs according to a graph colouring according to [FK12].
         A test run, or a Trappified Canvas, is associated to each color in the colouring.
         For a given test run, the trap nodes are defined as being the nodes belonging to the color the run corresponds to.
@@ -349,9 +346,7 @@ class Dummyless(CreateTestRunsMixin, VerificationProtocol):
         self.odd_pair_generator = odd_pair_generator
 
     @override
-    def create_test_runs(self, client: Client, rng: Generator | None = None, *, stacklevel: int = 1) -> list[TestRun]:
-        rng = ensure_rng(rng, stacklevel=stacklevel + 1)
-
+    def create_test_runs(self, client: Client, *, stacklevel: int = 1) -> list[TestRun]:
         # Step 0: build per-node GraphStabilizers (dict keyed by node id)
         stabdict: dict[int, GraphStabilizer] = {
             node: GraphStabilizer(

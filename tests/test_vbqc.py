@@ -47,7 +47,7 @@ class TestVBQC:
         # use `client.protocol.create_test_runs`, but the type-checker would fail since
         # instances of VerificationProtocol don't need to implement `create_test_runs`
         protocol = FK12()
-        test_runs = protocol.create_test_runs(client, fx_rng)
+        test_runs = protocol.create_test_runs(client)
         for test_run in test_runs:
             backend = StatevectorBackend()
             trap_outcomes = test_run.delegate(backend=backend, rng=fx_rng).trap_outcomes
@@ -161,7 +161,7 @@ class TestVBQC:
         # use `client.protocol.create_test_runs`, but the type-checker would fail since
         # instances of VerificationProtocol don't need to implement `create_test_runs`
         protocol = FK12()
-        test_runs = protocol.create_test_runs(client, fx_rng)
+        test_runs = protocol.create_test_runs(client)
         for test_run in test_runs:
             client.refresh_randomness(rng=fx_rng)
             backend = DensityMatrixBackend()
@@ -206,7 +206,7 @@ class TestVBQC:
         # use `client.protocol.create_test_runs`, but the type-checker would fail since
         # instances of VerificationProtocol don't need to implement `create_test_runs`
         protocol = FK12()
-        test_runs = protocol.create_test_runs(client, fx_rng)
+        test_runs = protocol.create_test_runs(client)
 
         for test_run in test_runs:
             backend = DensityMatrixBackend()
