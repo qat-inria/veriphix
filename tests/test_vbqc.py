@@ -16,6 +16,7 @@ from graphix_qasm_parser import OpenQASMParser
 from veriphix.blinding import Secrets
 from veriphix.client import Client
 from veriphix.malicious_noise_model import MaliciousNoiseModel
+from veriphix.protocols import FK12
 from veriphix.verifying import QuantumComputationResult, TrappifiedSchemeParameters
 
 if TYPE_CHECKING:
@@ -42,7 +43,12 @@ class TestVBQC:
 
         secrets = Secrets(r=blind, a=blind, theta=blind)
         client = Client(pattern=pattern, secrets=secrets, rng=fx_rng)
-        for test_run in client.test_runs:
+        # FK12 is the default protocol for the client class, so we could equivalently
+        # use `client.protocol.create_test_runs`, but the type-checker would fail since
+        # instances of VerificationProtocol don't need to implement `create_test_runs`
+        protocol = FK12()
+        test_runs = protocol.create_test_runs(client, fx_rng)
+        for test_run in test_runs:
             backend = StatevectorBackend()
             trap_outcomes = test_run.delegate(backend=backend, rng=fx_rng).trap_outcomes
             assert sum(trap_outcomes.values()) == 0
@@ -151,7 +157,12 @@ class TestVBQC:
             z_error_prob=0,
             measure_channel_prob=0,
         )
-        for test_run in client.test_runs:
+        # FK12 is the default protocol for the client class, so we could equivalently
+        # use `client.protocol.create_test_runs`, but the type-checker would fail since
+        # instances of VerificationProtocol don't need to implement `create_test_runs`
+        protocol = FK12()
+        test_runs = protocol.create_test_runs(client, fx_rng)
+        for test_run in test_runs:
             client.refresh_randomness(rng=fx_rng)
             backend = DensityMatrixBackend()
             trap_outcomes = test_run.delegate(backend=backend, noise_model=noise_model, rng=fx_rng).trap_outcomes
@@ -191,8 +202,13 @@ class TestVBQC:
             raise ValueError(f"Unknown noise model: {noise_model_name}")
 
         failures = 0
+        # FK12 is the default protocol for the client class, so we could equivalently
+        # use `client.protocol.create_test_runs`, but the type-checker would fail since
+        # instances of VerificationProtocol don't need to implement `create_test_runs`
+        protocol = FK12()
+        test_runs = protocol.create_test_runs(client, fx_rng)
 
-        for test_run in client.test_runs:
+        for test_run in test_runs:
             backend = DensityMatrixBackend()
             client.refresh_randomness(rng=fx_rng)
 

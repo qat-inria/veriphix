@@ -41,12 +41,93 @@ class GraphStabilizer:
 
 
 class VerificationProtocol(ABC):
+    """Abstract base class for a verification protocol.
+
+    Subclasses must implement :meth:`sample_test_run` to produce a single
+    test run for the given client.
+    """
+
+    @abstractmethod
+    def sample_test_run(self, client: Client, rng: Generator | None = None, *, stacklevel: int = 1) -> TestRun:
+        """Sample a single test run.
+
+        Parameters
+        ----------
+        client : Client
+            Client used to generate the test run.
+        rng : Generator or None, optional
+            Random number generator used for sampling. If ``None``, a
+            default generator is used.
+        stacklevel : int, default=1
+            Stack level to use when reporting the caller's location.
+
+        Returns
+        -------
+        TestRun
+            The sampled test run.
+        """
+
+
+class CreateTestRunsMixin(ABC):
+    """Mixin for protocols for which it is feasible to generate all test runs.
+
+    Provides an implementation of :meth:`sample_test_run` that randomly
+    selects one test run from those returned by :meth:`create_test_runs`.
+    Subclasses must implement :meth:`create_test_runs`.
+    """
+
     @abstractmethod
     def create_test_runs(self, client: Client, rng: Generator | None = None, *, stacklevel: int = 1) -> list[TestRun]:
-        pass
+        """Create test runs for the given client.
+
+        Parameters
+        ----------
+        client : Client
+            Client used to generate the test runs.
+        rng : Generator or None, optional
+            Random number generator used during test run generation. If
+            ``None``, a default generator is used.
+        stacklevel : int, default=1
+            Stack level to use when reporting the caller's location.
+
+        Returns
+        -------
+        list of TestRun
+            The generated test runs. Must contain at least one test run
+            for :meth:`sample_test_run` to succeed.
+        """
+
+    def sample_test_run(self, client: Client, rng: Generator | None = None, *, stacklevel: int = 1) -> TestRun:
+        """Randomly sample one of the generated test runs.
+
+        Parameters
+        ----------
+        client : Client
+            Client used to generate the test runs.
+        rng : Generator or None, optional
+            Random number generator used to select a test run. If ``None``,
+            a default generator is used.
+        stacklevel : int, default=1
+            Stack level to use when reporting the caller's location.
+
+        Returns
+        -------
+        TestRun
+            A randomly selected test run.
+
+        Raises
+        ------
+        ValueError
+            If no test runs are generated.
+        """
+        rng = ensure_rng(rng)
+        # TODO:
+        # `create_test_runs` should be cached. This requires that all arguments are hashable. It should be possible when only a networkx graph is the only parameter.
+        test_runs = self.create_test_runs(client, rng, stacklevel=stacklevel + 1)
+        return test_runs[rng.integers(len(test_runs))]
 
 
-class FK12(VerificationProtocol):
+class FK12(CreateTestRunsMixin, VerificationProtocol):
     def __init__(self, manual_colouring: Sequence[set[int]] | None = None) -> None:
         super().__init__()
         self.manual_colouring = manual_colouring
@@ -119,7 +200,6 @@ class FK12(VerificationProtocol):
             test_run = TestRun(client=client, traps=traps)
             test_runs.append(test_run)
 
-        # print(test_runs)
         return test_runs
 
 
@@ -166,27 +246,27 @@ class RandomTraps(VerificationProtocol):
     A bad and naive way of generating traps, but exposing the modularity of the interface.
     """
 
-    def __init__(self) -> None:
-        super().__init__()
-
     @override
-    def create_test_runs(self, client: Client, rng: Generator | None = None, *, stacklevel: int = 1) -> list[TestRun]:
+    def sample_test_run(
+        self,
+        client: Client,
+        rng: Generator | None = None,
+        *,
+        stacklevel: int = 1,
+    ) -> TestRun:
         rng = ensure_rng(rng, stacklevel=stacklevel + 1)
-        test_runs = []
-        # Create 1 random trap per node
-        n = len(client.graph.nodes)
-        for _ in range(n):
-            # Choose a random subset of nodes to create a trap (random size, random nodes)
-            trap_size = rng.integers(n)
-            random_nodes = [client.nodes[i] for i in rng.choice(len(client.nodes), size=trap_size, replace=False)]
-            # Create a single-trap test round from it. The trap is multi-qubit.
-            random_multi_qubit_trap = frozenset(random_nodes)
-            # Only one trap
-            traps = frozenset({random_multi_qubit_trap})
-            test_run = TestRun(client=client, traps=traps)
-            test_runs.append(test_run)
+        nodes: list[int] = sorted(client.graph.nodes)
+        n = len(nodes)
+        bits = rng.integers(0, 2, size=n, dtype=bool)
+        if not bits.any():
+            bits[rng.integers(n)] = True
+        random_nodes: frozenset[int] = frozenset(node for node, b in zip(nodes, bits, strict=True) if b)
 
-        return test_runs
+        traps = frozenset({random_nodes})
+        return TestRun(
+            client=client,
+            traps=traps,
+        )
 
 
 # One way of searching for a pair of odd-degree nodes connected by even-degree nodes
@@ -263,7 +343,7 @@ OddPairGeneratorFn: TypeAlias = Callable[
 ]
 
 
-class Dummyless(VerificationProtocol):
+class Dummyless(CreateTestRunsMixin, VerificationProtocol):
     def __init__(self, odd_pair_generator: OddPairGeneratorFn = odd_pair_generators_bfs) -> None:
         super().__init__()
         self.odd_pair_generator = odd_pair_generator
