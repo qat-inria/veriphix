@@ -201,10 +201,7 @@ class Client:
 
     def create_trappified_scheme(self, rng: Generator | None = None, *, stacklevel: int = 1) -> None:
         self.computationRun = ComputationRun(self)
-        self.test_runs = self.protocol.create_test_runs(client=self, rng=rng, stacklevel=stacklevel + 1)
-        self.trappifiedScheme = TrappifiedScheme(
-            params=self.parameters or TrappifiedSchemeParameters(20, 20, 5), test_runs=self.test_runs
-        )
+        self.trappifiedScheme = TrappifiedScheme(params=self.parameters or TrappifiedSchemeParameters(20, 20, 5))
 
     @property
     def nodes(self) -> list[int]:
@@ -281,7 +278,9 @@ class Client:
         computation_rounds = set(rng.choice(N, size=self.trappifiedScheme.params.comp_rounds, replace=False))
 
         return {
-            r: self.computationRun if r in computation_rounds else self.test_runs[rng.integers(len(self.test_runs))]
+            r: self.computationRun
+            if r in computation_rounds
+            else self.protocol.sample_test_run(self, rng, stacklevel=stacklevel + 1)
             for r in range(N)
         }
 

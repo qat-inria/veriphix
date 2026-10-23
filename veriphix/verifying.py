@@ -226,7 +226,6 @@ class TrappifiedSchemeParameters:
 @dataclass
 class TrappifiedScheme:
     params: TrappifiedSchemeParameters
-    test_runs: list[TestRun]
 
 
 @dataclass
