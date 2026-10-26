@@ -224,11 +224,6 @@ class TrappifiedSchemeParameters:
 
 
 @dataclass
-class TrappifiedScheme:
-    params: TrappifiedSchemeParameters
-
-
-@dataclass
 class ResultAnalysis(Generic[_StateT]):
     nr_failed_test_rounds: int = 0
     # number of computation rounds for which the Client's predicate evaluated to True

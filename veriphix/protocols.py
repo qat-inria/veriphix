@@ -252,18 +252,18 @@ class RandomTraps(VerificationProtocol):
         stacklevel: int = 1,
     ) -> TestRun:
         rng = ensure_rng(rng, stacklevel=stacklevel + 1)
-        nodes: list[int] = sorted(client.graph.nodes)
+        nodes = client.graph.nodes
         n = len(nodes)
-        bits = rng.integers(0, 2, size=n, dtype=bool)
-        if not bits.any():
-            bits[rng.integers(n)] = True
+        # The probability of needing more than k iterations is 2**(-n * k),
+        # so the probability of iterating multiple times decreases exponentially.
+        while True:
+            bits = rng.integers(0, 2, size=n, dtype=bool)
+            if bits.any():
+                break
         random_nodes: frozenset[int] = frozenset(node for node, b in zip(nodes, bits, strict=True) if b)
 
         traps = frozenset({random_nodes})
-        return TestRun(
-            client=client,
-            traps=traps,
-        )
+        return TestRun(client=client, traps=traps)
 
 
 # One way of searching for a pair of odd-degree nodes connected by even-degree nodes
