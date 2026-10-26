@@ -17,6 +17,7 @@ from veriphix.blinding import Secrets
 from veriphix.client import Client
 from veriphix.malicious_noise_model import MaliciousNoiseModel
 from veriphix.verifying import QuantumComputationResult, TrappifiedSchemeParameters
+from veriphix.protocols import FK12, Dummyless, VerificationProtocol
 
 if TYPE_CHECKING:
     from graphix.measurements import Outcome
@@ -124,6 +125,36 @@ class TestVBQC:
 
             parameters = TrappifiedSchemeParameters(comp_rounds=20, test_rounds=20, threshold=5)
             client = Client(pattern=pattern, secrets=secrets, parameters=parameters, rng=fx_rng)
+
+            canvas = client.sample_canvas(rng=fx_rng)
+            outcomes = client.delegate_canvas(canvas=canvas, backend_cls=StatevectorBackend, rng=fx_rng)
+            decision, result, _ = client.analyze_outcomes(canvas, outcomes)
+            assert decision
+            assert result is not None
+            assert int(result) == find_correct_value(circuit_label)
+
+    @pytest.mark.parametrize("blind", (False, True))
+    @pytest.mark.parametrize("protocol", (FK12(), Dummyless()))
+    def test_BQP_with_adapted_threshold(self, fx_rng: Generator, blind: bool, protocol: VerificationProtocol) -> None:
+        bqp_error = 0.1
+        with Path("tests/test_circuits/table.json").open() as f:
+            table = json.load(f)
+            circuits = [name for name, prob in table.items()]
+        for circuit_label in circuits:
+            pattern = load_pattern_from_circuit(circuit_label=circuit_label)
+
+            secrets = Secrets(r=blind, a=blind, theta=blind)
+            # Pass protocol and BQP error to Client so it computes an adapted threshold
+            client = Client(pattern=pattern, secrets=secrets, protocol=protocol, rng=fx_rng, bqp_error=bqp_error)
+
+            # Verify threshold
+            assert (params := client.parameters) is not None
+            detection_rate = 1 / len(client.test_runs)
+            thresh_test = int(
+                params.test_rounds * detection_rate * (2 * bqp_error - 1) / (2 * bqp_error - 2)
+            )
+
+            assert params.threshold == thresh_test
 
             canvas = client.sample_canvas(rng=fx_rng)
             outcomes = client.delegate_canvas(canvas=canvas, backend_cls=StatevectorBackend, rng=fx_rng)
