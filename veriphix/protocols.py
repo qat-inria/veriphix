@@ -41,40 +41,7 @@ class GraphStabilizer:
 
 
 class VerificationProtocol(ABC):
-    """Abstract base class for a verification protocol.
-
-    Subclasses must implement :meth:`sample_test_run` to produce a single
-    test run for the given client.
-    """
-
-    @abstractmethod
-    def sample_test_run(self, client: Client, rng: Generator | None = None, *, stacklevel: int = 1) -> TestRun:
-        """Sample a single test run.
-
-        Parameters
-        ----------
-        client : Client
-            Client used to generate the test run.
-        rng : Generator or None, optional
-            Random number generator used for sampling. If ``None``, a
-            default generator is used.
-        stacklevel : int, default=1
-            Stack level to use when reporting the caller's location.
-
-        Returns
-        -------
-        TestRun
-            The sampled test run.
-        """
-
-
-class CreateTestRunsMixin(ABC):
-    """Mixin for protocols for which it is feasible to generate all test runs.
-
-    Provides an implementation of :meth:`sample_test_run` that randomly
-    selects one test run from those returned by :meth:`create_test_runs`.
-    Subclasses must implement :meth:`create_test_runs`.
-    """
+    """Abstract base class for a verification protocol."""
 
     @abstractmethod
     def create_test_runs(self, client: Client, *, stacklevel: int = 1) -> list[TestRun]:
@@ -116,6 +83,10 @@ class CreateTestRunsMixin(ABC):
         ------
         ValueError
             If no test runs are generated.
+
+        Notes
+        -----
+        Some subclasses may provide a more efficient implementation of this method. If they don't, it's advised that `create_test_runs` is hashed.
         """
         rng = ensure_rng(rng)
         # TODO:
@@ -124,7 +95,7 @@ class CreateTestRunsMixin(ABC):
         return test_runs[rng.integers(len(test_runs))]
 
 
-class FK12(CreateTestRunsMixin, VerificationProtocol):
+class FK12(VerificationProtocol):
     def __init__(self, manual_colouring: Sequence[set[int]] | None = None) -> None:
         super().__init__()
         self.manual_colouring = manual_colouring
@@ -357,7 +328,7 @@ OddPairGeneratorFn: TypeAlias = Callable[
 ]
 
 
-class Dummyless(CreateTestRunsMixin, VerificationProtocol):
+class Dummyless(VerificationProtocol):
     def __init__(self, odd_pair_generator: OddPairGeneratorFn = odd_pair_generators_bfs) -> None:
         super().__init__()
         self.odd_pair_generator = odd_pair_generator
