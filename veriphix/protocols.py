@@ -239,9 +239,25 @@ def get_node_positions(pattern: Pattern, scale: float = 1, reverse_qubit_order: 
 
 
 class RandomTraps(VerificationProtocol):
-    """
-    A bad and naive way of generating traps, but exposing the modularity of the interface.
-    """
+    def create_test_runs(self, client: Client, rng: Generator | None = None, *, stacklevel: int = 1) -> list[TestRun]:
+        """Naive implementation."""
+
+        rng = ensure_rng(rng, stacklevel=stacklevel + 1)
+        test_runs = []
+        # Create 1 random trap per node
+        n = len(client.graph.nodes)
+        for _ in range(n):
+            # Choose a random subset of nodes to create a trap (random size, random nodes)
+            trap_size = rng.integers(n)
+            random_nodes = [client.nodes[i] for i in rng.choice(len(client.nodes), size=trap_size, replace=False)]
+            # Create a single-trap test round from it. The trap is multi-qubit.
+            random_multi_qubit_trap = frozenset(random_nodes)
+            # Only one trap
+            traps = frozenset({random_multi_qubit_trap})
+            test_run = TestRun(client=client, traps=traps)
+            test_runs.append(test_run)
+
+        return test_runs
 
     @override
     def sample_test_run(
@@ -251,6 +267,7 @@ class RandomTraps(VerificationProtocol):
         *,
         stacklevel: int = 1,
     ) -> TestRun:
+        """Efficient implementation."""
         rng = ensure_rng(rng, stacklevel=stacklevel + 1)
         nodes = client.graph.nodes
         n = len(nodes)
