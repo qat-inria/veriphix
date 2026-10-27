@@ -77,7 +77,7 @@ def remove_flow(pattern: Pattern) -> Pattern:
             continue
         if cmd.kind == CommandKind.M:
             # If measure, remove measure parameters
-            new_cmd: BaseCommand = Command.BaseM(node=cmd.node)
+            new_cmd: BaseCommand = BaseM(node=cmd.node)
         else:
             new_cmd = cmd
         # The type annotations require the pattern to contain only
