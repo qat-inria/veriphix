@@ -4,13 +4,6 @@ from dataclasses import dataclass
 from math import ceil
 from typing import TYPE_CHECKING, cast
 
-import graphix.command
-import graphix.ops
-import graphix.pattern
-import graphix.pauli
-import graphix.sim.base_backend
-import graphix.sim.statevec
-import graphix.simulator
 import stim
 from graphix import Plane
 from graphix.clifford import Clifford
