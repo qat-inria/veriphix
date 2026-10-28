@@ -61,7 +61,7 @@ class TestProtocols:
         # fk_protocol = FK12(manual_colouring=colors) if manual else FK12()
         fk_protocol = FK12()
         client = Client(pattern=pattern, protocol=fk_protocol, rng=fx_rng)
-        assert client.test_runs != []
+        assert fk_protocol.create_test_runs(client=client) != []
 
     def test_create_test_run_manual_fail(self, fx_rng: Generator) -> None:
         """testing not all qubits in the manual colouring"""
@@ -131,7 +131,7 @@ class TestProtocols:
         protocol = Dummyless()
         client = Client(pattern=pattern, secrets=secrets, protocol=protocol, rng=fx_rng)
 
-        stabilizers = [run.stabilizer for run in client.test_runs]
+        stabilizers = [run.stabilizer for run in protocol.create_test_runs(client=client)]
         assert stabilizers, "no test runs generated"
 
         # Each stabilizer must be a tensor product of I, X, Y only (no Z)

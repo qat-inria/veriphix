@@ -41,9 +41,58 @@ class GraphStabilizer:
 
 
 class VerificationProtocol(ABC):
+    """Abstract base class for a verification protocol."""
+
     @abstractmethod
-    def create_test_runs(self, client: Client, rng: Generator | None = None, *, stacklevel: int = 1) -> list[TestRun]:
-        pass
+    def create_test_runs(self, client: Client, *, stacklevel: int = 1) -> list[TestRun]:
+        """Create test runs for the given client.
+
+        Parameters
+        ----------
+        client : Client
+            Client used to generate the test runs.
+        stacklevel : int, default=1
+            Stack level to use when reporting the caller's location.
+
+        Returns
+        -------
+        list of TestRun
+            The generated test runs. Must contain at least one test run
+            for :meth:`sample_test_run` to succeed.
+        """
+
+    def sample_test_run(self, client: Client, rng: Generator | None = None, *, stacklevel: int = 1) -> TestRun:
+        """Randomly sample one of the generated test runs.
+
+        Parameters
+        ----------
+        client : Client
+            Client used to generate the test runs.
+        rng : Generator or None, optional
+            Random number generator used to select a test run. If ``None``,
+            a default generator is used.
+        stacklevel : int, default=1
+            Stack level to use when reporting the caller's location.
+
+        Returns
+        -------
+        TestRun
+            A randomly selected test run.
+
+        Raises
+        ------
+        ValueError
+            If no test runs are generated.
+
+        Notes
+        -----
+        Some subclasses may provide a more efficient implementation of this method. If they don't, it's advised that `create_test_runs` is hashed.
+        """
+        rng = ensure_rng(rng)
+        # TODO:
+        # `create_test_runs` should be cached. This requires that all arguments are hashable. It should be possible when only a networkx graph is the only parameter.
+        test_runs = self.create_test_runs(client, stacklevel=stacklevel + 1)
+        return test_runs[rng.integers(len(test_runs))]
 
 
 class FK12(VerificationProtocol):
@@ -52,7 +101,7 @@ class FK12(VerificationProtocol):
         self.manual_colouring = manual_colouring
 
     @override
-    def create_test_runs(self, client: Client, rng: Generator | None = None, *, stacklevel: int = 1) -> list[TestRun]:
+    def create_test_runs(self, client: Client, *, stacklevel: int = 1) -> list[TestRun]:
         """Creates test runs according to a graph colouring according to [FK12].
         A test run, or a Trappified Canvas, is associated to each color in the colouring.
         For a given test run, the trap nodes are defined as being the nodes belonging to the color the run corresponds to.
@@ -119,7 +168,6 @@ class FK12(VerificationProtocol):
             test_run = TestRun(client=client, traps=traps)
             test_runs.append(test_run)
 
-        # print(test_runs)
         return test_runs
 
 
@@ -162,15 +210,9 @@ def get_node_positions(pattern: Pattern, scale: float = 1, reverse_qubit_order: 
 
 
 class RandomTraps(VerificationProtocol):
-    """
-    A bad and naive way of generating traps, but exposing the modularity of the interface.
-    """
-
-    def __init__(self) -> None:
-        super().__init__()
-
-    @override
     def create_test_runs(self, client: Client, rng: Generator | None = None, *, stacklevel: int = 1) -> list[TestRun]:
+        """Naive implementation."""
+
         rng = ensure_rng(rng, stacklevel=stacklevel + 1)
         test_runs = []
         # Create 1 random trap per node
@@ -187,6 +229,29 @@ class RandomTraps(VerificationProtocol):
             test_runs.append(test_run)
 
         return test_runs
+
+    @override
+    def sample_test_run(
+        self,
+        client: Client,
+        rng: Generator | None = None,
+        *,
+        stacklevel: int = 1,
+    ) -> TestRun:
+        """Efficient implementation."""
+        rng = ensure_rng(rng, stacklevel=stacklevel + 1)
+        nodes = client.graph.nodes
+        n = len(nodes)
+        # The probability of needing more than k iterations is 2**(-n * k),
+        # so the probability of iterating multiple times decreases exponentially.
+        while True:
+            bits = rng.integers(0, 2, size=n, dtype=bool)
+            if bits.any():
+                break
+        random_nodes: frozenset[int] = frozenset(node for node, b in zip(nodes, bits, strict=True) if b)
+
+        traps = frozenset({random_nodes})
+        return TestRun(client=client, traps=traps)
 
 
 # One way of searching for a pair of odd-degree nodes connected by even-degree nodes
@@ -269,9 +334,7 @@ class Dummyless(VerificationProtocol):
         self.odd_pair_generator = odd_pair_generator
 
     @override
-    def create_test_runs(self, client: Client, rng: Generator | None = None, *, stacklevel: int = 1) -> list[TestRun]:
-        rng = ensure_rng(rng, stacklevel=stacklevel + 1)
-
+    def create_test_runs(self, client: Client, *, stacklevel: int = 1) -> list[TestRun]:
         # Step 0: build per-node GraphStabilizers (dict keyed by node id)
         stabdict: dict[int, GraphStabilizer] = {
             node: GraphStabilizer(

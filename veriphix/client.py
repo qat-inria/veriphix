@@ -24,7 +24,6 @@ from veriphix.verifying import (
     ResultAnalysis,
     Run,
     RunResult,
-    TrappifiedScheme,
     TrappifiedSchemeParameters,
 )
 
@@ -135,7 +134,7 @@ class Client:
         self.unmeasured_nodes = set() if classical_output else self.output_nodes
         self.input_state = [BasicStates.PLUS for _ in self.input_nodes] if input_state is None else list(input_state)
         self.protocol = protocol or FK12()
-        self.parameters = parameters
+        self.parameters = parameters or TrappifiedSchemeParameters(20, 20, 5)
         self.results = {}
         if autogen:
             self.preprocess_pattern(classical_output=classical_output)
@@ -146,7 +145,7 @@ class Client:
                 rng=rng,
                 stacklevel=stacklevel + 1,
             )
-            self.create_trappified_scheme(rng=rng, stacklevel=stacklevel + 1)
+            self.computationRun = ComputationRun(self)
 
     def preprocess_pattern(self, classical_output: bool = True) -> None:
         if classical_output:
@@ -191,13 +190,6 @@ class Client:
 
         self.preparation_bank: dict[int, Statevector] = {}
         self.prepare_method = ClientPrepareMethod(self.preparation_bank)
-
-    def create_trappified_scheme(self, rng: Generator | None = None, *, stacklevel: int = 1) -> None:
-        self.computationRun = ComputationRun(self)
-        self.test_runs = self.protocol.create_test_runs(client=self, rng=rng, stacklevel=stacklevel + 1)
-        self.trappifiedScheme = TrappifiedScheme(
-            params=self.parameters or TrappifiedSchemeParameters(20, 20, 5), test_runs=self.test_runs
-        )
 
     @property
     def nodes(self) -> list[int]:
@@ -270,11 +262,13 @@ class Client:
 
     def sample_canvas(self, rng: Generator | None = None, *, stacklevel: int = 1) -> dict[int, Run]:
         rng = ensure_rng(rng, stacklevel=stacklevel + 1)
-        N = self.trappifiedScheme.params.comp_rounds + self.trappifiedScheme.params.test_rounds
-        computation_rounds = set(rng.choice(N, size=self.trappifiedScheme.params.comp_rounds, replace=False))
+        N = self.parameters.comp_rounds + self.parameters.test_rounds
+        computation_rounds = set(rng.choice(N, size=self.parameters.comp_rounds, replace=False))
 
         return {
-            r: self.computationRun if r in computation_rounds else self.test_runs[rng.integers(len(self.test_runs))]
+            r: self.computationRun
+            if r in computation_rounds
+            else self.protocol.sample_test_run(self, rng, stacklevel=stacklevel + 1)
             for r in range(N)
         }
 
@@ -301,9 +295,9 @@ class Client:
             outcomes[r].analyze(result_analysis=result_analysis, client=self)
 
         # True if Accept, False if Reject
-        traps_decision = result_analysis.nr_failed_test_rounds <= self.trappifiedScheme.params.threshold
+        traps_decision = result_analysis.nr_failed_test_rounds <= self.parameters.threshold
         # The Client decides that the instance passes the predicate if more than half of the test rounds did pass
-        computation_decision = result_analysis.computation_count >= ceil(self.trappifiedScheme.params.comp_rounds / 2)
+        computation_decision = result_analysis.computation_count >= ceil(self.parameters.comp_rounds / 2)
 
         return traps_decision, computation_decision, result_analysis
 
