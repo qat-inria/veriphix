@@ -4,17 +4,10 @@ from dataclasses import dataclass
 from math import ceil
 from typing import TYPE_CHECKING, cast
 
-import graphix.command
-import graphix.ops
-import graphix.pattern
-import graphix.pauli
-import graphix.sim.base_backend
-import graphix.sim.statevec
-import graphix.simulator
 import stim
-from graphix import Plane, command
+from graphix import Plane
 from graphix.clifford import Clifford
-from graphix.command import BaseCommand, BaseM, BaseN, CommandKind
+from graphix.command import BaseCommand, BaseM, BaseN, Command, CommandKind
 from graphix.measurements import BlochMeasurement, Measurement, toggle_outcome
 from graphix.pattern import Pattern
 from graphix.rng import ensure_rng
@@ -77,7 +70,7 @@ def remove_flow(pattern: Pattern) -> Pattern:
             continue
         if cmd.kind == CommandKind.M:
             # If measure, remove measure parameters
-            new_cmd: BaseCommand = graphix.command.BaseM(node=cmd.node)
+            new_cmd: BaseCommand = BaseM(node=cmd.node)
         else:
             new_cmd = cmd
         # The type annotations require the pattern to contain only
@@ -212,7 +205,7 @@ class Client:
 
     def _add_measurement_commands(self, pattern: Pattern) -> None:
         for onode in pattern.output_nodes:
-            pattern.add(graphix.command.M(node=onode))
+            pattern.add(Command.M(node=onode))
 
     def _copy_pattern(self) -> Pattern:
         pattern_copy = Pattern(self.initial_pattern.input_nodes)
@@ -221,7 +214,7 @@ class Client:
         pattern_copy.standardize()
         return pattern_copy
 
-    def _get_measurement_db(self) -> dict[int, command.M]:
+    def _get_measurement_db(self) -> dict[int, Command.M]:
         copied_pattern = self._copy_pattern()
         return copied_pattern.measurement_commands()
 
@@ -327,9 +320,9 @@ class Client:
         for node in self.output_nodes:
             z_decoding, x_decoding = self.decode_output(node)
             if z_decoding:
-                backend.correct_byproduct(command.Z(node))
+                backend.correct_byproduct(Command.Z(node, set()))
             if x_decoding:
-                backend.correct_byproduct(command.X(node))
+                backend.correct_byproduct(Command.X(node, set()))
 
     def decode_output(self, node: int) -> tuple[int, int]:
         """Compute the ``(Z, X)`` byproduct corrections to apply on an output node.
