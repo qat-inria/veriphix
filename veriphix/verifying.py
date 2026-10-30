@@ -223,11 +223,13 @@ class TrappifiedSchemeParameters:
     threshold: int  # threshold (nr of allowed test rounds failure)
 
     @staticmethod
-    def with_computed_threshold(comp_rounds: int, test_rounds: int, bqp_err: float, detection_rate: float) -> TrappifiedSchemeParameters:
+    def with_computed_threshold(
+        comp_rounds: int, test_rounds: int, bqp_err: float, detection_rate: float
+    ) -> TrappifiedSchemeParameters:
         """
-        Create a TrappifiedSchemeParameters instance with a threshold parameter computed based on the inherent error of 
+        Create a TrappifiedSchemeParameters instance with a threshold parameter computed based on the inherent error of
         a BQP computation and the number of test runs of a verification protocol.
-        
+
         Parameters
         ----------
         comp_rounds : int
@@ -243,7 +245,7 @@ class TrappifiedSchemeParameters:
         -------
         TrappifiedSchemeParameters
             Trappified scheme parameters with the threshold computed from ``bqp_err`` and ``detection_rate``.
-        
+
         """
         threshold = int(test_rounds * detection_rate * (2 * bqp_err - 1) / (2 * bqp_err - 2))
         return TrappifiedSchemeParameters(comp_rounds, test_rounds, threshold)
