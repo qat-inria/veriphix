@@ -227,8 +227,7 @@ class TrappifiedSchemeParameters:
         comp_rounds: int, test_rounds: int, bqp_err: float, detection_rate: float
     ) -> TrappifiedSchemeParameters:
         """
-        Create a TrappifiedSchemeParameters instance with a threshold parameter computed based on the inherent error of
-        a BQP computation and the number of test runs of a verification protocol.
+        Create a TrappifiedSchemeParameters instance with a threshold parameter computed based on the inherent error of a BQP computation and the detection rate of a verification protocol. The threshold is set to the highest integer value below the upper bound stated in Theorem 3 of [[LMK+21]](https://arxiv.org/abs/2109.04042).
 
         Parameters
         ----------
@@ -245,6 +244,10 @@ class TrappifiedSchemeParameters:
         -------
         TrappifiedSchemeParameters
             Trappified scheme parameters with the threshold computed from ``bqp_err`` and ``detection_rate``.
+
+        References
+        ----------
+        [LMK+21] Leichtle et al. (2021). Verifying BQP Computations on Noisy Devices with Minimal Overhead. https://arxiv.org/abs/2109.04042
 
         """
         threshold = int(test_rounds * detection_rate * (2 * bqp_err - 1) / (2 * bqp_err - 2))
