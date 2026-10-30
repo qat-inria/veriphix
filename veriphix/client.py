@@ -119,6 +119,7 @@ class Client:
         secrets: Secrets | None = None,
         parameters: TrappifiedSchemeParameters | None = None,
         protocol: VerificationProtocol | None = None,
+        bqp_error: float | None = None,
         autogen: bool = True,
         rng: Generator | None = None,
         *,
@@ -136,6 +137,7 @@ class Client:
         self.input_state = [BasicStates.PLUS for _ in self.input_nodes] if input_state is None else list(input_state)
         self.protocol = protocol or FK12()
         self.parameters = parameters
+        self.bqp_error = bqp_error
         self.results = {}
         if autogen:
             self.preprocess_pattern(classical_output=classical_output)
@@ -195,9 +197,20 @@ class Client:
     def create_trappified_scheme(self, rng: Generator | None = None, *, stacklevel: int = 1) -> None:
         self.computationRun = ComputationRun(self)
         self.test_runs = self.protocol.create_test_runs(client=self, rng=rng, stacklevel=stacklevel + 1)
-        self.trappifiedScheme = TrappifiedScheme(
-            params=self.parameters or TrappifiedSchemeParameters(20, 20, 5), test_runs=self.test_runs
-        )
+
+        if self.parameters is None:
+            self.parameters = (
+                TrappifiedSchemeParameters(20, 20, 5)
+                if self.bqp_error is None
+                else TrappifiedSchemeParameters.with_computed_threshold(
+                    comp_rounds=20,
+                    test_rounds=20,
+                    bqp_err=self.bqp_error,
+                    detection_rate=1 / len(self.test_runs),
+                )
+            )
+
+        self.trappifiedScheme = TrappifiedScheme(params=self.parameters, test_runs=self.test_runs)
 
     @property
     def nodes(self) -> list[int]:
