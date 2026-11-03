@@ -42,7 +42,8 @@ class TestVBQC:
 
         secrets = Secrets(r=blind, a=blind, theta=blind)
         client = Client(pattern=pattern, secrets=secrets, rng=fx_rng)
-        for test_run in client.test_runs:
+        test_runs = client.protocol.create_test_runs(client)
+        for test_run in test_runs:
             backend = StatevectorBackend()
             trap_outcomes = test_run.delegate(backend=backend, rng=fx_rng).trap_outcomes
             assert sum(trap_outcomes.values()) == 0
@@ -151,7 +152,8 @@ class TestVBQC:
             z_error_prob=0,
             measure_channel_prob=0,
         )
-        for test_run in client.test_runs:
+        test_runs = client.protocol.create_test_runs(client)
+        for test_run in test_runs:
             client.refresh_randomness(rng=fx_rng)
             backend = DensityMatrixBackend()
             trap_outcomes = test_run.delegate(backend=backend, noise_model=noise_model, rng=fx_rng).trap_outcomes
@@ -191,8 +193,9 @@ class TestVBQC:
             raise ValueError(f"Unknown noise model: {noise_model_name}")
 
         failures = 0
+        test_runs = client.protocol.create_test_runs(client)
 
-        for test_run in client.test_runs:
+        for test_run in test_runs:
             backend = DensityMatrixBackend()
             client.refresh_randomness(rng=fx_rng)
 
