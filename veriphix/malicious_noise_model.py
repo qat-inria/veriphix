@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from graphix.channels import KrausChannel, dephasing_channel
 from graphix.command import CommandKind
 from graphix.noise_models.noise_model import ApplyNoise, Noise, NoiseModel
+from graphix.repr_mixins import DataclassReprMixin
 from graphix.rng import ensure_rng
-from graphix.utils import Probability
+from graphix.utils import check_probability
 
 # override introduced in Python 3.12
 from typing_extensions import override
@@ -22,20 +24,21 @@ if TYPE_CHECKING:
     from numpy.random import Generator
 
 
-class DephasingNoise(Noise):
-    """One-qubit dephasing noise with probabibity ``prob``."""
+@dataclass(frozen=True, repr=False)
+class DephasingNoise(DataclassReprMixin, Noise):
+    """One-qubit dephasing noise with probability ``prob``.
 
-    prob = Probability()
+    Parameters
+    ----------
+    prob : float
+        Probability parameter of the noise, between 0 and 1.
+    """
 
-    def __init__(self, prob: float) -> None:
-        """Initialize one-qubit dephasing noise.
+    prob: float
 
-        Parameters
-        ----------
-        prob : float
-            Probability parameter of the noise, between 0 and 1.
-        """
-        self.prob = prob
+    def __post_init__(self) -> None:
+        """Check that ``prob`` is a probability."""
+        check_probability(self.prob)
 
     @property
     @override

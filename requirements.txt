@@ -1,4 +1,4 @@
-graphix>=0.4.1
+graphix @ git+https://github.com/thierry-martinez/graphix.git@fix-636
 stim>=1.16.0,<2
 
 # For sampling circuits
